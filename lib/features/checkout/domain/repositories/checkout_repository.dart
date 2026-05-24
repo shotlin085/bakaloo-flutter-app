@@ -1,0 +1,64 @@
+import 'package:dartz/dartz.dart';
+
+import 'package:bakaloo_flutter_app/core/errors/failure.dart';
+
+class PlaceOrderParams {
+  const PlaceOrderParams({
+    required this.addressId,
+    required this.paymentMethod,
+    this.couponCode,
+    this.deliveryNotes,
+  });
+
+  final String addressId;
+  final String paymentMethod;
+  final String? couponCode;
+  final String? deliveryNotes;
+
+  Map<String, dynamic> toJson() {
+    return <String, dynamic>{
+      'addressId': addressId,
+      'paymentMethod': paymentMethod,
+      'couponCode': couponCode,
+      'deliveryNotes': deliveryNotes,
+    }..removeWhere((key, value) => value == null);
+  }
+}
+
+class PlacedOrderEntity {
+  const PlacedOrderEntity({
+    required this.id,
+    required this.orderNumber,
+    required this.status,
+    required this.subtotal,
+    required this.discountAmount,
+    required this.deliveryFee,
+    required this.platformFee,
+    required this.totalAmount,
+    required this.paymentMethod,
+    required this.paymentStatus,
+    required this.createdAt,
+    this.couponCode,
+    this.estimatedDelivery,
+  });
+
+  final String id;
+  final String orderNumber;
+  final String status;
+  final double subtotal;
+  final double discountAmount;
+  final double deliveryFee;
+  final double platformFee;
+  final double totalAmount;
+  final String paymentMethod;
+  final String paymentStatus;
+  final DateTime createdAt;
+  final String? couponCode;
+  final DateTime? estimatedDelivery;
+}
+
+abstract class CheckoutRepository {
+  Future<Either<Failure, PlacedOrderEntity>> placeOrder(
+    PlaceOrderParams params,
+  );
+}

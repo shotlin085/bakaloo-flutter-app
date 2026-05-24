@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "268417469016",
+    "project_id": "grocery-shotlin",
+    "storage_bucket": "grocery-shotlin.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:268417469016:android:487039928a41d18710582d",
+        "android_client_info": {
+          "package_name": "com.bakaloo.bakaloo_flutter_app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBp4byrUr8x6Rl66ANboNZfxnzUhlFMrI4"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
