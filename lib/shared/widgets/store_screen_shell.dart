@@ -286,11 +286,6 @@ class _StoreScreenShellState extends ConsumerState<StoreScreenShell>
                                 );
                               },
                             ),
-
-                            // Store selector chips
-                            StoreSelectorRow(
-                              selectorTheme: chromeTheme.selectorTheme,
-                            ),
                           ],
                         ),
                       ),

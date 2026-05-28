@@ -40,7 +40,6 @@ import 'package:bakaloo_flutter_app/shared/widgets/home_header.dart';
 import 'package:bakaloo_flutter_app/shared/widgets/home_search_bar.dart';
 import 'package:bakaloo_flutter_app/shared/widgets/shared_painters.dart';
 import 'package:bakaloo_flutter_app/shared/widgets/skeleton_loader.dart';
-import 'package:bakaloo_flutter_app/shared/widgets/store_selector_row.dart';
 
 double _horizontalRailExtent(
   int index,
@@ -514,18 +513,6 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
             .select((theme) => theme.sections.topBar.textColor),
       ),
     );
-    final storeSelectorTheme = StoreSelectorTheme(
-      backgroundColor: ref.watch(
-        activeTabThemeProvider.select(
-          (theme) => theme.sections.storeSelector.backgroundColor,
-        ),
-      ),
-      activeChipColor: ref.watch(
-        activeTabThemeProvider.select(
-          (theme) => theme.sections.storeSelector.activeChipColor,
-        ),
-      ),
-    );
     final searchZoneTheme = SearchZoneTheme(
       backgroundColor: ref.watch(
         activeTabThemeProvider.select(
@@ -671,9 +658,6 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
                                         topBarTheme: topBarTheme,
                                       );
                                     },
-                                  ),
-                                  StoreSelectorRow(
-                                    selectorTheme: storeSelectorTheme,
                                   ),
                                 ],
                               ),
