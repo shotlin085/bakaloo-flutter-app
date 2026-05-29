@@ -25,6 +25,7 @@ class ProductCard extends StatefulWidget {
     this.showWishlist = false,
     this.onTap,
     this.onAdd,
+    this.onOptionsTap,
     super.key,
   });
 
@@ -34,6 +35,7 @@ class ProductCard extends StatefulWidget {
   final bool showWishlist;
   final VoidCallback? onTap;
   final VoidCallback? onAdd;
+  final VoidCallback? onOptionsTap;
 
   @override
   State<ProductCard> createState() => _ProductCardState();
@@ -152,6 +154,70 @@ class _ProductCardState extends State<ProductCard> {
                                       showWishlist: widget.showWishlist,
                                     ),
                                   ),
+                                // Origin badge (top-left)
+                                if (product.hasOriginTag && product.isImported)
+                                  Positioned(
+                                    top: 6.h,
+                                    left: 6.w,
+                                    child: Container(
+                                      padding: EdgeInsets.symmetric(
+                                        horizontal: 5.w,
+                                        vertical: 2.h,
+                                      ),
+                                      decoration: BoxDecoration(
+                                        color: const Color(0xFFFFF3E0),
+                                        borderRadius: BorderRadius.circular(4.r),
+                                        border: Border.all(
+                                          color: const Color(0xFFFFB74D),
+                                          width: 0.8,
+                                        ),
+                                      ),
+                                      child: Text(
+                                        'Imported',
+                                        style: TextStyle(
+                                          fontSize: 9.sp,
+                                          fontWeight: FontWeight.w600,
+                                          color: const Color(0xFFE65100),
+                                          height: 1.1,
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                // Food marker (bottom-left)
+                                if (product.hasFoodMarker)
+                                  Positioned(
+                                    bottom: 8.h,
+                                    left: 6.w,
+                                    child: Container(
+                                      width: 14.w,
+                                      height: 14.w,
+                                      decoration: BoxDecoration(
+                                        color: Colors.white,
+                                        borderRadius: BorderRadius.circular(3.r),
+                                        border: Border.all(
+                                          color: product.isVeg
+                                              ? const Color(0xFF2E7D32)
+                                              : product.isNonVeg
+                                                  ? const Color(0xFFC62828)
+                                                  : const Color(0xFFF9A825),
+                                          width: 1.5,
+                                        ),
+                                      ),
+                                      alignment: Alignment.center,
+                                      child: Container(
+                                        width: 7.w,
+                                        height: 7.w,
+                                        decoration: BoxDecoration(
+                                          shape: BoxShape.circle,
+                                          color: product.isVeg
+                                              ? const Color(0xFF2E7D32)
+                                              : product.isNonVeg
+                                                  ? const Color(0xFFC62828)
+                                                  : const Color(0xFFF9A825),
+                                        ),
+                                      ),
+                                    ),
+                                  ),
                                 Positioned(
                                   right: tightGrid ? 6.w : 8.w,
                                   bottom: tightGrid ? 6.h : 8.h,
@@ -161,6 +227,7 @@ class _ProductCardState extends State<ProductCard> {
                                     tight: tightGrid,
                                     product: product,
                                     onAdd: widget.onAdd,
+                                    onOptionsTap: widget.onOptionsTap,
                                   ),
                                 ),
                               ],
@@ -247,7 +314,9 @@ class _ProductCardState extends State<ProductCard> {
                               child: Row(
                                 children: <Widget>[
                                   Text(
-                                    '₹$offAmount OFF',
+                                    product.discountPercent > 0
+                                        ? '₹$offAmount OFF (${product.discountPercent}%)'
+                                        : '₹$offAmount OFF',
                                     style: TextStyle(
                                       fontSize: offFontSize,
                                       fontWeight: FontWeight.w700,
@@ -286,6 +355,68 @@ class _ProductCardState extends State<ProductCard> {
                               ),
                             ),
                           ),
+                          // Rating row
+                          if (product.hasRating)
+                            Padding(
+                              padding: EdgeInsets.fromLTRB(
+                                contentPadding,
+                                3.h,
+                                contentPadding,
+                                0,
+                              ),
+                              child: Row(
+                                children: <Widget>[
+                                  Icon(
+                                    Icons.star_rounded,
+                                    size: 12.sp,
+                                    color: const Color(0xFFFFA000),
+                                  ),
+                                  Gap(2.w),
+                                  Expanded(
+                                    child: Text(
+                                      product.formattedRating,
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: TextStyle(
+                                        fontSize: 10.sp,
+                                        fontWeight: FontWeight.w500,
+                                        color: const Color(0xFF666666),
+                                        height: 1.2,
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          // Delivery time row
+                          if (product.hasDeliveryTime)
+                            Padding(
+                              padding: EdgeInsets.fromLTRB(
+                                contentPadding,
+                                2.h,
+                                contentPadding,
+                                0,
+                              ),
+                              child: Row(
+                                children: <Widget>[
+                                  PhosphorIcon(
+                                    PhosphorIcons.clock(),
+                                    size: 11.sp,
+                                    color: const Color(0xFF888888),
+                                  ),
+                                  Gap(3.w),
+                                  Text(
+                                    product.formattedDeliveryTime,
+                                    style: TextStyle(
+                                      fontSize: 10.sp,
+                                      fontWeight: FontWeight.w400,
+                                      color: const Color(0xFF888888),
+                                      height: 1.2,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
                           Gap(2.h),
                           Padding(
                             padding: EdgeInsets.fromLTRB(
@@ -295,7 +426,7 @@ class _ProductCardState extends State<ProductCard> {
                               6.h,
                             ),
                             child: Text(
-                              product.unit,
+                              product.displayUnit,
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
                               style: AppTextStyles.bodySmall.copyWith(
@@ -431,6 +562,7 @@ class _IsolatedCartButton extends ConsumerWidget {
     required this.tight,
     required this.product,
     this.onAdd,
+    this.onOptionsTap,
   });
 
   final ProductCardStyle style;
@@ -438,6 +570,7 @@ class _IsolatedCartButton extends ConsumerWidget {
   final bool tight;
   final ProductEntity product;
   final VoidCallback? onAdd;
+  final VoidCallback? onOptionsTap;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -452,6 +585,7 @@ class _IsolatedCartButton extends ConsumerWidget {
       product: product,
       authGate: authGate,
       onAdd: onAdd,
+      onOptionsTap: onOptionsTap,
     );
   }
 }
@@ -465,6 +599,7 @@ class _ZeptoAddQtyButton extends ConsumerWidget {
     required this.product,
     required this.authGate,
     this.onAdd,
+    this.onOptionsTap,
   });
 
   final ProductCardStyle style;
@@ -474,6 +609,7 @@ class _ZeptoAddQtyButton extends ConsumerWidget {
   final ProductEntity product;
   final AuthGateController authGate;
   final VoidCallback? onAdd;
+  final VoidCallback? onOptionsTap;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -574,66 +710,90 @@ class _ZeptoAddQtyButton extends ConsumerWidget {
       );
     }
 
-    return Container(
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(8.r),
-        boxShadow: <BoxShadow>[
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.12),
-            blurRadius: 5,
-            offset: const Offset(0, 2),
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: <Widget>[
+        Container(
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(8.r),
+            boxShadow: <BoxShadow>[
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.12),
+                blurRadius: 5,
+                offset: const Offset(0, 2),
+              ),
+            ],
           ),
-        ],
-      ),
-      child: Material(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(8.r),
-        child: InkWell(
-          onTap: product.inStock
-              ? () async {
-                  final allowed = await authGate.protectAddToCart(
-                    context,
-                    product,
-                  );
-                  if (!allowed || !context.mounted) return;
-                  final result = await ref
-                      .read(cartProvider.notifier)
-                      .addItem(product.id, 1, product: product);
-                  if (!context.mounted) return;
-                  if (!result.isSuccess) {
-                    showCartSnackBar(context, result.failure!.message);
-                    return;
-                  }
-                  onAdd?.call();
-                }
-              : null,
-          borderRadius: BorderRadius.circular(8.r),
-          child: Container(
-            height: buttonHeight,
-            width:
-                style == ProductCardStyle.grid ? gridButtonWidth : buttonHeight,
-            decoration: BoxDecoration(
-              border: Border.all(color: pinkBorder, width: 1.5),
+          child: Material(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(8.r),
+            child: InkWell(
+              onTap: product.inStock
+                  ? () async {
+                      // If product has multiple options, open options sheet
+                      if (product.hasMultipleOptions && onOptionsTap != null) {
+                        onOptionsTap!.call();
+                        return;
+                      }
+                      final allowed = await authGate.protectAddToCart(
+                        context,
+                        product,
+                      );
+                      if (!allowed || !context.mounted) return;
+                      final result = await ref
+                          .read(cartProvider.notifier)
+                          .addItem(product.id, 1, product: product);
+                      if (!context.mounted) return;
+                      if (!result.isSuccess) {
+                        showCartSnackBar(context, result.failure!.message);
+                        return;
+                      }
+                      onAdd?.call();
+                    }
+                  : null,
               borderRadius: BorderRadius.circular(8.r),
+              child: Container(
+                height: buttonHeight,
+                width:
+                    style == ProductCardStyle.grid ? gridButtonWidth : buttonHeight,
+                decoration: BoxDecoration(
+                  border: Border.all(color: pinkBorder, width: 1.5),
+                  borderRadius: BorderRadius.circular(8.r),
+                ),
+                alignment: Alignment.center,
+                child: style == ProductCardStyle.grid
+                    ? Text(
+                        'ADD',
+                        style: TextStyle(
+                          color: pinkBorder,
+                          fontWeight: FontWeight.w700,
+                          fontSize: addFontSize,
+                        ),
+                      )
+                    : PhosphorIcon(
+                        PhosphorIcons.plus(PhosphorIconsStyle.bold),
+                        size: tight ? 15.0 : 18.0,
+                        color: pinkBorder,
+                      ),
+              ),
             ),
-            alignment: Alignment.center,
-            child: style == ProductCardStyle.grid
-                ? Text(
-                    'ADD',
-                    style: TextStyle(
-                      color: pinkBorder,
-                      fontWeight: FontWeight.w700,
-                      fontSize: addFontSize,
-                    ),
-                  )
-                : PhosphorIcon(
-                    PhosphorIcons.plus(PhosphorIconsStyle.bold),
-                    size: tight ? 15.0 : 18.0,
-                    color: pinkBorder,
-                  ),
           ),
         ),
-      ),
+        // "N options" label below ADD button
+        if (product.hasMultipleOptions)
+          Padding(
+            padding: EdgeInsets.only(top: 3.h),
+            child: Text(
+              '${product.optionCount} options',
+              style: TextStyle(
+                fontSize: 9.sp,
+                fontWeight: FontWeight.w500,
+                color: const Color(0xFF888888),
+                height: 1.1,
+              ),
+            ),
+          ),
+      ],
     );
   }
 }

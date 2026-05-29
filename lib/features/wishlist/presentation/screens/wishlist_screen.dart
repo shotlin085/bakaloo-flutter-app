@@ -9,6 +9,7 @@ import 'package:phosphor_flutter/phosphor_flutter.dart';
 import 'package:bakaloo_flutter_app/core/theme/app_colors.dart';
 import 'package:bakaloo_flutter_app/core/theme/app_text_styles.dart';
 import 'package:bakaloo_flutter_app/features/wishlist/presentation/providers/wishlist_provider.dart';
+import 'package:bakaloo_flutter_app/features/products/presentation/widgets/show_product_options.dart';
 import 'package:bakaloo_flutter_app/shared/widgets/product_card.dart';
 
 class WishlistScreen extends ConsumerWidget {
@@ -94,6 +95,9 @@ class WishlistScreen extends ConsumerWidget {
                   style: ProductCardStyle.grid,
                   showWishlist: true,
                   onTap: () => context.push('/product/${item.product.id}'),
+                  onOptionsTap: item.product.hasMultipleOptions
+                      ? () => showProductOptionsSheet(context, item.product)
+                      : null,
                 );
               },
             ),

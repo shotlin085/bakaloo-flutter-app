@@ -30,21 +30,31 @@ class CartRemoteDataSource {
   Future<CartModel> addItem({
     required String productId,
     required int quantity,
+    String? shopProductId,
   }) async {
-    final response = await _apiClient.addCartItem(<String, dynamic>{
+    final body = <String, dynamic>{
       'productId': productId,
       'quantity': quantity,
-    });
+    };
+    if (shopProductId != null) {
+      body['shopProductId'] = shopProductId;
+    }
+    final response = await _apiClient.addCartItem(body);
     return _parseCartResponse(response.data, ApiConstants.cartItems);
   }
 
   Future<CartModel> updateItem({
     required String productId,
     required int quantity,
+    String? shopProductId,
   }) async {
+    final body = <String, dynamic>{'quantity': quantity};
+    if (shopProductId != null) {
+      body['shopProductId'] = shopProductId;
+    }
     final response = await _apiClient.updateCartItem(
       productId,
-      <String, dynamic>{'quantity': quantity},
+      body,
     );
     return _parseCartResponse(
       response.data,
@@ -52,8 +62,11 @@ class CartRemoteDataSource {
     );
   }
 
-  Future<CartModel> removeItem(String productId) async {
-    final response = await _apiClient.removeCartItem(productId);
+  Future<CartModel> removeItem(String productId, {String? shopProductId}) async {
+    final response = await _apiClient.removeCartItem(
+      productId,
+      shopProductId: shopProductId,
+    );
     return _parseCartResponse(
       response.data,
       ApiConstants.cartItem(productId),

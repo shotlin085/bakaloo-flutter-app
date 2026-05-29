@@ -30,6 +30,7 @@ import 'package:bakaloo_flutter_app/features/products/domain/entities/product_en
 import 'package:bakaloo_flutter_app/shared/widgets/arched_product_layouts.dart';
 import 'package:bakaloo_flutter_app/shared/widgets/app_image.dart';
 import 'package:bakaloo_flutter_app/shared/widgets/product_card.dart';
+import 'package:bakaloo_flutter_app/features/products/presentation/widgets/show_product_options.dart';
 
 typedef SectionBuilder = Widget Function(
   SectionManifestEntry entry,
@@ -1177,6 +1178,9 @@ class _ManifestProductGridSection extends StatelessWidget {
                           width: cardWidth,
                           style: ProductCardStyle.grid,
                           onTap: () => context.push('/product/${product.id}'),
+                          onOptionsTap: product.hasMultipleOptions
+                              ? () => showProductOptionsSheet(context, product)
+                              : null,
                         ),
                       ),
                     )
@@ -1238,6 +1242,9 @@ class _ManifestHorizontalProductSection extends StatelessWidget {
                     width: 132,
                     style: ProductCardStyle.scroll,
                     onTap: () => context.push('/product/${product.id}'),
+                    onOptionsTap: product.hasMultipleOptions
+                        ? () => showProductOptionsSheet(context, product)
+                        : null,
                   ),
                 ),
               );

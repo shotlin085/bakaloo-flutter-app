@@ -9,7 +9,10 @@ class RemoveItemUseCase {
 
   final CartRepository _repository;
 
-  Future<Either<Failure, CartEntity>> call(String productId) {
-    return _repository.removeItem(productId);
+  Future<Either<Failure, CartEntity>> call(
+    String productId, {
+    String? shopProductId,
+  }) {
+    return _repository.removeItem(productId, shopProductId: shopProductId);
   }
 }

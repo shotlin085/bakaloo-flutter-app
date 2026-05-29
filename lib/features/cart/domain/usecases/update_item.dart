@@ -12,10 +12,12 @@ class UpdateItemUseCase {
   Future<Either<Failure, CartEntity>> call({
     required String productId,
     required int quantity,
+    String? shopProductId,
   }) {
     return _repository.updateItem(
       productId: productId,
       quantity: quantity,
+      shopProductId: shopProductId,
     );
   }
 }

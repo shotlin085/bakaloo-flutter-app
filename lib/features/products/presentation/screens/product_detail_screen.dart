@@ -16,6 +16,7 @@ import 'package:bakaloo_flutter_app/features/products/presentation/screens/produ
 import 'package:bakaloo_flutter_app/features/products/presentation/screens/product_detail_socket_delegate.dart';
 import 'package:bakaloo_flutter_app/features/products/presentation/screens/product_list_screen.dart';
 import 'package:bakaloo_flutter_app/features/products/presentation/widgets/product_bottom_bar.dart';
+import 'package:bakaloo_flutter_app/features/products/presentation/widgets/show_product_options.dart';
 import 'package:bakaloo_flutter_app/features/products/presentation/widgets/product_description_section.dart';
 import 'package:bakaloo_flutter_app/features/products/presentation/widgets/product_detail_loading_view.dart';
 import 'package:bakaloo_flutter_app/features/products/presentation/widgets/product_details_section.dart';
@@ -415,6 +416,11 @@ class _ProductDetailScreenState extends ConsumerState<ProductDetailScreen> {
   Future<void> _addToCart(ProductEntity product) async {
     if (!product.inStock) {
       showCartSnackBar(context, 'This product is currently unavailable.');
+      return;
+    }
+
+    if (product.hasMultipleOptions) {
+      showProductOptionsSheet(context, product);
       return;
     }
 

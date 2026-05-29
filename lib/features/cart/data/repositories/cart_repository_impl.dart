@@ -32,11 +32,13 @@ class CartRepositoryImpl implements CartRepository {
   Future<Either<Failure, CartEntity>> addToCart({
     required String productId,
     required int quantity,
+    String? shopProductId,
   }) async {
     try {
       final cart = await _remoteDataSource.addItem(
         productId: productId,
         quantity: quantity,
+        shopProductId: shopProductId,
       );
       return Right(cart.toEntity());
     } on DioException catch (error) {
@@ -52,11 +54,13 @@ class CartRepositoryImpl implements CartRepository {
   Future<Either<Failure, CartEntity>> updateItem({
     required String productId,
     required int quantity,
+    String? shopProductId,
   }) async {
     try {
       final cart = await _remoteDataSource.updateItem(
         productId: productId,
         quantity: quantity,
+        shopProductId: shopProductId,
       );
       return Right(cart.toEntity());
     } on DioException catch (error) {
@@ -69,9 +73,15 @@ class CartRepositoryImpl implements CartRepository {
   }
 
   @override
-  Future<Either<Failure, CartEntity>> removeItem(String productId) async {
+  Future<Either<Failure, CartEntity>> removeItem(
+    String productId, {
+    String? shopProductId,
+  }) async {
     try {
-      final cart = await _remoteDataSource.removeItem(productId);
+      final cart = await _remoteDataSource.removeItem(
+        productId,
+        shopProductId: shopProductId,
+      );
       return Right(cart.toEntity());
     } on DioException catch (error) {
       return Left(handleDioError(error));

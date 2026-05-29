@@ -24,6 +24,7 @@ import 'package:bakaloo_flutter_app/features/search/domain/entities/search_resul
 import 'package:bakaloo_flutter_app/features/search/presentation/providers/search_history_provider.dart';
 import 'package:bakaloo_flutter_app/features/search/presentation/providers/search_provider.dart';
 import 'package:bakaloo_flutter_app/routing/route_names.dart';
+import 'package:bakaloo_flutter_app/features/products/presentation/widgets/show_product_options.dart';
 import 'package:bakaloo_flutter_app/shared/widgets/product_card.dart';
 import 'package:bakaloo_flutter_app/shared/widgets/quantity_control.dart';
 import 'package:bakaloo_flutter_app/shared/widgets/skeleton_loader.dart';
@@ -946,6 +947,9 @@ class _NoResultsState extends StatelessWidget {
                 return ProductCard(
                   product: suggestions[index],
                   style: ProductCardStyle.scroll,
+                  onOptionsTap: suggestions[index].hasMultipleOptions
+                      ? () => showProductOptionsSheet(context, suggestions[index])
+                      : null,
                 );
               },
             ),

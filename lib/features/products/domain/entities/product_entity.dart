@@ -38,6 +38,19 @@ abstract class ProductEntity with _$ProductEntity {
     @Default(0.0) double avgRating,
     @Default(0) int ratingCount,
     @Default(true) bool isAuthentic,
+    // Phase 1/3: product family / option fields
+    String? productFamilyId,
+    String? familyName,
+    String? optionLabel,
+    @Default(1) int optionCount,
+    @Default(0) int optionSortOrder,
+    @Default(false) bool isDefaultOption,
+    @Default('NONE') String foodType,
+    @Default('NONE') String originTag,
+    @Default(<String>[]) List<String> customBadges,
+    int? displayDeliveryMinutes,
+    String? shopProductId,
+    String? shopId,
   }) = _ProductEntity;
 
   bool get isOnSale =>
@@ -57,6 +70,31 @@ abstract class ProductEntity with _$ProductEntity {
 
   bool get hasVendorDetails => vendorName != null && vendorName!.isNotEmpty;
 
+  bool get hasMultipleOptions => optionCount > 1;
+
+  bool get isVeg => foodType == 'VEG';
+
+  bool get isNonVeg => foodType == 'NON_VEG';
+
+  bool get isEgg => foodType == 'EGG';
+
+  bool get hasFoodMarker => foodType != 'NONE';
+
+  bool get isImported => originTag == 'IMPORTED';
+
+  bool get isLocal => originTag == 'LOCAL';
+
+  bool get hasOriginTag => originTag != 'NONE';
+
+  bool get hasBadges => customBadges.isNotEmpty;
+
+  bool get hasDeliveryTime => displayDeliveryMinutes != null && displayDeliveryMinutes! > 0;
+
+  bool get hasRating => avgRating > 0 && ratingCount > 0;
+
+  /// Display label for the option/unit row. Priority: optionLabel > netQuantity > unit.
+  String get displayUnit => optionLabel ?? netQuantity ?? unit;
+
   String get formattedRating {
     if (avgRating <= 0) return '';
     final count = ratingCount >= 1000
@@ -70,5 +108,15 @@ abstract class ProductEntity with _$ProductEntity {
   int get discountPercent {
     if (salePrice == null || salePrice! >= price) return 0;
     return (((price - salePrice!) / price) * 100).round();
+  }
+
+  double get discountAmount {
+    if (salePrice == null || salePrice! >= price) return 0;
+    return price - salePrice!;
+  }
+
+  String get formattedDeliveryTime {
+    if (displayDeliveryMinutes == null || displayDeliveryMinutes! <= 0) return '';
+    return '${displayDeliveryMinutes!} mins';
   }
 }

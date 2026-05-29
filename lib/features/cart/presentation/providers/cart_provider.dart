@@ -102,6 +102,7 @@ class CartNotifier extends _$CartNotifier {
     String productId,
     int quantity, {
     ProductEntity? product,
+    String? shopProductId,
   }) async {
     if (!_isAuthenticated) {
       return const CartActionResult(
@@ -123,6 +124,7 @@ class CartNotifier extends _$CartNotifier {
     final result = await ref.read(addToCartUseCaseProvider).call(
           productId: productId,
           quantity: sanitizedQuantity,
+          shopProductId: shopProductId,
         );
 
     return result.fold(
@@ -151,8 +153,9 @@ class CartNotifier extends _$CartNotifier {
 
   Future<CartActionResult> updateItem(
     String productId,
-    int quantity,
-  ) async {
+    int quantity, {
+    String? shopProductId,
+  }) async {
     if (!_isAuthenticated) {
       return const CartActionResult(
         failure: AuthFailure(message: 'Please log in to update your cart.'),
@@ -172,6 +175,7 @@ class CartNotifier extends _$CartNotifier {
     final result = await ref.read(updateCartItemUseCaseProvider).call(
           productId: productId,
           quantity: sanitizedQuantity,
+          shopProductId: shopProductId,
         );
 
     return result.fold(
@@ -186,7 +190,10 @@ class CartNotifier extends _$CartNotifier {
     );
   }
 
-  Future<CartActionResult> removeItem(String productId) async {
+  Future<CartActionResult> removeItem(
+    String productId, {
+    String? shopProductId,
+  }) async {
     if (!_isAuthenticated) {
       return const CartActionResult(
         failure: AuthFailure(message: 'Please log in to update your cart.'),
@@ -202,8 +209,9 @@ class CartNotifier extends _$CartNotifier {
       ),
     );
 
-    final result =
-        await ref.read(removeCartItemUseCaseProvider).call(productId);
+    final result = await ref
+        .read(removeCartItemUseCaseProvider)
+        .call(productId, shopProductId: shopProductId);
 
     return result.fold(
       (failure) {

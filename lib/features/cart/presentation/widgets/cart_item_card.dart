@@ -88,9 +88,22 @@ class CartItemCard extends StatelessWidget {
                       fontFamily: 'Inter',
                     ),
                   ),
+                  if (item.optionLabel != null && item.optionLabel!.isNotEmpty)
+                    Padding(
+                      padding: EdgeInsets.only(top: 2.h),
+                      child: Text(
+                        item.optionLabel!,
+                        style: TextStyle(
+                          fontSize: 11.sp,
+                          fontWeight: FontWeight.w500,
+                          color: const Color(0xFF666666),
+                          fontFamily: 'Inter',
+                        ),
+                      ),
+                    ),
                   SizedBox(height: 4.h),
                   Text(
-                    item.unit ?? '1 unit',
+                    item.optionLabel ?? item.unit ?? '1 unit',
                     style: TextStyle(
                       fontSize: 12.sp,
                       fontWeight: FontWeight.w400,

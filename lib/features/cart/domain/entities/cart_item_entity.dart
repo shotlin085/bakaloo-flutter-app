@@ -15,6 +15,12 @@ abstract class CartItemEntity with _$CartItemEntity {
     double? salePrice,
     String? unit,
     String? thumbnailUrl,
+    String? shopProductId,
+    String? shopId,
+    String? optionLabel,
+    String? familyName,
+    String? foodType,
+    String? originTag,
   }) = _CartItemEntity;
 
   double get effectivePrice {

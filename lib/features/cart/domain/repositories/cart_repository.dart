@@ -21,14 +21,19 @@ abstract class CartRepository {
   Future<Either<Failure, CartEntity>> addToCart({
     required String productId,
     required int quantity,
+    String? shopProductId,
   });
 
   Future<Either<Failure, CartEntity>> updateItem({
     required String productId,
     required int quantity,
+    String? shopProductId,
   });
 
-  Future<Either<Failure, CartEntity>> removeItem(String productId);
+  Future<Either<Failure, CartEntity>> removeItem(
+    String productId, {
+    String? shopProductId,
+  });
 
   Future<Either<Failure, void>> clearCart();
 

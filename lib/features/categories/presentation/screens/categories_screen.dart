@@ -14,6 +14,7 @@ import 'package:bakaloo_flutter_app/features/categories/presentation/providers/c
 import 'package:bakaloo_flutter_app/features/products/domain/entities/product_entity.dart';
 import 'package:bakaloo_flutter_app/shared/widgets/empty_state.dart';
 import 'package:bakaloo_flutter_app/shared/widgets/error_state.dart';
+import 'package:bakaloo_flutter_app/features/products/presentation/widgets/show_product_options.dart';
 import 'package:bakaloo_flutter_app/shared/widgets/product_card.dart';
 import 'package:bakaloo_flutter_app/shared/widgets/skeleton_loader.dart';
 
@@ -538,6 +539,9 @@ class _CategoryProductPane extends StatelessWidget {
                           width: constraints.maxWidth,
                           style: ProductCardStyle.grid,
                           onTap: () => context.push('/product/${product.id}'),
+                          onOptionsTap: product.hasMultipleOptions
+                              ? () => showProductOptionsSheet(context, product)
+                              : null,
                         ),
                         builder: (context, value, child) {
                           return Opacity(

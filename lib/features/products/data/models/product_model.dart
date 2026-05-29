@@ -33,6 +33,13 @@ Map<String, dynamic>? _productMapFromJson(Object? value) {
   return null;
 }
 
+List<String> _badgesFromJson(Object? value) {
+  if (value is List) {
+    return value.whereType<String>().toList();
+  }
+  return <String>[];
+}
+
 @freezed
 abstract class ProductModel with _$ProductModel {
   const ProductModel._();
@@ -73,6 +80,21 @@ abstract class ProductModel with _$ProductModel {
     double avgRating,
     @JsonKey(name: 'rating_count') @Default(0) int ratingCount,
     @JsonKey(name: 'is_authentic') @Default(true) bool isAuthentic,
+    // Phase 1/3: product family / option fields
+    @JsonKey(name: 'product_family_id') String? productFamilyId,
+    @JsonKey(name: 'family_name') String? familyName,
+    @JsonKey(name: 'option_label') String? optionLabel,
+    @JsonKey(name: 'option_count') @Default(1) int optionCount,
+    @JsonKey(name: 'option_sort_order') @Default(0) int optionSortOrder,
+    @JsonKey(name: 'is_default_option') @Default(false) bool isDefaultOption,
+    @JsonKey(name: 'food_type') @Default('NONE') String foodType,
+    @JsonKey(name: 'origin_tag') @Default('NONE') String originTag,
+    @JsonKey(name: 'custom_badges', fromJson: _badgesFromJson)
+    @Default(<String>[])
+    List<String> customBadges,
+    @JsonKey(name: 'display_delivery_minutes') int? displayDeliveryMinutes,
+    @JsonKey(name: 'shop_product_id') String? shopProductId,
+    @JsonKey(name: 'shop_id') String? shopId,
   }) = _ProductModel;
 
   factory ProductModel.fromJson(Map<String, dynamic> json) =>
@@ -124,6 +146,19 @@ abstract class ProductModel with _$ProductModel {
       avgRating: avgRating,
       ratingCount: ratingCount,
       isAuthentic: isAuthentic,
+      // Phase 1/3: option/family fields
+      productFamilyId: productFamilyId,
+      familyName: familyName,
+      optionLabel: optionLabel,
+      optionCount: optionCount,
+      optionSortOrder: optionSortOrder,
+      isDefaultOption: isDefaultOption,
+      foodType: foodType,
+      originTag: originTag,
+      customBadges: customBadges,
+      displayDeliveryMinutes: displayDeliveryMinutes,
+      shopProductId: shopProductId,
+      shopId: shopId,
     );
   }
 }

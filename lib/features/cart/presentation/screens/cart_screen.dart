@@ -303,19 +303,21 @@ class _CartScreenState extends ConsumerState<CartScreen> {
                 context,
                 item.productId,
                 item.quantity + 1,
+                shopProductId: item.shopProductId,
               ),
               onDecrease: () {
                 if (item.quantity <= 1) {
-                  _removeItem(context, item.productId);
+                  _removeItem(context, item.productId, shopProductId: item.shopProductId);
                   return;
                 }
                 _updateItemQuantity(
                   context,
                   item.productId,
                   item.quantity - 1,
+                  shopProductId: item.shopProductId,
                 );
               },
-              onRemove: () => _removeItem(context, item.productId),
+              onRemove: () => _removeItem(context, item.productId, shopProductId: item.shopProductId),
             ),
             if (index != items.length - 1)
               Padding(
@@ -431,8 +433,8 @@ class _CartScreenState extends ConsumerState<CartScreen> {
     ref.read(addressProvider.notifier).refresh();
   }
 
-  Future<void> _removeItem(BuildContext context, String productId) async {
-    final result = await ref.read(cartProvider.notifier).removeItem(productId);
+  Future<void> _removeItem(BuildContext context, String productId, {String? shopProductId}) async {
+    final result = await ref.read(cartProvider.notifier).removeItem(productId, shopProductId: shopProductId);
     if (!result.isSuccess && context.mounted) {
       showCartSnackBar(context, result.failure!.message);
     }
@@ -441,11 +443,13 @@ class _CartScreenState extends ConsumerState<CartScreen> {
   Future<void> _updateItemQuantity(
     BuildContext context,
     String productId,
-    int quantity,
-  ) async {
+    int quantity, {
+    String? shopProductId,
+  }) async {
     final result = await ref.read(cartProvider.notifier).updateItem(
           productId,
           quantity,
+          shopProductId: shopProductId,
         );
     if (!result.isSuccess && context.mounted) {
       showCartSnackBar(context, result.failure!.message);

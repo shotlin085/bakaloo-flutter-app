@@ -12,10 +12,12 @@ class AddToCartUseCase {
   Future<Either<Failure, CartEntity>> call({
     required String productId,
     required int quantity,
+    String? shopProductId,
   }) {
     return _repository.addToCart(
       productId: productId,
       quantity: quantity,
+      shopProductId: shopProductId,
     );
   }
 }

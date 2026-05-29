@@ -10,6 +10,7 @@ import 'package:bakaloo_flutter_app/core/theme/app_text_styles.dart';
 import 'package:bakaloo_flutter_app/features/products/presentation/providers/product_list_provider.dart';
 import 'package:bakaloo_flutter_app/shared/widgets/empty_state.dart';
 import 'package:bakaloo_flutter_app/shared/widgets/error_state.dart';
+import 'package:bakaloo_flutter_app/features/products/presentation/widgets/show_product_options.dart';
 import 'package:bakaloo_flutter_app/shared/widgets/product_card.dart';
 import 'package:bakaloo_flutter_app/shared/widgets/skeleton_loader.dart';
 
@@ -128,6 +129,9 @@ class _ProductListScreenState extends ConsumerState<ProductListScreen> {
                           product: product,
                           style: ProductCardStyle.grid,
                           onTap: () => context.push('/product/${product.id}'),
+                          onOptionsTap: product.hasMultipleOptions
+                              ? () => showProductOptionsSheet(context, product)
+                              : null,
                         ),
                       );
                     },

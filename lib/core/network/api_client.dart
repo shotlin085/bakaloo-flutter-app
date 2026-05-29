@@ -66,14 +66,16 @@ abstract class ApiClient {
   Future<HttpResponse<dynamic>> getCategoryProducts(
     @Path('id') String categoryId,
     @Query('page') int page,
-    @Query('limit') int limit,
-  );
+    @Query('limit') int limit, {
+    @Query('groupOptions') bool? groupOptions,
+  });
 
   @GET(ApiConstants.products)
   Future<HttpResponse<dynamic>> getProducts(
     @Query('page') int page,
-    @Query('limit') int limit,
-  );
+    @Query('limit') int limit, {
+    @Query('groupOptions') bool? groupOptions,
+  });
 
   @GET(ApiConstants.productsSearch)
   Future<HttpResponse<dynamic>> searchProducts(
@@ -101,7 +103,13 @@ abstract class ApiClient {
 
   @DELETE('/cart/items/{productId}')
   Future<HttpResponse<dynamic>> removeCartItem(
-    @Path('productId') String productId,
+    @Path('productId') String productId, {
+    @Query('shopProductId') String? shopProductId,
+  });
+
+  @GET('/products/{id}/options')
+  Future<HttpResponse<dynamic>> getProductOptions(
+    @Path('id') String productId,
   );
 
   @DELETE(ApiConstants.cart)

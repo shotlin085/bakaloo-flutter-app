@@ -37,6 +37,12 @@ abstract class CartItemModel with _$CartItemModel {
     double? salePrice,
     String? unit,
     String? thumbnailUrl,
+    @JsonKey(name: 'shopProductId') String? shopProductId,
+    @JsonKey(name: 'shopId') String? shopId,
+    @JsonKey(name: 'optionLabel') String? optionLabel,
+    @JsonKey(name: 'familyName') String? familyName,
+    @JsonKey(name: 'foodType') String? foodType,
+    @JsonKey(name: 'originTag') String? originTag,
   }) = _CartItemModel;
 
   factory CartItemModel.fromJson(Map<String, dynamic> json) =>
@@ -52,6 +58,12 @@ abstract class CartItemModel with _$CartItemModel {
       total: total,
       unit: unit,
       thumbnailUrl: thumbnailUrl,
+      shopProductId: shopProductId,
+      shopId: shopId,
+      optionLabel: optionLabel,
+      familyName: familyName,
+      foodType: foodType,
+      originTag: originTag,
     );
   }
 }

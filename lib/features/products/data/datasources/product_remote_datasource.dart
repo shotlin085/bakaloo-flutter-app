@@ -2,6 +2,7 @@ import 'package:dio/dio.dart';
 
 import 'package:bakaloo_flutter_app/core/network/api_client.dart';
 import 'package:bakaloo_flutter_app/features/products/data/models/product_model.dart';
+import 'package:bakaloo_flutter_app/features/products/data/models/product_options_response.dart';
 import 'package:bakaloo_flutter_app/shared/entities/pagination_entity.dart';
 
 class ProductRemotePage {
@@ -22,8 +23,13 @@ class ProductRemoteDataSource {
   Future<ProductRemotePage> getProducts({
     required int page,
     required int limit,
+    bool groupOptions = true,
   }) async {
-    final response = await _apiClient.getProducts(page, limit);
+    final response = await _apiClient.getProducts(
+      page,
+      limit,
+      groupOptions: groupOptions ? true : null,
+    );
     return _parsePage(Map<String, dynamic>.from(response.data as Map));
   }
 
@@ -112,5 +118,34 @@ class ProductRemoteDataSource {
           (Map item) => ProductModel.fromJson(Map<String, dynamic>.from(item)),
         )
         .toList();
+  }
+
+  Future<ProductOptionsResponse> getProductOptions(String productId) async {
+    final response = await _apiClient.getProductOptions(productId);
+    final payload = response.data;
+    if (payload is! Map) {
+      throw DioException.badResponse(
+        statusCode: 500,
+        requestOptions: RequestOptions(path: '/products/$productId/options'),
+        response: Response<dynamic>(
+          requestOptions: RequestOptions(path: '/products/$productId/options'),
+          statusCode: 500,
+        ),
+      );
+    }
+    final json = Map<String, dynamic>.from(payload);
+    final data = json['data'];
+    if (data is! Map) {
+      throw DioException.badResponse(
+        statusCode: 500,
+        requestOptions: RequestOptions(path: '/products/$productId/options'),
+        response: Response<dynamic>(
+          requestOptions: RequestOptions(path: '/products/$productId/options'),
+          statusCode: 500,
+          data: payload,
+        ),
+      );
+    }
+    return ProductOptionsResponse.fromJson(Map<String, dynamic>.from(data));
   }
 }
