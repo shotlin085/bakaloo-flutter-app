@@ -278,14 +278,12 @@ class _ProductImageGalleryState extends State<ProductImageGallery> {
                             ),
                           ),
                         ),
-                        SizedBox(
-                          width: 88.w,
-                          child: Align(
-                            alignment: Alignment.centerRight,
-                            child: RatingBadge(
-                              rating: widget.avgRating,
-                              count: widget.ratingCount,
-                            ),
+                        SizedBox(width: 38.w),
+                        Align(
+                          alignment: Alignment.centerRight,
+                          child: RatingBadge(
+                            rating: widget.avgRating,
+                            count: widget.ratingCount,
                           ),
                         ),
                       ],

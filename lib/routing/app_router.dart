@@ -13,6 +13,7 @@ import 'package:bakaloo_flutter_app/features/categories/presentation/screens/cat
 import 'package:bakaloo_flutter_app/features/categories/presentation/screens/category_products_screen.dart';
 import 'package:bakaloo_flutter_app/features/checkout/presentation/screens/checkout_screen.dart';
 import 'package:bakaloo_flutter_app/features/home/presentation/screens/home_screen.dart';
+import 'package:bakaloo_flutter_app/features/location/presentation/screens/location_unavailable_screen.dart';
 import 'package:bakaloo_flutter_app/features/notifications/presentation/screens/notifications_screen.dart';
 import 'package:bakaloo_flutter_app/features/notifications/presentation/screens/notification_preferences_screen.dart';
 import 'package:bakaloo_flutter_app/features/orders/presentation/screens/order_detail_screen.dart';
@@ -132,6 +133,12 @@ GoRouter appRouter(Ref ref) {
         path: RouteNames.search,
         builder: (BuildContext context, GoRouterState state) {
           return const SearchScreen();
+        },
+      ),
+      GoRoute(
+        path: RouteNames.locationUnavailable,
+        builder: (BuildContext context, GoRouterState state) {
+          return const LocationUnavailableScreen();
         },
       ),
       GoRoute(

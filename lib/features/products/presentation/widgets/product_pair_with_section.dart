@@ -4,6 +4,7 @@ import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:phosphor_flutter/phosphor_flutter.dart';
 
 import 'package:bakaloo_flutter_app/core/constants/api_constants.dart';
+import 'package:bakaloo_flutter_app/core/theme/app_colors.dart';
 import 'package:bakaloo_flutter_app/features/products/domain/entities/product_entity.dart';
 import 'package:bakaloo_flutter_app/shared/widgets/retro_price_badge.dart';
 
@@ -95,7 +96,7 @@ class ProductRecommendationsStrip extends StatelessWidget {
                           fontFamily: 'Inter',
                           fontSize: 13.sp,
                           fontWeight: FontWeight.w600,
-                          color: const Color(0xFFE91E63),
+                          color: AppColors.pdViolet,
                           height: 1.2,
                         ),
                       ),
@@ -103,7 +104,7 @@ class ProductRecommendationsStrip extends StatelessWidget {
                       PhosphorIcon(
                         PhosphorIcons.caretRight(),
                         size: 14.sp,
-                        color: const Color(0xFFE91E63),
+                        color: AppColors.pdViolet,
                       ),
                     ],
                   ),
@@ -338,7 +339,7 @@ class _ProductRecommendationCardState extends State<ProductRecommendationCard> {
                           decoration: BoxDecoration(
                             color: Colors.white,
                             border: Border.all(
-                              color: const Color(0xFFE91E63),
+                              color: AppColors.pdViolet,
                               width: 1.5,
                             ),
                             borderRadius: BorderRadius.circular(8.r),
@@ -352,7 +353,7 @@ class _ProductRecommendationCardState extends State<ProductRecommendationCard> {
                                   fontFamily: 'Inter',
                                   fontSize: 13.sp,
                                   fontWeight: FontWeight.w700,
-                                  color: const Color(0xFFE91E63),
+                                  color: AppColors.pdViolet,
                                   height: 1,
                                 ),
                               ),
@@ -363,7 +364,7 @@ class _ProductRecommendationCardState extends State<ProductRecommendationCard> {
                                     fontFamily: 'Inter',
                                     fontSize: 9.sp,
                                     fontWeight: FontWeight.w400,
-                                    color: const Color(0xFFE91E63),
+                                    color: AppColors.pdViolet,
                                     height: 1,
                                   ),
                                 ),
@@ -420,7 +421,7 @@ class _ProductRecommendationCardState extends State<ProductRecommendationCard> {
                                   fontFamily: 'Inter',
                                   fontSize: 11.sp,
                                   fontWeight: FontWeight.w500,
-                                  color: const Color(0xFFE91E63),
+                                  color: AppColors.pdViolet,
                                 ),
                               ),
                             ),

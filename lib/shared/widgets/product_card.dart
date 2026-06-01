@@ -51,6 +51,9 @@ class ProductCard extends StatefulWidget {
     this.style,
     this.variant = ProductCardVariant.quickCommerceCompact,
     this.showWishlist = false,
+    this.useCompactAddButton = false,
+    this.showImageBorder = false,
+    this.accentColor,
     this.onTap,
     this.onAdd,
     this.onOptionsTap,
@@ -64,6 +67,16 @@ class ProductCard extends StatefulWidget {
   /// Visual design variant. Defaults to the premium quick-commerce card.
   final ProductCardVariant variant;
   final bool showWishlist;
+
+  /// When true, grid cards render a compact square "+" button instead of the
+  /// labelled "ADD" button. Used by the categories screen.
+  final bool useCompactAddButton;
+
+  /// When true, the product image sits inside a subtle bordered frame.
+  final bool showImageBorder;
+
+  /// Accent colour for the add/quantity control. Defaults to primary green.
+  final Color? accentColor;
   final VoidCallback? onTap;
   final VoidCallback? onAdd;
   final VoidCallback? onOptionsTap;
@@ -167,6 +180,7 @@ class _ProductCardState extends State<ProductCard> {
                   unitFontSize: unitFontSize,
                   style: ProductCardStyle.grid,
                   compactGrid: compactGrid,
+                  showImageBorder: widget.showImageBorder,
                 ),
               ),
               const Divider(height: 1, thickness: 1, color: Color(0xFFF0F0F0)),
@@ -203,6 +217,8 @@ class _ProductCardState extends State<ProductCard> {
                       product: product,
                       onAdd: widget.onAdd,
                       onOptionsTap: widget.onOptionsTap,
+                      forceCompactPlus: widget.useCompactAddButton,
+                      accentColor: widget.accentColor,
                     ),
                   ],
                 ),
@@ -411,6 +427,7 @@ class _ProductCardState extends State<ProductCard> {
                   unitFontSize: unitFontSize,
                   style: ProductCardStyle.scroll,
                   compactGrid: false,
+                  showImageBorder: false,
                 ),
                 Padding(
                   padding: EdgeInsets.fromLTRB(contentPadding, 6.h, contentPadding, 0),
@@ -563,6 +580,7 @@ class _ProductCardState extends State<ProductCard> {
     required double unitFontSize,
     required ProductCardStyle style,
     required bool compactGrid,
+    bool showImageBorder = false,
   }) {
     final imageCount = product.images.length;
     return SizedBox(
@@ -571,8 +589,19 @@ class _ProductCardState extends State<ProductCard> {
       child: Stack(
         children: <Widget>[
           Positioned.fill(
-            child: ColoredBox(
-              color: const Color(0xFFF7F7F7),
+            child: DecoratedBox(
+              decoration: BoxDecoration(
+                color: const Color(0xFFF7F7F7),
+                border: showImageBorder
+                    ? Border.all(
+                        color: const Color(0xFFDCDCE0),
+                        width: 1,
+                      )
+                    : null,
+                borderRadius: showImageBorder
+                    ? BorderRadius.circular(AppDimensions.radiusMd)
+                    : null,
+              ),
               child: imageUrl == null || imageUrl.isEmpty
                   ? const Center(
                       child: Icon(
@@ -889,6 +918,8 @@ class _IsolatedCartButton extends ConsumerWidget {
     required this.product,
     this.onAdd,
     this.onOptionsTap,
+    this.forceCompactPlus = false,
+    this.accentColor,
   });
 
   final ProductCardStyle style;
@@ -897,6 +928,8 @@ class _IsolatedCartButton extends ConsumerWidget {
   final ProductEntity product;
   final VoidCallback? onAdd;
   final VoidCallback? onOptionsTap;
+  final bool forceCompactPlus;
+  final Color? accentColor;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -916,6 +949,8 @@ class _IsolatedCartButton extends ConsumerWidget {
       authGate: authGate,
       onAdd: onAdd,
       onOptionsTap: onOptionsTap,
+      forceCompactPlus: forceCompactPlus,
+      accentColor: accentColor,
     );
   }
 }
@@ -930,6 +965,8 @@ class _ZeptoAddQtyButton extends ConsumerWidget {
     required this.authGate,
     this.onAdd,
     this.onOptionsTap,
+    this.forceCompactPlus = false,
+    this.accentColor,
   });
 
   final ProductCardStyle style;
@@ -940,10 +977,12 @@ class _ZeptoAddQtyButton extends ConsumerWidget {
   final AuthGateController authGate;
   final VoidCallback? onAdd;
   final VoidCallback? onOptionsTap;
+  final bool forceCompactPlus;
+  final Color? accentColor;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    const greenBorder = AppColors.primaryGreen;
+    final greenBorder = accentColor ?? AppColors.primaryGreen;
     final buttonHeight = tight ? 30.h : 32.h;
     // Inline grid ADD buttons sit next to the unit label in a narrow 3-col
     // cell, so they are kept compact to leave room for "200 g" / "6 eggs".
@@ -965,7 +1004,7 @@ class _ZeptoAddQtyButton extends ConsumerWidget {
       return Container(
         height: buttonHeight,
         decoration: BoxDecoration(
-          color: AppColors.primaryGreen,
+          color: greenBorder,
           borderRadius: BorderRadius.circular(8.r),
           boxShadow: <BoxShadow>[
             BoxShadow(
@@ -1044,6 +1083,8 @@ class _ZeptoAddQtyButton extends ConsumerWidget {
 
     final bool isGrid = style == ProductCardStyle.grid;
     final bool showOptions = product.hasMultipleOptions;
+    // Categories screen uses a compact square "+" button (no "ADD" label).
+    final bool compactPlus = forceCompactPlus && isGrid && !showOptions;
 
     return Container(
       decoration: BoxDecoration(
@@ -1089,48 +1130,58 @@ class _ZeptoAddQtyButton extends ConsumerWidget {
             // Multi-option grid buttons grow taller to stack "ADD" over the
             // "N options" line INSIDE the green border (reference layout).
             height: isGrid && showOptions ? buttonHeight + 16.h : buttonHeight,
-            width: isGrid ? gridButtonWidth : buttonHeight,
+            width: compactPlus
+                ? buttonHeight
+                : isGrid
+                    ? gridButtonWidth
+                    : buttonHeight,
             padding: EdgeInsets.symmetric(vertical: 3.h),
             decoration: BoxDecoration(
               border: Border.all(color: greenBorder, width: 1.5),
               borderRadius: BorderRadius.circular(8.r),
             ),
             alignment: Alignment.center,
-            child: isGrid
-                ? Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    mainAxisSize: MainAxisSize.min,
-                    children: <Widget>[
-                      Text(
-                        'ADD',
-                        style: TextStyle(
-                          color: greenBorder,
-                          fontWeight: FontWeight.w700,
-                          fontSize: addFontSize,
-                          letterSpacing: 0.4,
-                          height: 1.0,
-                        ),
-                      ),
-                      if (showOptions)
-                        Text(
-                          '${product.optionCount} options',
-                          maxLines: 1,
-                          softWrap: false,
-                          overflow: TextOverflow.ellipsis,
-                          style: TextStyle(
-                            fontSize: 8.5.sp,
-                            fontWeight: FontWeight.w500,
-                            color: greenBorder,
-                            height: 1.2,
-                          ),
-                        ),
-                    ],
-                  )
-                : PhosphorIcon(
+            child: compactPlus
+                ? PhosphorIcon(
                     PhosphorIcons.plus(PhosphorIconsStyle.bold),
                     size: tight ? 15.0 : 18.0,
                     color: greenBorder,
-                  ),
+                  )
+                : isGrid
+                    ? Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        mainAxisSize: MainAxisSize.min,
+                        children: <Widget>[
+                          Text(
+                            'ADD',
+                            style: TextStyle(
+                              color: greenBorder,
+                              fontWeight: FontWeight.w700,
+                              fontSize: addFontSize,
+                              letterSpacing: 0.4,
+                              height: 1.0,
+                            ),
+                          ),
+                          if (showOptions)
+                            Text(
+                              '${product.optionCount} options',
+                              maxLines: 1,
+                              softWrap: false,
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(
+                                fontSize: 8.5.sp,
+                                fontWeight: FontWeight.w500,
+                                color: greenBorder,
+                                height: 1.2,
+                              ),
+                            ),
+                        ],
+                      )
+                    : PhosphorIcon(
+                        PhosphorIcons.plus(PhosphorIconsStyle.bold),
+                        size: tight ? 15.0 : 18.0,
+                        color: greenBorder,
+                      ),
           ),
         ),
       ),

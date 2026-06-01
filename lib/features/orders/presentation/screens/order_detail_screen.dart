@@ -23,6 +23,7 @@ import 'package:bakaloo_flutter_app/features/orders/presentation/providers/order
 import 'package:bakaloo_flutter_app/features/orders/presentation/providers/order_list_provider.dart';
 import 'package:bakaloo_flutter_app/routing/route_names.dart';
 import 'package:bakaloo_flutter_app/shared/widgets/confirmation_dialog.dart';
+import 'package:bakaloo_flutter_app/shared/widgets/safe_product_image.dart';
 
 class OrderDetailScreen extends ConsumerStatefulWidget {
   const OrderDetailScreen({
@@ -564,31 +565,12 @@ class _OrderItemRow extends StatelessWidget {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: <Widget>[
-          Container(
-            width: 56.w,
-            height: 56.w,
-            decoration: BoxDecoration(
-              color: AppColors.bgInput,
-              borderRadius: BorderRadius.circular(AppDimensions.radiusSm),
-            ),
-            child: item.thumbnailUrl == null
-                ? Icon(
-                    Icons.inventory_2_outlined,
-                    color: AppColors.textTertiary,
-                    size: 22.sp,
-                  )
-                : ClipRRect(
-                    borderRadius: BorderRadius.circular(AppDimensions.radiusSm),
-                    child: Image.network(
-                      item.thumbnailUrl!,
-                      fit: BoxFit.cover,
-                      errorBuilder: (_, __, ___) => Icon(
-                        Icons.inventory_2_outlined,
-                        color: AppColors.textTertiary,
-                        size: 22.sp,
-                      ),
-                    ),
-                  ),
+          SafeProductImage(
+            url: item.thumbnailUrl,
+            size: 56.w,
+            borderRadius: BorderRadius.circular(AppDimensions.radiusSm),
+            backgroundColor: AppColors.bgInput,
+            iconSize: 22.sp,
           ),
           Gap(10.w),
           Expanded(

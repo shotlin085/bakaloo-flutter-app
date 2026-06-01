@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:phosphor_flutter/phosphor_flutter.dart';
 
+import 'package:bakaloo_flutter_app/core/theme/app_colors.dart';
 import 'package:bakaloo_flutter_app/features/products/domain/entities/product_entity.dart';
 import 'package:bakaloo_flutter_app/shared/widgets/retro_price_badge.dart';
 
@@ -249,9 +250,7 @@ class _ProductInfoHeaderState extends State<ProductInfoHeader>
                       ? PhosphorIcons.heart(PhosphorIconsStyle.fill)
                       : PhosphorIcons.heart(),
                   size: 24.sp,
-                  color: widget.isWishlisted
-                      ? const Color(0xFFE91E63)
-                      : const Color(0xFF999999),
+                  color: AppColors.pdViolet,
                 ),
               ),
             ),

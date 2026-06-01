@@ -215,9 +215,7 @@ class OrderRepositoryImpl implements OrderRepository {
     try {
       final invoice = await _remoteDataSource.downloadInvoice(orderId);
       final tempDir = await getTemporaryDirectory();
-      final sanitizedName = invoice.fileName.endsWith('.pdf')
-          ? invoice.fileName
-          : '${invoice.fileName}.pdf';
+      final sanitizedName = _safeInvoiceFileName(invoice.fileName, orderId);
       final file = File('${tempDir.path}/$sanitizedName');
       await file.writeAsBytes(invoice.bytes, flush: true);
       return Right(
@@ -233,6 +231,27 @@ class OrderRepositoryImpl implements OrderRepository {
         UnknownFailure(message: 'Unable to download the invoice right now.'),
       );
     }
+  }
+
+  /// Builds a safe, traversal-proof invoice filename.
+  ///
+  /// The server's `Content-Disposition` filename is untrusted input: it could
+  /// contain path separators or `..` segments. We strip everything but the base
+  /// name, allow-list characters, and always force a `.pdf` extension.
+  String _safeInvoiceFileName(String rawName, String orderId) {
+    final base = rawName.split(RegExp(r'[\\/]')).last.trim();
+    var cleaned = base
+        .replaceAll('..', '')
+        .replaceAll(RegExp(r'[^A-Za-z0-9._-]'), '_')
+        .replaceAll(RegExp(r'_+'), '_');
+
+    if (cleaned.toLowerCase().endsWith('.pdf')) {
+      cleaned = cleaned.substring(0, cleaned.length - 4);
+    }
+    if (cleaned.isEmpty || cleaned == '_') {
+      cleaned = 'invoice-$orderId';
+    }
+    return '$cleaned.pdf';
   }
 
   OrderPageResult? _cachedPage(String cacheKey) {

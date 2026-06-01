@@ -2,10 +2,15 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:gap/gap.dart';
-import 'package:rive/rive.dart';
+import 'package:phosphor_flutter/phosphor_flutter.dart';
+import 'package:rive/rive.dart' hide Image;
 
 import 'package:bakaloo_flutter_app/core/network/app_availability_provider.dart';
+import 'package:bakaloo_flutter_app/core/theme/app_colors.dart';
 import 'package:bakaloo_flutter_app/core/theme/app_text_styles.dart';
+import 'package:bakaloo_flutter_app/routing/app_router.dart';
+import 'package:bakaloo_flutter_app/routing/route_names.dart';
+import 'package:bakaloo_flutter_app/shared/widgets/bakaloo_state_screen.dart';
 
 class AppAvailabilityGate extends ConsumerWidget {
   const AppAvailabilityGate({
@@ -22,13 +27,32 @@ class AppAvailabilityGate extends ConsumerWidget {
     return Stack(
       children: <Widget>[
         child,
-        if (status != AppAvailabilityStatus.online)
+        if (status == AppAvailabilityStatus.offline)
           Positioned.fill(
-            child: _AvailabilityBlocker(
-              status: status,
-              onRetry: () {
-                ref.read(appAvailabilityProvider.notifier).retry();
+            child: BakalooStateScreen(
+              illustrationAsset:
+                  'assets/images/bakaloo-offline-state-illustration.png',
+              icon: PhosphorIcons.wifiSlash(PhosphorIconsStyle.bold),
+              title: "You're offline",
+              subtitle:
+                  'Please check your internet connection\nand try again.',
+              primaryLabel: 'Retry',
+              onPrimary: () =>
+                  ref.read(appAvailabilityProvider.notifier).retry(),
+              secondaryLabel: 'Browse saved items',
+              onSecondary: () {
+                ref.read(appAvailabilityProvider.notifier).browseOffline();
+                // Navigate via the router instance (this gate lives above the
+                // Router subtree, so `context.go` has no GoRouter ancestor).
+                ref.read(appRouterProvider).go(RouteNames.wishlist);
               },
+            ),
+          )
+        else if (status == AppAvailabilityStatus.serviceUnavailable)
+          Positioned.fill(
+            child: _ServiceUnavailableBlocker(
+              onRetry: () =>
+                  ref.read(appAvailabilityProvider.notifier).retry(),
             ),
           ),
       ],
@@ -36,41 +60,12 @@ class AppAvailabilityGate extends ConsumerWidget {
   }
 }
 
-class _AvailabilityBlocker extends StatelessWidget {
-  const _AvailabilityBlocker({
-    required this.status,
-    required this.onRetry,
-  });
+// ───────────────────────────────────────────────────────────────────────────
+// Service-unavailable blocker — keeps the existing lightweight Rive overlay.
+// ───────────────────────────────────────────────────────────────────────────
+class _ServiceUnavailableBlocker extends StatelessWidget {
+  const _ServiceUnavailableBlocker({required this.onRetry});
 
-  final AppAvailabilityStatus status;
-  final VoidCallback onRetry;
-
-  @override
-  Widget build(BuildContext context) {
-    final isOffline = status == AppAvailabilityStatus.offline;
-    final title = isOffline ? 'Connection lost' : 'Service unavailable';
-    final actionLabel = isOffline ? 'Try to reconnect' : 'Try again';
-
-    return Material(
-      color: const Color(0xFFF3F3F3),
-      child: _AvailabilityOverlay(
-        title: title,
-        actionLabel: actionLabel,
-        onRetry: onRetry,
-      ),
-    );
-  }
-}
-
-class _AvailabilityOverlay extends StatelessWidget {
-  const _AvailabilityOverlay({
-    required this.title,
-    required this.actionLabel,
-    required this.onRetry,
-  });
-
-  final String title;
-  final String actionLabel;
   final VoidCallback onRetry;
 
   @override
@@ -80,10 +75,8 @@ class _AvailabilityOverlay extends StatelessWidget {
       child: SafeArea(
         child: LayoutBuilder(
           builder: (context, constraints) {
-            final animationSize = (constraints.maxWidth * 0.72).clamp(
-              240.0,
-              320.0,
-            );
+            final animationSize =
+                (constraints.maxWidth * 0.72).clamp(240.0, 320.0);
 
             return Padding(
               padding: EdgeInsets.symmetric(horizontal: 24.w),
@@ -103,14 +96,14 @@ class _AvailabilityOverlay extends StatelessWidget {
                       ),
                     ),
                   ),
-                  const Spacer(flex: 1),
+                  const Spacer(),
                   Padding(
                     padding: EdgeInsets.only(bottom: 84.h),
                     child: Column(
                       mainAxisSize: MainAxisSize.min,
                       children: <Widget>[
                         Text(
-                          title,
+                          'Service unavailable',
                           textAlign: TextAlign.center,
                           style: AppTextStyles.h1.copyWith(
                             fontSize: 24.sp,
@@ -123,7 +116,7 @@ class _AvailabilityOverlay extends StatelessWidget {
                         TextButton(
                           onPressed: onRetry,
                           style: TextButton.styleFrom(
-                            foregroundColor: const Color(0xFF8A2BE2),
+                            foregroundColor: AppColors.orderViolet,
                             textStyle: AppTextStyles.buttonMedium.copyWith(
                               fontSize: 15.sp,
                               fontWeight: FontWeight.w700,
@@ -133,7 +126,7 @@ class _AvailabilityOverlay extends StatelessWidget {
                               vertical: 6.h,
                             ),
                           ),
-                          child: Text(actionLabel),
+                          child: const Text('Try again'),
                         ),
                       ],
                     ),

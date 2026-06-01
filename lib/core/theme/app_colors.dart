@@ -54,6 +54,37 @@ class AppColors {
   static const cartPink = Color(0xFFE91E63);
   static const cartPinkPressed = Color(0xFFC2185B);
   static const cartPinkLight = Color(0xFFFCE4EC);
+
+  // Product Detail — Bakaloo Violet theme (price tag, CTA, rating, badges)
+  static const pdViolet = Color(0xFF7B1FA2);
+  static const pdVioletDark = Color(0xFF6A1B9A);
+  static const pdVioletSurface = Color(0xFFF3E9FB);
+  static const pdVioletBorder = Color(0xFFD7BBEE);
+  static const pdVioletGlow = Color(0x4D7B1FA2);
+
+  // My Orders — premium violet theme tokens
+  static const orderViolet = Color(0xFF7C3AED);
+  static const orderVioletDark = Color(0xFF6D28D9);
+  static const orderVioletSurface = Color(0xFFF3EEFE);
+  static const orderVioletBorder = Color(0xFFE2D6F9);
+  static const orderVioletGlow = Color(0x337C3AED);
+  static const orderCanvas = Color(0xFFF7F6FB);
+  static const orderThumbBg = Color(0xFFF1F0F6);
+  static const orderCardBorder = Color(0xFFEDEDF1);
+  static const orderCardShadow = Color(0x14000000);
+  static const orderThumbBorder = Color(0xFFE6E6EC);
+
+  // Order status accents (text + soft background pairs)
+  static const orderStatusBlue = Color(0xFF7C3AED);
+  static const orderStatusBlueBg = Color(0xFFF1ECFE);
+  static const orderStatusAmber = Color(0xFFEA8C00);
+  static const orderStatusAmberBg = Color(0xFFFFF3E0);
+  static const orderStatusTeal = Color(0xFF0E9384);
+  static const orderStatusTealBg = Color(0xFFE3F5F2);
+  static const orderStatusGreen = Color(0xFF12B76A);
+  static const orderStatusGreenBg = Color(0xFFE7F8F0);
+  static const orderStatusRed = Color(0xFFE5484D);
+  static const orderStatusRedBg = Color(0xFFFDECEC);
   static const promoPurpleStart = Color(0xFF6A1B9A);
   static const promoPurpleMid = Color(0xFF7B1FA2);
   static const promoPurpleEnd = Color(0xFF9C27B0);

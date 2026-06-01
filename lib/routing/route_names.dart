@@ -27,4 +27,5 @@ class RouteNames {
   static const offZone = '/off_zone';
   static const superMall = '/super_mall';
   static const cafe = '/cafe';
+  static const locationUnavailable = '/location-unavailable';
 }

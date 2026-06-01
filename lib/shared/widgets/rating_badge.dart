@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:phosphor_flutter/phosphor_flutter.dart';
 
+import 'package:bakaloo_flutter_app/core/theme/app_colors.dart';
+
 class RatingBadge extends StatelessWidget {
   const RatingBadge({
     required this.rating,
@@ -31,37 +33,60 @@ class RatingBadge extends StatelessWidget {
     }
 
     return Container(
-      padding: EdgeInsets.symmetric(horizontal: 10.w, vertical: 6.h),
+      padding: EdgeInsets.symmetric(horizontal: 8.w, vertical: 5.h),
       decoration: BoxDecoration(
-        color: const Color(0xFF0C831F),
-        borderRadius: BorderRadius.circular(8.r),
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(10.r),
+        boxShadow: <BoxShadow>[
+          BoxShadow(
+            color: const Color(0x14000000),
+            blurRadius: 6.r,
+            offset: Offset(0, 2.h),
+          ),
+        ],
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: <Widget>[
+          Container(
+            width: 20.w,
+            height: 20.w,
+            decoration: const BoxDecoration(
+              color: AppColors.pdViolet,
+              shape: BoxShape.circle,
+            ),
+            child: Center(
+              child: PhosphorIcon(
+                PhosphorIcons.star(PhosphorIconsStyle.fill),
+                size: 11.sp,
+                color: Colors.white,
+              ),
+            ),
+          ),
+          SizedBox(width: 6.w),
           Text(
             rating.toStringAsFixed(1),
             style: TextStyle(
               fontFamily: 'Inter',
-              fontSize: 13.sp,
+              fontSize: 14.sp,
               fontWeight: FontWeight.w700,
-              color: Colors.white,
+              color: const Color(0xFF1A1A1A),
             ),
           ),
-          SizedBox(width: 3.w),
-          PhosphorIcon(
-            PhosphorIcons.star(PhosphorIconsStyle.fill),
-            size: 12.sp,
-            color: Colors.white,
+          SizedBox(width: 6.w),
+          Container(
+            width: 1,
+            height: 14.h,
+            color: const Color(0xFFE0E0E0),
           ),
           SizedBox(width: 6.w),
           Text(
             _formattedCount,
             style: TextStyle(
               fontFamily: 'Inter',
-              fontSize: 11.sp,
+              fontSize: 12.sp,
               fontWeight: FontWeight.w500,
-              color: Colors.white,
+              color: const Color(0xFF999999),
             ),
           ),
         ],

@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:phosphor_flutter/phosphor_flutter.dart';
 
+import 'package:bakaloo_flutter_app/core/theme/app_colors.dart';
 import 'package:bakaloo_flutter_app/features/products/domain/entities/product_entity.dart';
 import 'package:bakaloo_flutter_app/shared/widgets/badge_count.dart';
 
@@ -87,27 +88,40 @@ class _ProductBottomBarState extends State<ProductBottomBar> {
                           width: double.infinity,
                           height: 50.h,
                           decoration: BoxDecoration(
-                            color: const Color(0xFFE91E63),
+                            color: AppColors.pdViolet,
                             borderRadius: BorderRadius.circular(14.r),
                             boxShadow: <BoxShadow>[
                               BoxShadow(
-                                color: const Color(0x4DE91E63),
+                                color: AppColors.pdVioletGlow,
                                 blurRadius: 12.r,
                                 offset: Offset(0, 4.h),
                               ),
                             ],
                           ),
                           alignment: Alignment.center,
-                          child: Text(
-                            'Add to cart',
-                            style: TextStyle(
-                              fontFamily: 'Poppins',
-                              fontSize: 16.sp,
-                              fontWeight: FontWeight.w700,
-                              color: Colors.white,
-                              height: 1.0,
-                              letterSpacing: 0.3,
-                            ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: <Widget>[
+                              PhosphorIcon(
+                                PhosphorIcons.shoppingCartSimple(
+                                  PhosphorIconsStyle.bold,
+                                ),
+                                size: 20.sp,
+                                color: Colors.white,
+                              ),
+                              SizedBox(width: 10.w),
+                              Text(
+                                'Add to cart',
+                                style: TextStyle(
+                                  fontFamily: 'Poppins',
+                                  fontSize: 16.sp,
+                                  fontWeight: FontWeight.w700,
+                                  color: Colors.white,
+                                  height: 1.0,
+                                  letterSpacing: 0.3,
+                                ),
+                              ),
+                            ],
                           ),
                         ),
                       ),
@@ -225,7 +239,7 @@ class _BottomQuantityControl extends StatelessWidget {
     return Container(
       height: 50.h,
       decoration: BoxDecoration(
-        color: const Color(0xFFE91E63),
+        color: AppColors.pdViolet,
         borderRadius: BorderRadius.circular(14.r),
       ),
       child: Row(

@@ -1,4 +1,3 @@
-import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
@@ -6,23 +5,19 @@ import 'package:flutter_svg/flutter_svg.dart';
 import 'package:gap/gap.dart';
 import 'package:go_router/go_router.dart';
 import 'package:infinite_scroll_pagination/infinite_scroll_pagination.dart';
-import 'package:open_file/open_file.dart';
 import 'package:phosphor_flutter/phosphor_flutter.dart';
 
 import 'package:bakaloo_flutter_app/core/theme/app_colors.dart';
-import 'package:bakaloo_flutter_app/core/theme/app_dimensions.dart';
-import 'package:bakaloo_flutter_app/core/theme/app_shadows.dart';
 import 'package:bakaloo_flutter_app/core/theme/app_text_styles.dart';
-import 'package:bakaloo_flutter_app/core/utils/extensions/datetime_extensions.dart';
-import 'package:bakaloo_flutter_app/core/utils/extensions/double_extensions.dart';
 import 'package:bakaloo_flutter_app/features/cart/presentation/providers/cart_provider.dart';
 import 'package:bakaloo_flutter_app/features/orders/domain/entities/order_entity.dart';
-import 'package:bakaloo_flutter_app/features/orders/domain/entities/order_item_entity.dart';
-import 'package:bakaloo_flutter_app/features/orders/domain/entities/order_timeline_entity.dart';
 import 'package:bakaloo_flutter_app/features/orders/presentation/providers/active_order_provider.dart';
 import 'package:bakaloo_flutter_app/features/orders/presentation/providers/order_detail_provider.dart';
 import 'package:bakaloo_flutter_app/features/orders/presentation/providers/order_live_sync_provider.dart';
 import 'package:bakaloo_flutter_app/features/orders/presentation/providers/order_list_provider.dart';
+import 'package:bakaloo_flutter_app/features/orders/presentation/widgets/order_card.dart';
+import 'package:bakaloo_flutter_app/features/orders/presentation/widgets/order_card_skeleton.dart';
+import 'package:bakaloo_flutter_app/features/orders/presentation/widgets/order_filter_tabs.dart';
 import 'package:bakaloo_flutter_app/routing/route_names.dart';
 import 'package:bakaloo_flutter_app/shared/widgets/confirmation_dialog.dart';
 
@@ -40,9 +35,8 @@ class _OrdersScreenState extends ConsumerState<OrdersScreen> {
       PagingController<int, OrderEntity>(firstPageKey: 1);
 
   OrderFilter _currentFilter = OrderFilter.all;
-  bool _isCancellingOrder = false;
-  bool _isReordering = false;
-  bool _isDownloadingInvoice = false;
+  final Set<String> _cancellingIds = <String>{};
+  final Set<String> _reorderingIds = <String>{};
 
   @override
   void initState() {
@@ -98,7 +92,7 @@ class _OrdersScreenState extends ConsumerState<OrdersScreen> {
   }
 
   Future<void> _cancelOrder(OrderEntity order) async {
-    if (_isCancellingOrder) {
+    if (_cancellingIds.contains(order.id)) {
       return;
     }
 
@@ -114,7 +108,7 @@ class _OrdersScreenState extends ConsumerState<OrdersScreen> {
     }
 
     setState(() {
-      _isCancellingOrder = true;
+      _cancellingIds.add(order.id);
     });
 
     final result =
@@ -125,34 +119,30 @@ class _OrdersScreenState extends ConsumerState<OrdersScreen> {
     }
 
     setState(() {
-      _isCancellingOrder = false;
+      _cancellingIds.remove(order.id);
     });
 
     result.fold(
       (failure) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(failure.message)),
-        );
+        _showSnackBar(failure.message);
       },
       (_) {
         ref
           ..invalidate(activeOrderProvider)
           ..invalidate(orderDetailProvider(order.id));
         _pagingController.refresh();
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Order cancelled successfully')),
-        );
+        _showSnackBar('Order cancelled successfully');
       },
     );
   }
 
   Future<void> _reorder(OrderEntity order) async {
-    if (_isReordering) {
+    if (_reorderingIds.contains(order.id)) {
       return;
     }
 
     setState(() {
-      _isReordering = true;
+      _reorderingIds.add(order.id);
     });
     final result =
         await ref.read(orderListControllerProvider).reorder(order.id);
@@ -162,73 +152,36 @@ class _OrdersScreenState extends ConsumerState<OrdersScreen> {
     }
 
     setState(() {
-      _isReordering = false;
+      _reorderingIds.remove(order.id);
     });
 
     result.fold(
       (failure) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(failure.message)),
-        );
+        _showSnackBar(failure.message);
       },
       (data) {
         ref.invalidate(cartProvider);
         final warnings =
             data.warnings.isEmpty ? '' : '\n${data.warnings.join('\n')}';
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Items added to cart$warnings'),
-            action: SnackBarAction(
-              label: 'View Cart',
-              onPressed: () => context.go(RouteNames.cart),
+        ScaffoldMessenger.of(context)
+          ..hideCurrentSnackBar()
+          ..showSnackBar(
+            SnackBar(
+              content: Text('Items added to cart$warnings'),
+              action: SnackBarAction(
+                label: 'View Cart',
+                onPressed: () => context.go(RouteNames.cart),
+              ),
             ),
-          ),
-        );
+          );
       },
     );
   }
 
-  Future<void> _downloadInvoice(OrderEntity order) async {
-    if (_isDownloadingInvoice) {
-      return;
-    }
-
-    setState(() {
-      _isDownloadingInvoice = true;
-    });
-    final result =
-        await ref.read(orderListControllerProvider).downloadInvoice(order.id);
-
-    if (!mounted) {
-      return;
-    }
-
-    setState(() {
-      _isDownloadingInvoice = false;
-    });
-
-    await result.fold(
-      (failure) async {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(failure.message)),
-        );
-      },
-      (file) async {
-        final openResult = await OpenFile.open(file.path);
-        if (!mounted) {
-          return;
-        }
-        if (openResult.type == ResultType.done) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Invoice downloaded: ${file.fileName}')),
-          );
-        } else {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text(openResult.message)),
-          );
-        }
-      },
-    );
+  void _showSnackBar(String message) {
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(SnackBar(content: Text(message)));
   }
 
   @override
@@ -241,410 +194,227 @@ class _OrdersScreenState extends ConsumerState<OrdersScreen> {
     });
 
     return Scaffold(
-      backgroundColor: AppColors.bgPrimary,
-      appBar: AppBar(
-        title: Text('My Orders', style: AppTextStyles.h2),
-      ),
-      body: Column(
-        children: <Widget>[
-          SizedBox(
-            height: 56.h,
-            child: ListView.separated(
-              padding: EdgeInsets.symmetric(horizontal: 16.w, vertical: 8.h),
-              scrollDirection: Axis.horizontal,
-              itemBuilder: (context, index) {
-                final filter = OrderFilter.values[index];
-                final selected = _currentFilter == filter;
-                return ChoiceChip(
-                  label: Text(filter.label),
-                  selected: selected,
-                  onSelected: (_) => _changeFilter(filter),
-                  selectedColor: AppColors.primaryGreenLight,
-                  side: BorderSide(
-                    color: selected
-                        ? AppColors.primaryGreen
-                        : AppColors.borderLight,
-                  ),
-                  labelStyle: AppTextStyles.buttonSmall.copyWith(
-                    color: selected
-                        ? AppColors.primaryGreen
-                        : AppColors.textSecondary,
-                  ),
-                );
-              },
-              separatorBuilder: (_, __) => Gap(10.w),
-              itemCount: OrderFilter.values.length,
-            ),
-          ),
-          Expanded(
-            child: RefreshIndicator(
-              onRefresh: _refresh,
-              child: PagedListView<int, OrderEntity>.separated(
-                pagingController: _pagingController,
-                padding: EdgeInsets.fromLTRB(16.w, 8.h, 16.w, 20.h),
-                separatorBuilder: (_, __) => Gap(12.h),
-                builderDelegate: PagedChildBuilderDelegate<OrderEntity>(
-                  itemBuilder: (context, order, index) {
-                    return _OrderCard(
-                      order: order,
-                      isCancelling: _isCancellingOrder,
-                      isReordering: _isReordering,
-                      isDownloadingInvoice: _isDownloadingInvoice,
-                      onTap: () => context.push('/orders/${order.id}'),
-                      onTrack: () => context.push('/orders/${order.id}/track'),
-                      onCancel: () => _cancelOrder(order),
-                      onReorder: () => _reorder(order),
-                      onDownloadInvoice: () => _downloadInvoice(order),
-                      onRate: () => context.push(RouteNames.myReviews),
-                    );
-                  },
-                  firstPageProgressIndicatorBuilder: (context) {
-                    return const Center(
-                      child: CircularProgressIndicator(
-                        color: AppColors.primaryGreen,
-                      ),
-                    );
-                  },
-                  firstPageErrorIndicatorBuilder: (context) {
-                    final error = _pagingController.error;
-                    final message = error is StateError
-                        ? error.message.toString()
-                        : 'Unable to load orders.';
-                    return _OrdersErrorState(
-                      message: message,
-                      onRetry: _pagingController.refresh,
-                    );
-                  },
-                  noItemsFoundIndicatorBuilder: (context) {
-                    return const _OrdersEmptyState();
-                  },
-                  newPageProgressIndicatorBuilder: (_) => Padding(
-                    padding: EdgeInsets.all(12.w),
-                    child: const Center(
-                      child: CircularProgressIndicator(
-                        color: AppColors.primaryGreen,
-                      ),
-                    ),
-                  ),
-                  newPageErrorIndicatorBuilder: (_) => TextButton(
-                    onPressed: _pagingController.retryLastFailedRequest,
-                    child: const Text('Retry'),
-                  ),
-                ),
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _OrderCard extends StatelessWidget {
-  const _OrderCard({
-    required this.order,
-    required this.isCancelling,
-    required this.isReordering,
-    required this.isDownloadingInvoice,
-    required this.onTap,
-    required this.onTrack,
-    required this.onCancel,
-    required this.onReorder,
-    required this.onDownloadInvoice,
-    required this.onRate,
-  });
-
-  final OrderEntity order;
-  final bool isCancelling;
-  final bool isReordering;
-  final bool isDownloadingInvoice;
-  final VoidCallback onTap;
-  final VoidCallback onTrack;
-  final VoidCallback onCancel;
-  final VoidCallback onReorder;
-  final VoidCallback onDownloadInvoice;
-  final VoidCallback onRate;
-
-  @override
-  Widget build(BuildContext context) {
-    final actions = _actionsForStatus(order.status);
-
-    return InkWell(
-      borderRadius: BorderRadius.circular(AppDimensions.radiusLg),
-      onTap: onTap,
-      child: Container(
-        decoration: BoxDecoration(
-          color: AppColors.bgCard,
-          borderRadius: BorderRadius.circular(AppDimensions.radiusLg),
-          border: Border(
-            left: BorderSide(
-              color: order.status.isActive
-                  ? AppColors.primaryGreen
-                  : Colors.transparent,
-              width: 3.w,
-            ),
-          ),
-          boxShadow: const <BoxShadow>[AppShadows.cardShadow],
-        ),
-        padding: EdgeInsets.all(14.w),
+      backgroundColor: AppColors.orderCanvas,
+      body: SafeArea(
+        bottom: false,
         child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
           children: <Widget>[
-            Row(
-              children: <Widget>[
-                Expanded(
-                  child: Text(
-                    order.orderNumber,
-                    style: AppTextStyles.labelLarge.copyWith(
-                      fontWeight: FontWeight.w700,
+            const _OrdersHeader(),
+            Gap(4.h),
+            OrderFilterTabs(
+              selected: _currentFilter,
+              onSelected: _changeFilter,
+            ),
+            Gap(8.h),
+            Expanded(
+              child: RefreshIndicator(
+                color: AppColors.orderViolet,
+                onRefresh: _refresh,
+                child: PagedListView<int, OrderEntity>.separated(
+                  pagingController: _pagingController,
+                  padding: EdgeInsets.fromLTRB(16.w, 8.h, 16.w, 24.h),
+                  separatorBuilder: (_, __) => Gap(14.h),
+                  builderDelegate: PagedChildBuilderDelegate<OrderEntity>(
+                    animateTransitions: true,
+                    itemBuilder: (context, order, index) {
+                      return RepaintBoundary(
+                        child: OrderCard(
+                          order: order,
+                          isCancelling: _cancellingIds.contains(order.id),
+                          isReordering: _reorderingIds.contains(order.id),
+                          onTap: () => context.push('/orders/${order.id}'),
+                          onTrack: () =>
+                              context.push('/orders/${order.id}/track'),
+                          onCancel: () => _cancelOrder(order),
+                          onReorder: () => _reorder(order),
+                          onViewDetails: () =>
+                              context.push('/orders/${order.id}'),
+                        ),
+                      );
+                    },
+                    firstPageProgressIndicatorBuilder: (context) =>
+                        const _OrdersLoadingList(),
+                    firstPageErrorIndicatorBuilder: (context) {
+                      final error = _pagingController.error;
+                      final message = error is StateError
+                          ? error.message.toString()
+                          : 'Unable to load orders.';
+                      return _OrdersErrorState(
+                        message: message,
+                        onRetry: _pagingController.refresh,
+                      );
+                    },
+                    noItemsFoundIndicatorBuilder: (context) =>
+                        const _OrdersEmptyState(),
+                    newPageProgressIndicatorBuilder: (_) => Padding(
+                      padding: EdgeInsets.symmetric(vertical: 16.h),
+                      child: const Center(
+                        child: CircularProgressIndicator(
+                          color: AppColors.orderViolet,
+                        ),
+                      ),
+                    ),
+                    newPageErrorIndicatorBuilder: (_) => Center(
+                      child: TextButton(
+                        onPressed: _pagingController.retryLastFailedRequest,
+                        child: const Text(
+                          'Retry',
+                          style: TextStyle(color: AppColors.orderViolet),
+                        ),
+                      ),
                     ),
                   ),
                 ),
-                _StatusChip(status: order.status),
-              ],
-            ),
-            Gap(6.h),
-            Text(
-              order.createdAt.toIndianDateTime,
-              style: AppTextStyles.bodySmall,
-            ),
-            Gap(12.h),
-            Row(
-              children: <Widget>[
-                _OrderItemThumbnails(items: order.items),
-                Gap(10.w),
-                Expanded(
-                  child: Text(
-                    '${order.itemCount} item${order.itemCount == 1 ? '' : 's'}',
-                    style: AppTextStyles.bodyMedium.copyWith(
-                      color: AppColors.textSecondary,
-                    ),
-                  ),
-                ),
-                Text(
-                  order.total.toInrCurrency,
-                  style: AppTextStyles.h3.copyWith(fontSize: 17.sp),
-                ),
-              ],
-            ),
-            if (actions.isNotEmpty) ...<Widget>[
-              Gap(12.h),
-              Wrap(
-                spacing: 8.w,
-                runSpacing: 8.h,
-                children: actions.map((action) {
-                  final isLoading = switch (action.type) {
-                    _OrderActionType.cancel => isCancelling,
-                    _OrderActionType.reorder => isReordering,
-                    _OrderActionType.invoice => isDownloadingInvoice,
-                    _OrderActionType.track || _OrderActionType.rate => false,
-                  };
-
-                  return action.type == _OrderActionType.track
-                      ? FilledButton.icon(
-                          onPressed: action.onTap,
-                          icon: PhosphorIcon(
-                            PhosphorIcons.navigationArrow(),
-                            size: 14.sp,
-                          ),
-                          style: FilledButton.styleFrom(
-                            backgroundColor: AppColors.primaryGreen,
-                            foregroundColor: AppColors.textOnGreen,
-                          ),
-                          label: Text(action.label),
-                        )
-                      : OutlinedButton(
-                          onPressed: isLoading ? null : action.onTap,
-                          child: isLoading
-                              ? SizedBox(
-                                  width: 16.w,
-                                  height: 16.w,
-                                  child: const CircularProgressIndicator(
-                                    strokeWidth: 2,
-                                  ),
-                                )
-                              : Text(action.label),
-                        );
-                }).toList(growable: false),
               ),
-            ],
+            ),
           ],
         ),
       ),
     );
   }
+}
 
-  List<_OrderAction> _actionsForStatus(OrderStatus status) {
-    switch (status) {
-      case OrderStatus.PENDING:
-      case OrderStatus.CONFIRMED:
-      case OrderStatus.PREPARING:
-      case OrderStatus.PACKED:
-      case OrderStatus.OUT_FOR_DELIVERY:
-        return <_OrderAction>[
-          _OrderAction(
-            label: 'Track',
-            type: _OrderActionType.track,
-            onTap: onTrack,
+class _OrdersHeader extends ConsumerWidget {
+  const _OrdersHeader();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final cartCount = ref.watch(cartCountProvider);
+
+    return Padding(
+      padding: EdgeInsets.fromLTRB(12.w, 8.h, 16.w, 8.h),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: <Widget>[
+          _HeaderIconButton(
+            icon: PhosphorIcons.arrowLeft(PhosphorIconsStyle.bold),
+            semanticLabel: 'Back',
+            onTap: () =>
+                context.canPop() ? context.pop() : context.go(RouteNames.home),
           ),
-          _OrderAction(
-            label: 'Cancel',
-            type: _OrderActionType.cancel,
-            onTap: onCancel,
+          SizedBox(width: 8.w),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: <Widget>[
+                Text('My Orders', style: AppTextStyles.h1),
+                SizedBox(height: 2.h),
+                Text(
+                  'Track and manage your grocery orders',
+                  style: TextStyle(
+                    fontFamily: 'Inter',
+                    fontSize: 12.5.sp,
+                    fontWeight: FontWeight.w400,
+                    color: AppColors.textSecondary,
+                    height: 1.2,
+                  ),
+                ),
+              ],
+            ),
           ),
-        ];
-      case OrderStatus.DELIVERED:
-        return <_OrderAction>[
-          _OrderAction(
-            label: 'Rate',
-            type: _OrderActionType.rate,
-            onTap: onRate,
+          SizedBox(width: 8.w),
+          _HeaderIconButton(
+            icon: PhosphorIcons.handbag(PhosphorIconsStyle.bold),
+            semanticLabel: 'Cart',
+            badgeCount: cartCount,
+            onTap: () => context.go(RouteNames.cart),
           ),
-          _OrderAction(
-            label: 'Reorder',
-            type: _OrderActionType.reorder,
-            onTap: onReorder,
-          ),
-          _OrderAction(
-            label: 'Invoice',
-            type: _OrderActionType.invoice,
-            onTap: onDownloadInvoice,
-          ),
-        ];
-      case OrderStatus.CANCELLED:
-        return <_OrderAction>[
-          _OrderAction(
-            label: 'Reorder',
-            type: _OrderActionType.reorder,
-            onTap: onReorder,
-          ),
-        ];
-    }
+        ],
+      ),
+    );
   }
 }
 
-class _StatusChip extends StatelessWidget {
-  const _StatusChip({required this.status});
+class _HeaderIconButton extends StatelessWidget {
+  const _HeaderIconButton({
+    required this.icon,
+    required this.onTap,
+    required this.semanticLabel,
+    this.badgeCount = 0,
+  });
 
-  final OrderStatus status;
+  final PhosphorIconData icon;
+  final VoidCallback onTap;
+  final String semanticLabel;
+  final int badgeCount;
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: EdgeInsets.symmetric(horizontal: 10.w, vertical: 5.h),
-      decoration: BoxDecoration(
-        color: _statusBackground(status),
-        borderRadius: BorderRadius.circular(AppDimensions.radiusFull),
-      ),
-      child: Text(
-        status.label,
-        style: AppTextStyles.labelSmall.copyWith(
-          color: _statusColor(status),
-          fontWeight: FontWeight.w700,
+    return Semantics(
+      button: true,
+      label: semanticLabel,
+      child: InkWell(
+        onTap: onTap,
+        customBorder: const CircleBorder(),
+        child: SizedBox(
+          width: 48.w,
+          height: 48.w,
+          child: Stack(
+            clipBehavior: Clip.none,
+            alignment: Alignment.center,
+            children: <Widget>[
+              Container(
+                width: 42.w,
+                height: 42.w,
+                decoration: const BoxDecoration(
+                  color: AppColors.orderVioletSurface,
+                  shape: BoxShape.circle,
+                ),
+                child: Center(
+                  child: PhosphorIcon(
+                    icon,
+                    size: 20.sp,
+                    color: AppColors.orderViolet,
+                  ),
+                ),
+              ),
+              if (badgeCount > 0)
+                Positioned(
+                  right: 2.w,
+                  top: 2.h,
+                  child: Container(
+                    padding:
+                        EdgeInsets.symmetric(horizontal: 5.w, vertical: 1.h),
+                    constraints: BoxConstraints(minWidth: 16.w),
+                    decoration: BoxDecoration(
+                      color: AppColors.orderStatusRed,
+                      borderRadius: BorderRadius.circular(100.r),
+                      border:
+                          Border.all(color: AppColors.orderCanvas, width: 1.5),
+                    ),
+                    child: Text(
+                      badgeCount > 99 ? '99+' : '$badgeCount',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        fontFamily: 'Inter',
+                        fontSize: 9.sp,
+                        fontWeight: FontWeight.w700,
+                        color: Colors.white,
+                        height: 1.2,
+                      ),
+                    ),
+                  ),
+                ),
+            ],
+          ),
         ),
       ),
     );
   }
-
-  Color _statusColor(OrderStatus value) {
-    return switch (value) {
-      OrderStatus.PENDING => const Color(0xFF8D6E63),
-      OrderStatus.CONFIRMED => const Color(0xFF1976D2),
-      OrderStatus.PREPARING => const Color(0xFF00897B),
-      OrderStatus.PACKED => const Color(0xFF7B1FA2),
-      OrderStatus.OUT_FOR_DELIVERY => AppColors.primaryGreen,
-      OrderStatus.DELIVERED => AppColors.successGreen,
-      OrderStatus.CANCELLED => AppColors.errorRed,
-    };
-  }
-
-  Color _statusBackground(OrderStatus value) {
-    return switch (value) {
-      OrderStatus.PENDING => const Color(0xFFF3E5F5),
-      OrderStatus.CONFIRMED => const Color(0xFFE3F2FD),
-      OrderStatus.PREPARING => const Color(0xFFE0F2F1),
-      OrderStatus.PACKED => const Color(0xFFF3E5F5),
-      OrderStatus.OUT_FOR_DELIVERY => AppColors.primaryGreenLight,
-      OrderStatus.DELIVERED => const Color(0xFFE8F5E9),
-      OrderStatus.CANCELLED => const Color(0xFFFFEBEE),
-    };
-  }
 }
 
-class _OrderItemThumbnails extends StatelessWidget {
-  const _OrderItemThumbnails({required this.items});
-
-  final List<OrderItemEntity> items;
+class _OrdersLoadingList extends StatelessWidget {
+  const _OrdersLoadingList();
 
   @override
   Widget build(BuildContext context) {
-    final visible = items.take(3).toList(growable: false);
-    final extra = items.length - visible.length;
-
-    return SizedBox(
-      width: 90.w,
-      height: 28.w,
-      child: Stack(
-        children: <Widget>[
-          for (var i = 0; i < visible.length; i++)
-            Positioned(
-              left: (i * 20).w,
-              child: Container(
-                width: 28.w,
-                height: 28.w,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  border: Border.all(color: AppColors.bgCard, width: 1.5),
-                ),
-                child: ClipOval(
-                  child: visible[i].thumbnailUrl == null
-                      ? ColoredBox(
-                          color: AppColors.bgInput,
-                          child: Icon(
-                            Icons.inventory_2_outlined,
-                            size: 14.sp,
-                            color: AppColors.textTertiary,
-                          ),
-                        )
-                      : CachedNetworkImage(
-                          imageUrl: visible[i].thumbnailUrl!,
-                          memCacheWidth: 300,
-                          fit: BoxFit.cover,
-                          errorWidget: (_, __, ___) => ColoredBox(
-                            color: AppColors.bgInput,
-                            child: Icon(
-                              Icons.inventory_2_outlined,
-                              size: 14.sp,
-                              color: AppColors.textTertiary,
-                            ),
-                          ),
-                        ),
-                ),
-              ),
-            ),
-          if (extra > 0)
-            Positioned(
-              left: (visible.length * 20).w,
-              child: Container(
-                width: 28.w,
-                height: 28.w,
-                alignment: Alignment.center,
-                decoration: BoxDecoration(
-                  color: AppColors.bgSection,
-                  shape: BoxShape.circle,
-                  border: Border.all(color: AppColors.bgCard, width: 1.5),
-                ),
-                child: Text(
-                  '+$extra',
-                  style: AppTextStyles.labelSmall.copyWith(
-                    color: AppColors.textSecondary,
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-              ),
-            ),
+    return Column(
+      children: <Widget>[
+        for (var i = 0; i < 4; i++) ...<Widget>[
+          const OrderCardSkeleton(),
+          Gap(14.h),
         ],
-      ),
+      ],
     );
   }
 }
@@ -654,28 +424,30 @@ class _OrdersEmptyState extends StatelessWidget {
 
   static const String _emptyBoxSvg = '''
 <svg viewBox="0 0 120 120" xmlns="http://www.w3.org/2000/svg">
-  <rect x="20" y="30" width="80" height="60" rx="8" fill="#F5F5F5" stroke="#D9D9D9" stroke-width="2"/>
-  <path d="M30 45h60" stroke="#D9D9D9" stroke-width="2"/>
-  <circle cx="46" cy="60" r="5" fill="#E0E0E0"/>
-  <circle cx="74" cy="60" r="5" fill="#E0E0E0"/>
+  <rect x="20" y="34" width="80" height="58" rx="10" fill="#F3EEFE" stroke="#E2D6F9" stroke-width="2"/>
+  <path d="M20 50h80" stroke="#E2D6F9" stroke-width="2"/>
+  <circle cx="46" cy="70" r="6" fill="#D9C8F5"/>
+  <circle cx="74" cy="70" r="6" fill="#D9C8F5"/>
+  <path d="M48 26l12 12 12-12" fill="none" stroke="#B79AEC" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
 </svg>
 ''';
 
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: EdgeInsets.only(top: 72.h),
+      padding: EdgeInsets.only(top: 80.h),
       child: Center(
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: <Widget>[
-            SvgPicture.string(_emptyBoxSvg, width: 100.w, height: 100.w),
-            Gap(14.h),
+            SvgPicture.string(_emptyBoxSvg, width: 110.w, height: 110.w),
+            Gap(16.h),
             Text('No orders yet', style: AppTextStyles.h3),
             Gap(6.h),
             Text(
               'Start shopping to see your orders here.',
               style: AppTextStyles.bodyMedium,
+              textAlign: TextAlign.center,
             ),
           ],
         ),
@@ -712,9 +484,12 @@ class _OrdersErrorState extends StatelessWidget {
               style: AppTextStyles.bodyMedium,
               textAlign: TextAlign.center,
             ),
-            Gap(12.h),
+            Gap(16.h),
             FilledButton(
               onPressed: onRetry,
+              style: FilledButton.styleFrom(
+                backgroundColor: AppColors.orderViolet,
+              ),
               child: const Text('Retry'),
             ),
           ],
@@ -722,18 +497,4 @@ class _OrdersErrorState extends StatelessWidget {
       ),
     );
   }
-}
-
-enum _OrderActionType { track, cancel, reorder, invoice, rate }
-
-class _OrderAction {
-  const _OrderAction({
-    required this.label,
-    required this.type,
-    required this.onTap,
-  });
-
-  final String label;
-  final _OrderActionType type;
-  final VoidCallback onTap;
 }

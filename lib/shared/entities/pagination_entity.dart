@@ -15,11 +15,31 @@ class PaginationEntity extends Equatable {
 
   factory PaginationEntity.fromJson(Map<String, dynamic> json) {
     return PaginationEntity(
-      page: json['page'] as int? ?? 1,
-      limit: json['limit'] as int? ?? 20,
-      total: json['total'] as int? ?? 0,
-      totalPages: json['totalPages'] as int? ?? 0,
+      page: _readInt(json['page'], fallback: 1),
+      limit: _readInt(json['limit'], fallback: 20),
+      total: _readInt(json['total']),
+      totalPages: _readInt(json['totalPages']),
     );
+  }
+
+  /// Tolerant int reader: accepts int, num (e.g. `10.0`) and numeric strings.
+  ///
+  /// API number types can vary (JSON has no int/double distinction), so a hard
+  /// `as int` cast would throw and fail the whole list parse.
+  static int _readInt(dynamic value, {int fallback = 0}) {
+    if (value is int) {
+      return value;
+    }
+    if (value is num) {
+      return value.toInt();
+    }
+    if (value is String) {
+      final parsed = int.tryParse(value.trim());
+      if (parsed != null) {
+        return parsed;
+      }
+    }
+    return fallback;
   }
 
   Map<String, dynamic> toJson() {
