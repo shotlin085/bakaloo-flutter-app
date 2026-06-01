@@ -13,15 +13,43 @@ import 'package:bakaloo_flutter_app/features/cart/presentation/providers/cart_pr
 import 'package:bakaloo_flutter_app/features/products/domain/entities/product_entity.dart';
 import 'package:bakaloo_flutter_app/features/wishlist/presentation/providers/wishlist_provider.dart';
 import 'package:bakaloo_flutter_app/shared/widgets/app_image.dart';
-import 'package:bakaloo_flutter_app/shared/widgets/shared_painters.dart';
 
+/// Layout of the card — grid (vertical lists) vs scroll (horizontal rails).
 enum ProductCardStyle { grid, scroll }
+
+/// Visual design variant of the product card, admin-configurable per section
+/// (and globally) from the dashboard theme builder.
+///
+///   * [quickCommerceCompact] — the premium quick-commerce reference design
+///     (price sticker, dashed discount line, rating/delivery rows). DEFAULT.
+///   * [bakalooLegacyClean]  — the older, simpler/flatter card (plain price
+///     text, minimal chrome). Kept so admins can opt back into the classic
+///     look without a new widget.
+enum ProductCardVariant { quickCommerceCompact, bakalooLegacyClean }
+
+/// Resolve a [ProductCardVariant] from a backend config string.
+///
+/// Accepts the canonical UPPER_SNAKE tokens persisted by the dashboard
+/// (`QUICK_COMMERCE_COMPACT`, `BAKALOO_LEGACY_CLEAN`). Any unknown / null /
+/// empty value falls back to [ProductCardVariant.quickCommerceCompact] so old
+/// themes and forward-incompatible values render the default safely.
+ProductCardVariant productCardVariantFromString(String? raw) {
+  switch ((raw ?? '').trim().toUpperCase()) {
+    case 'BAKALOO_LEGACY_CLEAN':
+      return ProductCardVariant.bakalooLegacyClean;
+    case 'QUICK_COMMERCE_COMPACT':
+      return ProductCardVariant.quickCommerceCompact;
+    default:
+      return ProductCardVariant.quickCommerceCompact;
+  }
+}
 
 class ProductCard extends StatefulWidget {
   const ProductCard({
     required this.product,
     this.width = AppDimensions.productCardWidth,
     this.style,
+    this.variant = ProductCardVariant.quickCommerceCompact,
     this.showWishlist = false,
     this.onTap,
     this.onAdd,
@@ -32,6 +60,9 @@ class ProductCard extends StatefulWidget {
   final ProductEntity product;
   final double width;
   final ProductCardStyle? style;
+
+  /// Visual design variant. Defaults to the premium quick-commerce card.
+  final ProductCardVariant variant;
   final bool showWishlist;
   final VoidCallback? onTap;
   final VoidCallback? onAdd;
@@ -183,14 +214,14 @@ class _ProductCardState extends State<ProductCard> {
                                       ),
                                     ),
                                   ),
-                                // Food marker (bottom-left)
+                                // Food marker (top-right under wishlist)
                                 if (product.hasFoodMarker)
                                   Positioned(
-                                    bottom: 8.h,
-                                    left: 6.w,
+                                    top: widget.showWishlist ? 34.h : 6.h,
+                                    right: 8.w,
                                     child: Container(
-                                      width: 14.w,
-                                      height: 14.w,
+                                      width: 16.w,
+                                      height: 16.w,
                                       decoration: BoxDecoration(
                                         color: Colors.white,
                                         borderRadius: BorderRadius.circular(3.r),
@@ -205,8 +236,8 @@ class _ProductCardState extends State<ProductCard> {
                                       ),
                                       alignment: Alignment.center,
                                       child: Container(
-                                        width: 7.w,
-                                        height: 7.w,
+                                        width: 8.w,
+                                        height: 8.w,
                                         decoration: BoxDecoration(
                                           shape: BoxShape.circle,
                                           color: product.isVeg
@@ -230,6 +261,42 @@ class _ProductCardState extends State<ProductCard> {
                                     onOptionsTap: widget.onOptionsTap,
                                   ),
                                 ),
+                                // Weight / unit chip (bottom-left on image)
+                                if (product.displayUnit.trim().isNotEmpty)
+                                  Positioned(
+                                    left: tightGrid ? 6.w : 8.w,
+                                    bottom: tightGrid ? 6.h : 8.h,
+                                    child: Container(
+                                      padding: EdgeInsets.symmetric(
+                                        horizontal: tightGrid ? 6.w : 8.w,
+                                        vertical: tightGrid ? 2.h : 3.h,
+                                      ),
+                                      decoration: BoxDecoration(
+                                        color: Colors.white,
+                                        borderRadius:
+                                            BorderRadius.circular(6.r),
+                                        boxShadow: <BoxShadow>[
+                                          BoxShadow(
+                                            color: Colors.black
+                                                .withValues(alpha: 0.08),
+                                            blurRadius: 4,
+                                            offset: const Offset(0, 1),
+                                          ),
+                                        ],
+                                      ),
+                                      child: Text(
+                                        product.displayUnit,
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                        style: TextStyle(
+                                          fontSize: unitFontSize,
+                                          fontWeight: FontWeight.w600,
+                                          color: const Color(0xFF3A3A3A),
+                                          height: 1.1,
+                                        ),
+                                      ),
+                                    ),
+                                  ),
                               ],
                             ),
                           ),
@@ -243,36 +310,13 @@ class _ProductCardState extends State<ProductCard> {
                             child: Row(
                               crossAxisAlignment: CrossAxisAlignment.center,
                               children: <Widget>[
-                                Container(
-                                  padding: EdgeInsets.symmetric(
-                                    horizontal: tightGrid ? 5.w : 6.w,
-                                    vertical: tightGrid ? 2.h : 3.h,
-                                  ),
-                                  decoration: BoxDecoration(
-                                    color: AppColors.primaryGreen,
-                                    borderRadius: BorderRadius.circular(
-                                      tightGrid ? 5.r : 6.r,
-                                    ),
-                                    border: Border.all(
-                                      color: Colors.black,
-                                      width: 2,
-                                    ),
-                                    boxShadow: const <BoxShadow>[
-                                      BoxShadow(
-                                        color: Colors.black,
-                                        offset: Offset(2, 2),
-                                        blurRadius: 0,
-                                      ),
-                                    ],
-                                  ),
-                                  child: Text(
-                                    '₹${effectivePrice.toInt()}',
-                                    style: TextStyle(
-                                      fontSize: priceFontSize,
-                                      fontWeight: FontWeight.w800,
-                                      color: Colors.white,
-                                      height: 1.1,
-                                    ),
+                                Text(
+                                  '₹${effectivePrice.toInt()}',
+                                  style: TextStyle(
+                                    fontSize: priceFontSize + 2,
+                                    fontWeight: FontWeight.w800,
+                                    color: const Color(0xFF1A1A1A),
+                                    height: 1.1,
                                   ),
                                 ),
                                 if (isOnSale) ...<Widget>[
@@ -289,11 +333,11 @@ class _ProductCardState extends State<ProductCard> {
                                           style: TextStyle(
                                             fontSize: comparePriceFontSize,
                                             fontWeight: FontWeight.w500,
-                                            color: const Color(0xFF888888),
+                                            color: const Color(0xFF999999),
                                             decoration:
                                                 TextDecoration.lineThrough,
                                             decorationColor:
-                                                const Color(0xFF888888),
+                                                const Color(0xFF999999),
                                           ),
                                         ),
                                       ),
@@ -311,29 +355,17 @@ class _ProductCardState extends State<ProductCard> {
                                 contentPadding,
                                 0,
                               ),
-                              child: Row(
-                                children: <Widget>[
-                                  Text(
-                                    product.discountPercent > 0
-                                        ? '₹$offAmount OFF (${product.discountPercent}%)'
-                                        : '₹$offAmount OFF',
-                                    style: TextStyle(
-                                      fontSize: offFontSize,
-                                      fontWeight: FontWeight.w700,
-                                      color: AppColors.primaryGreen,
-                                    ),
-                                  ),
-                                  Gap(tightGrid ? 4.w : 6.w),
-                                  Expanded(
-                                    child: CustomPaint(
-                                      painter: DashedLinePainter(
-                                        color: AppColors.primaryGreen
-                                            .withValues(alpha: 0.35),
-                                      ),
-                                      size: Size(double.infinity, 1.h),
-                                    ),
-                                  ),
-                                ],
+                              child: Text(
+                                product.discountPercent > 0
+                                    ? '${product.discountPercent}% OFF on MRP'
+                                    : '₹$offAmount OFF',
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: TextStyle(
+                                  fontSize: offFontSize,
+                                  fontWeight: FontWeight.w700,
+                                  color: const Color(0xFF2B7FFF),
+                                ),
                               ),
                             ),
                           Gap(4.h),
@@ -417,25 +449,7 @@ class _ProductCardState extends State<ProductCard> {
                                 ],
                               ),
                             ),
-                          Gap(2.h),
-                          Padding(
-                            padding: EdgeInsets.fromLTRB(
-                              contentPadding,
-                              0,
-                              contentPadding,
-                              6.h,
-                            ),
-                            child: Text(
-                              product.displayUnit,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: AppTextStyles.bodySmall.copyWith(
-                                color: const Color(0xFF7A7A7A),
-                                fontSize: unitFontSize,
-                                fontWeight: FontWeight.w400,
-                              ),
-                            ),
-                          ),
+                          Gap(6.h),
                         ],
                       ),
                       if (!product.inStock)
@@ -613,7 +627,7 @@ class _ZeptoAddQtyButton extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    const pinkBorder = Color(0xFFE91E63);
+    const pinkBorder = AppColors.primaryGreen;
     final buttonHeight = tight ? 30.h : 32.h;
     final gridButtonWidth = tight
         ? 58.w
@@ -785,6 +799,9 @@ class _ZeptoAddQtyButton extends ConsumerWidget {
             padding: EdgeInsets.only(top: 3.h),
             child: Text(
               '${product.optionCount} options',
+              maxLines: 1,
+              softWrap: false,
+              overflow: TextOverflow.ellipsis,
               style: TextStyle(
                 fontSize: 9.sp,
                 fontWeight: FontWeight.w500,

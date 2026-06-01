@@ -238,29 +238,38 @@ class CategoryTabsRow extends ConsumerWidget {
         child: Column(
           children: <Widget>[
             if (entry.tabIconUrl != null)
-              AppImage(
-                imageUrl: entry.tabIconUrl!,
-                memCacheWidth: 44,
-                memCacheHeight: 44,
-                fit: BoxFit.contain,
-                placeholder: Icon(
-                  Icons.category_rounded,
-                  size: 30.sp,
-                  color: foregroundColor,
-                ),
-                errorWidget: Icon(
-                  Icons.category_rounded,
-                  size: 30.sp,
-                  color: foregroundColor,
+              SizedBox(
+                width: 46.w,
+                height: 46.w,
+                child: AppImage(
+                  imageUrl: entry.tabIconUrl!,
+                  memCacheWidth: 160,
+                  memCacheHeight: 160,
+                  fit: BoxFit.contain,
+                  filterQuality: FilterQuality.high,
+                  placeholder: Icon(
+                    Icons.category_rounded,
+                    size: 30.sp,
+                    color: foregroundColor,
+                  ),
+                  errorWidget: Icon(
+                    Icons.category_rounded,
+                    size: 30.sp,
+                    color: foregroundColor,
+                  ),
                 ),
               )
             else
-              Icon(
-                Icons.category_rounded,
-                size: 30.sp,
-                color: foregroundColor,
+              SizedBox(
+                width: 46.w,
+                height: 46.w,
+                child: Icon(
+                  Icons.category_rounded,
+                  size: 30.sp,
+                  color: foregroundColor,
+                ),
               ),
-            Gap(4.h),
+            Gap(1.h),
             Padding(
               padding: EdgeInsets.symmetric(horizontal: 2.w),
               child: Text(
@@ -439,7 +448,7 @@ class _CategoryTab extends StatelessWidget {
               width: 44.w,
               height: 44.h,
               fit: BoxFit.contain,
-              filterQuality: FilterQuality.low,
+              filterQuality: FilterQuality.high,
               color: textColor.withValues(alpha: isSelected ? 1 : 0.72),
               colorBlendMode: BlendMode.srcIn,
               errorBuilder: (_, __, ___) => Icon(
@@ -448,7 +457,7 @@ class _CategoryTab extends StatelessWidget {
                 color: textColor.withValues(alpha: isSelected ? 1 : 0.72),
               ),
             ),
-            Gap(4.h),
+            Gap(1.h),
             Padding(
               padding: EdgeInsets.symmetric(horizontal: 2.w),
               child: Text(

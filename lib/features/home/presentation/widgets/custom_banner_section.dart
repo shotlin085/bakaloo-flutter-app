@@ -154,8 +154,8 @@ class _CustomBannerSectionState extends State<CustomBannerSection> {
                     imageUrl: resolvedImage.url ?? widget.imageUrl!,
                     memCacheWidth: resolvedImage.memCacheWidth,
                     memCacheHeight: resolvedImage.memCacheHeight,
-                    fit: BoxFit.contain,
-                    filterQuality: FilterQuality.low,
+                    fit: BoxFit.cover,
+                    filterQuality: FilterQuality.high,
                     placeholder: const ColoredBox(
                       color: Colors.white,
                       child: SizedBox.expand(),

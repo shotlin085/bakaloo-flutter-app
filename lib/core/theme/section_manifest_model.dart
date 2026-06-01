@@ -148,6 +148,17 @@ class SectionManifestEntry {
   // ── Arched Showcase 2.0: Product layout ──
   String get productLayout =>
       _parseNullableString(config['product_layout']) ?? 'horizontal_scroll';
+
+  /// Visual style of the product cards rendered in this section, as a raw
+  /// backend token (e.g. `QUICK_COMMERCE_COMPACT`, `BAKALOO_LEGACY_CLEAN`).
+  ///
+  /// Read from `config.product_card_style` (snake_case persisted by the
+  /// dashboard) with a `productCardStyle` camelCase fallback. Returns `null`
+  /// when unset so the caller can apply the global/default variant — old
+  /// sections without the key keep the default quick-commerce card.
+  String? get productCardStyle => _parseNullableString(
+        config['product_card_style'] ?? config['productCardStyle'],
+      );
 }
 
 @immutable

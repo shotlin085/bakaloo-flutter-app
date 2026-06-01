@@ -22,8 +22,9 @@ class CartItemCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final hasDiscount = item.salePrice != null && item.salePrice! < item.price;
-    final effectivePrice = hasDiscount ? item.salePrice! : item.price;
+    final hasDiscount =
+        item.salePrice != null && item.salePrice! > 0 && item.salePrice! < item.price;
+    final effectivePrice = item.effectivePrice;
 
     return Slidable(
       key: ValueKey<String>(item.productId),
@@ -101,16 +102,19 @@ class CartItemCard extends StatelessWidget {
                         ),
                       ),
                     ),
-                  SizedBox(height: 4.h),
-                  Text(
-                    item.optionLabel ?? item.unit ?? '1 unit',
-                    style: TextStyle(
-                      fontSize: 12.sp,
-                      fontWeight: FontWeight.w400,
-                      color: const Color(0xFF888888),
-                      fontFamily: 'Inter',
+                  if (item.optionLabel == null || item.optionLabel!.isEmpty)
+                    Padding(
+                      padding: EdgeInsets.only(top: 4.h),
+                      child: Text(
+                        item.unit ?? '1 unit',
+                        style: TextStyle(
+                          fontSize: 12.sp,
+                          fontWeight: FontWeight.w400,
+                          color: const Color(0xFF888888),
+                          fontFamily: 'Inter',
+                        ),
+                      ),
                     ),
-                  ),
                   SizedBox(height: 10.h),
                   Row(
                     children: <Widget>[

@@ -38,8 +38,10 @@ import 'package:bakaloo_flutter_app/shared/widgets/category_tabs_row.dart';
 import 'package:bakaloo_flutter_app/shared/widgets/error_state.dart';
 import 'package:bakaloo_flutter_app/shared/widgets/home_header.dart';
 import 'package:bakaloo_flutter_app/shared/widgets/home_search_bar.dart';
+import 'package:bakaloo_flutter_app/shared/widgets/product_card.dart';
 import 'package:bakaloo_flutter_app/shared/widgets/shared_painters.dart';
 import 'package:bakaloo_flutter_app/shared/widgets/skeleton_loader.dart';
+import 'package:bakaloo_flutter_app/features/products/presentation/widgets/show_product_options.dart';
 
 double _horizontalRailExtent(
   int index,
@@ -51,6 +53,21 @@ double _horizontalRailExtent(
     return itemWidth;
   }
   return itemWidth + separatorWidth;
+}
+
+/// Logical (design-unit) width for a card in the 3-column home grid.
+///
+/// The grid uses 16w horizontal padding on each side and two 10w gaps between
+/// the three columns. [ProductCard] multiplies its `width` by `.w` internally,
+/// so we return the design-unit width (raw px ÷ current width scale) to avoid
+/// double-scaling.
+double _threeColumnCardWidth(BuildContext context) {
+  final double screenWidth = MediaQuery.sizeOf(context).width;
+  final double horizontalPadding = 16.w * 2;
+  final double totalGap = 10.w * 2;
+  final double columnPx = (screenWidth - horizontalPadding - totalGap) / 3;
+  final double scale = ScreenUtil().scaleWidth;
+  return scale > 0 ? columnPx / scale : columnPx;
 }
 
 class HomeScreen extends ConsumerStatefulWidget {
@@ -155,8 +172,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
     SystemChrome.setSystemUIOverlayStyle(
       const SystemUiOverlayStyle(
         statusBarColor: Colors.transparent,
-        statusBarIconBrightness: Brightness.light,
-        statusBarBrightness: Brightness.dark,
+        statusBarIconBrightness: Brightness.dark,
+        statusBarBrightness: Brightness.light,
         systemNavigationBarColor: Colors.white,
         systemNavigationBarIconBrightness: Brightness.dark,
       ),
@@ -499,9 +516,6 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
 
   @override
   Widget build(BuildContext context) {
-    final statusBarBrightness = ref.watch(
-      activeTabThemeProvider.select((theme) => theme.meta.statusBarBrightness),
-    );
     final topBarTheme = TopBarTheme(
       backgroundColor: ref.watch(
         activeTabThemeProvider.select(
@@ -572,14 +586,10 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
                   systemNavigationBarColor: Colors.white,
                   systemNavigationBarIconBrightness: Brightness.dark,
                 )
-              : SystemUiOverlayStyle(
+              : const SystemUiOverlayStyle(
                   statusBarColor: Colors.transparent,
-                  statusBarIconBrightness: statusBarBrightness == 'light'
-                      ? Brightness.light
-                      : Brightness.dark,
-                  statusBarBrightness: statusBarBrightness == 'light'
-                      ? Brightness.dark
-                      : Brightness.light,
+                  statusBarIconBrightness: Brightness.dark,
+                  statusBarBrightness: Brightness.light,
                   systemNavigationBarColor: Colors.white,
                   systemNavigationBarIconBrightness: Brightness.dark,
                 ),
@@ -655,6 +665,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
                                         },
                                         onProfileTap: () =>
                                             context.go(RouteNames.profile),
+                                        onWalletTap: () =>
+                                            context.go(RouteNames.wallet),
                                         topBarTheme: topBarTheme,
                                       );
                                     },
@@ -694,7 +706,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
                                           CrossAxisAlignment.start,
                                       children: <Widget>[
                                         SizedBox(
-                                          height: 6.h,
+                                          height: 0,
                                           child: ClipPath(
                                             clipper:
                                                 const StoreToSearchWaveClipper(),
@@ -710,16 +722,16 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
                                           searchTheme: searchZoneTheme,
                                           outerPadding: EdgeInsets.fromLTRB(
                                             12.w,
-                                            1.h,
+                                            0,
                                             0,
                                             0,
                                           ),
                                         ),
                                         if (showCategoryTabs) ...<Widget>[
-                                          Gap(1.h),
+                                          Gap(10.h),
                                           const CategoryTabsRow(),
                                         ] else
-                                          Gap(12.h),
+                                          Gap(18.h),
                                       ],
                                     ),
                                   ),
@@ -3055,9 +3067,13 @@ class _TrendingNearYouSection extends StatelessWidget {
           child: RepaintBoundary(
             child: _ThreeColumnProductGrid<ProductEntity>(
               items: products.take(6).toList(growable: false),
-              itemBuilder: (product) => _BlinkitStyleProductCard(
+              itemBuilder: (product) => ProductCard(
                 product: product,
-                showHeart: true,
+                width: _threeColumnCardWidth(context),
+                style: ProductCardStyle.grid,
+                showWishlist: true,
+                onTap: () => context.push('/products/${product.id}'),
+                onOptionsTap: () => showProductOptionsSheet(context, product),
               ),
             ),
           ),
@@ -3099,8 +3115,13 @@ class _CategoryProductSection extends StatelessWidget {
           child: RepaintBoundary(
             child: _ThreeColumnProductGrid<ProductEntity>(
               items: products.take(6).toList(growable: false),
-              itemBuilder: (product) => _BlinkitStyleProductCard(
+              itemBuilder: (product) => ProductCard(
                 product: product,
+                width: _threeColumnCardWidth(context),
+                style: ProductCardStyle.grid,
+                showWishlist: true,
+                onTap: () => context.push('/products/${product.id}'),
+                onOptionsTap: () => showProductOptionsSheet(context, product),
               ),
             ),
           ),
@@ -3154,378 +3175,6 @@ class _ThreeColumnProductGrid<T> extends StatelessWidget {
           ),
         ],
       ],
-    );
-  }
-}
-
-// ── Blinkit-Style Product Card (Trending/Category grid) ─
-
-class _BlinkitStyleProductCard extends StatelessWidget {
-  const _BlinkitStyleProductCard({
-    required this.product,
-    this.showHeart = false,
-  });
-
-  final ProductEntity product;
-  final bool showHeart;
-
-  @override
-  Widget build(BuildContext context) {
-    final imageUrl = _firstRenderableProductImage(product);
-    final imagePalette = productImagePalette(product);
-    final optimizedImage = ApiConstants.optimizedMedia(
-      imageUrl,
-      profile: CustomerImageProfile.homeProduct,
-    );
-    final hasDiscount = product.isOnSale && product.discountPercent > 0;
-    final discountAmount =
-        hasDiscount ? (product.price - product.effectivePrice) : 0.0;
-
-    return GestureDetector(
-      onTap: () => context.push('/product/${product.id}'),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        mainAxisSize: MainAxisSize.min,
-        children: <Widget>[
-          // ── Image box + ADD + Heart ──
-          AspectRatio(
-            aspectRatio: 0.88,
-            child: Container(
-              width: double.infinity,
-              decoration: BoxDecoration(
-                gradient: imagePalette.gradient,
-                borderRadius: BorderRadius.circular(12.r),
-                border: Border.all(color: const Color(0xFFE8E8E8), width: 0.8),
-              ),
-              child: Stack(
-                children: <Widget>[
-                  Positioned.fill(
-                    child: ClipRRect(
-                      borderRadius: BorderRadius.circular(11.r),
-                      child: imageUrl == null
-                          ? Center(
-                              child: PhosphorIcon(
-                                PhosphorIcons.imageSquare(
-                                  PhosphorIconsStyle.duotone,
-                                ),
-                                size: 36.sp,
-                                color: AppColors.warmMuted,
-                              ),
-                            )
-                          : AppImage(
-                              imageUrl: optimizedImage.url ?? imageUrl,
-                              fit: BoxFit.cover,
-                              memCacheWidth: optimizedImage.memCacheWidth,
-                              memCacheHeight: optimizedImage.memCacheHeight,
-                              filterQuality: FilterQuality.low,
-                              placeholder: ColoredBox(
-                                color: imagePalette.fallbackColor,
-                                child: const SizedBox.expand(),
-                              ),
-                              errorWidget: ColoredBox(
-                                color: imagePalette.fallbackColor,
-                                child: Center(
-                                  child: PhosphorIcon(
-                                    PhosphorIcons.imageSquare(
-                                      PhosphorIconsStyle.duotone,
-                                    ),
-                                    size: 36.sp,
-                                    color: AppColors.warmMuted,
-                                  ),
-                                ),
-                              ),
-                            ),
-                    ),
-                  ),
-                  // Heart icon top-right
-                  if (showHeart)
-                    Positioned(
-                      top: 6.h,
-                      right: 6.w,
-                      child: PhosphorIcon(
-                        PhosphorIcons.heart(PhosphorIconsStyle.regular),
-                        size: 18.sp,
-                        color: const Color(0xFFD6006F),
-                      ),
-                    ),
-                  // ADD button bottom-center
-                  Positioned(
-                    bottom: 0,
-                    left: 0,
-                    right: 0,
-                    child: Center(
-                      child: _BlinkitAddButton(
-                        product: product,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-          Gap(8.h),
-          // ── Price row: green badge + MRP ──
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.center,
-            children: <Widget>[
-              Container(
-                padding: EdgeInsets.symmetric(horizontal: 6.w, vertical: 3.h),
-                decoration: BoxDecoration(
-                  color: const Color(0xFF1B8721),
-                  borderRadius: BorderRadius.circular(6.r),
-                  border: Border.all(
-                    color: Colors.black,
-                    width: 2.2,
-                  ),
-                  boxShadow: const <BoxShadow>[
-                    BoxShadow(
-                      color: Colors.black,
-                      offset: Offset(2, 2),
-                      blurRadius: 0,
-                    ),
-                  ],
-                ),
-                child: Text(
-                  product.effectivePrice.toInrCurrency,
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontSize: 12.sp,
-                    fontWeight: FontWeight.w800,
-                  ),
-                ),
-              ),
-              if (hasDiscount) ...<Widget>[
-                Gap(4.w),
-                Flexible(
-                  child: Text(
-                    product.price.toInrCurrency,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                      color: const Color(0xFF999999),
-                      fontSize: 11.sp,
-                      fontWeight: FontWeight.w500,
-                      decoration: TextDecoration.lineThrough,
-                      decorationColor: const Color(0xFF999999),
-                    ),
-                  ),
-                ),
-              ],
-            ],
-          ),
-          // ── Discount OFF text ──
-          if (hasDiscount) ...<Widget>[
-            Gap(2.h),
-            Row(
-              children: <Widget>[
-                Text(
-                  '₹${discountAmount.toStringAsFixed(0)} OFF',
-                  style: TextStyle(
-                    color: const Color(0xFF1B8721),
-                    fontSize: 10.5.sp,
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-                Gap(4.w),
-                const Expanded(
-                  child: SizedBox(
-                    height: 1,
-                    child: CustomPaint(
-                      painter: DashedLinePainter(
-                        color: Color(0xFF1B8721),
-                        strokeWidth: 1,
-                        dashWidth: 3,
-                        dashSpace: 2,
-                        style: null,
-                      ),
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ],
-          Gap(4.h),
-          // ── Product name ──
-          Text(
-            product.name,
-            maxLines: 2,
-            overflow: TextOverflow.ellipsis,
-            style: TextStyle(
-              color: const Color(0xFF2B2B2B),
-              fontSize: 12.sp,
-              fontWeight: FontWeight.w600,
-              height: 1.25,
-            ),
-          ),
-          Gap(2.h),
-          // ── Unit ──
-          Text(
-            product.unit,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: TextStyle(
-              color: const Color(0xFFAAAAAA),
-              fontSize: 10.sp,
-              fontWeight: FontWeight.w400,
-            ),
-          ),
-          Gap(2.h),
-          // ── Delivery time ──
-          Row(
-            children: <Widget>[
-              PhosphorIcon(
-                PhosphorIcons.lightning(PhosphorIconsStyle.fill),
-                size: 11.sp,
-                color: const Color(0xFF666666),
-              ),
-              Gap(2.w),
-              Text(
-                '6 mins',
-                style: TextStyle(
-                  color: const Color(0xFF666666),
-                  fontSize: 10.sp,
-                  fontWeight: FontWeight.w500,
-                ),
-              ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-// ── Blinkit-style ADD button ────────────────────────────
-
-class _BlinkitAddButton extends ConsumerWidget {
-  const _BlinkitAddButton({
-    required this.product,
-  });
-
-  final ProductEntity product;
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final quantity = ref.watch(cartItemQuantityProvider(product.id));
-    final cartNotifier = ref.read(cartProvider.notifier);
-
-    if (quantity <= 0) {
-      return Transform.translate(
-        offset: Offset(0, 6.h),
-        child: Material(
-          color: Colors.transparent,
-          child: InkWell(
-            onTap: () async {
-              final authGate = ref.read(authGateControllerProvider);
-              final authed = await authGate.protectAddToCart(
-                context,
-                product,
-              );
-              if (!authed) return;
-              await cartNotifier.addItem(product.id, 1, product: product);
-            },
-            borderRadius: BorderRadius.circular(10.r),
-            child: Ink(
-              padding: EdgeInsets.symmetric(horizontal: 18.w, vertical: 6.h),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(10.r),
-                border: Border.all(
-                  color: const Color(0xFFD6006F),
-                  width: 1.2,
-                ),
-                boxShadow: const <BoxShadow>[
-                  BoxShadow(
-                    color: Color(0x18000000),
-                    blurRadius: 6,
-                    offset: Offset(0, 2),
-                  ),
-                ],
-              ),
-              child: Text(
-                'ADD',
-                style: TextStyle(
-                  color: const Color(0xFFD6006F),
-                  fontSize: 13.sp,
-                  fontWeight: FontWeight.w800,
-                  letterSpacing: 0.4,
-                ),
-              ),
-            ),
-          ),
-        ),
-      );
-    }
-
-    return Transform.translate(
-      offset: Offset(0, 6.h),
-      child: Container(
-        padding: EdgeInsets.symmetric(horizontal: 6.w),
-        height: 32.h,
-        decoration: BoxDecoration(
-          color: const Color(0xFFD6006F),
-          borderRadius: BorderRadius.circular(10.r),
-          boxShadow: const <BoxShadow>[
-            BoxShadow(
-              color: Color(0x18000000),
-              blurRadius: 6,
-              offset: Offset(0, 2),
-            ),
-          ],
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: <Widget>[
-            _BlinkitQtyBtn(
-              icon: PhosphorIcons.minus(),
-              onTap: () {
-                if (quantity == 1) {
-                  cartNotifier.removeItem(product.id);
-                } else {
-                  cartNotifier.updateItem(product.id, quantity - 1);
-                }
-              },
-            ),
-            Padding(
-              padding: EdgeInsets.symmetric(horizontal: 8.w),
-              child: Text(
-                '$quantity',
-                style: TextStyle(
-                  color: Colors.white,
-                  fontSize: 13.sp,
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
-            ),
-            _BlinkitQtyBtn(
-              icon: PhosphorIcons.plus(),
-              onTap: () => cartNotifier.updateItem(product.id, quantity + 1),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _BlinkitQtyBtn extends StatelessWidget {
-  const _BlinkitQtyBtn({required this.icon, required this.onTap});
-
-  final PhosphorIconData icon;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(8.r),
-      child: SizedBox(
-        width: 22.w,
-        height: 22.h,
-        child: Center(
-          child: PhosphorIcon(icon, size: 14.sp, color: Colors.white),
-        ),
-      ),
     );
   }
 }

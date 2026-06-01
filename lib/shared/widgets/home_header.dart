@@ -1,19 +1,19 @@
-import 'package:dotlottie_loader/dotlottie_loader.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
-import 'package:flutter_svg/flutter_svg.dart';
 import 'package:gap/gap.dart';
-import 'package:lottie/lottie.dart';
 
 import 'package:bakaloo_flutter_app/core/providers/store_provider.dart';
 import 'package:bakaloo_flutter_app/core/theme/remote_theme_model.dart';
+import 'package:bakaloo_flutter_app/features/payments/presentation/providers/payment_provider.dart';
 
+/// Premium white-lavender top header.
 class HomeHeader extends ConsumerWidget {
   const HomeHeader({
     required this.addressText,
     required this.onAddressTap,
     required this.onProfileTap,
+    this.onWalletTap,
     this.topBarTheme,
     super.key,
   });
@@ -21,141 +21,309 @@ class HomeHeader extends ConsumerWidget {
   final String addressText;
   final VoidCallback onAddressTap;
   final VoidCallback onProfileTap;
+  final VoidCallback? onWalletTap;
   final TopBarTheme? topBarTheme;
+
+  static const Color _lavenderTop = Color(0xFFEDE4FB);
+  static const Color _lavenderBottom = Color(0xFFF6F1FD);
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final defaultTopBarTheme = TopBarTheme.defaults();
-    final primaryTextColor =
-        topBarTheme?.textColor ?? defaultTopBarTheme.textColor;
-    final secondaryTextColor = Color.lerp(
-          primaryTextColor,
-          Colors.white,
-          0.13,
-        ) ??
-        primaryTextColor;
-    final mutedIconColor = Color.lerp(
-          primaryTextColor,
-          Colors.white,
-          0.28,
-        ) ??
-        primaryTextColor;
-    final store = ref.watch(selectedStoreProvider);
     final topInset = MediaQuery.paddingOf(context).top;
+    final store = ref.watch(selectedStoreProvider);
 
     return Container(
       width: double.infinity,
-      color: Colors.transparent,
-      padding: EdgeInsets.fromLTRB(16.w, topInset + 8.h, 16.w, 0),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.center,
+      decoration: const BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: <Color>[_lavenderTop, _lavenderBottom],
+        ),
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
         children: <Widget>[
-          Expanded(
+          Padding(
+            padding: EdgeInsets.fromLTRB(16.w, topInset + 0.h, 16.w, 0),
             child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
               children: <Widget>[
-                Row(
-                  children: <Widget>[
-                    SvgPicture.asset(
-                      'assets/icon/thunder.svg',
-                      width: 18,
-                      height: 18,
-                      colorFilter: ColorFilter.mode(
-                        primaryTextColor,
-                        BlendMode.srcIn,
-                      ),
-                    ),
-                    const SizedBox(width: 4),
-                    Text(
-                      store.subtitle,
-                      style: TextStyle(
-                        fontSize: 20.sp,
-                        fontWeight: FontWeight.w600,
-                        color: primaryTextColor,
-                      ),
-                    ),
-                  ],
+                // Centered brand logo on top.
+                Image.asset(
+                  'assets/icon/brand_logo.png',
+                  height: 40.h,
+                  cacheHeight: 160,
+                  fit: BoxFit.contain,
+                  filterQuality: FilterQuality.medium,
                 ),
-                Gap(0.h),
-                GestureDetector(
-                  onTap: onAddressTap,
-                  child: LayoutBuilder(
-                    builder: (context, constraints) {
-                      final maxTextWidth = constraints.maxWidth > 24.w
-                          ? constraints.maxWidth - 24.w
-                          : constraints.maxWidth;
-
-                      return Row(
+                // Pull the bottom row up so it overlaps the logo's lower
+                // whitespace, keeping the overall header height compact.
+                Transform.translate(
+                  offset: Offset(0, -6.h),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.center,
+                    children: <Widget>[
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
                         mainAxisSize: MainAxisSize.min,
                         children: <Widget>[
-                          ConstrainedBox(
-                            constraints: BoxConstraints(maxWidth: maxTextWidth),
-                            child: Text(
-                              addressText,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: TextStyle(
-                                fontSize: 13.sp,
-                                fontWeight: FontWeight.w500,
-                                color: secondaryTextColor,
-                              ),
+                          Text(
+                            store.subtitle,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              fontFamily: 'Poppins',
+                              fontSize: 22.sp,
+                              fontWeight: FontWeight.w700,
+                              height: 1.05,
+                              letterSpacing: -0.5,
+                              color: Colors.black,
                             ),
                           ),
-                          Gap(2.w),
-                          Icon(
-                            Icons.keyboard_arrow_down_rounded,
-                            color: mutedIconColor,
-                            size: 18,
+                          Gap(4.h),
+                          GestureDetector(
+                            onTap: onAddressTap,
+                            behavior: HitTestBehavior.opaque,
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: <Widget>[
+                                Icon(
+                                  Icons.location_on_outlined,
+                                  color: Colors.black,
+                                  size: 17.sp,
+                                ),
+                                Gap(4.w),
+                                Flexible(
+                                  child: Text(
+                                    addressText,
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: TextStyle(
+                                      fontFamily: 'Inter',
+                                      fontSize: 13.sp,
+                                      fontWeight: FontWeight.w500,
+                                      color: Colors.black,
+                                    ),
+                                  ),
+                                ),
+                                Gap(2.w),
+                                Icon(
+                                  Icons.keyboard_arrow_down_rounded,
+                                  color: Colors.black,
+                                  size: 18.sp,
+                                ),
+                              ],
+                            ),
                           ),
                         ],
-                      );
-                    },
+                      ),
+                    ),
+                    Gap(10.w),
+                    _HeaderActions(
+                      onWalletTap: onWalletTap,
+                      onProfileTap: onProfileTap,
+                    ),
+                  ],
                   ),
+                ),
+                Gap(2.h),
+              ],
+            ),
+          ),
+          // Downward curved divider into the content below.
+          ClipPath(
+            clipper: const _HeaderBottomCurveClipper(),
+            child: Container(
+              height: 10.h,
+              color: Colors.white,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Rounded top-left and top-right corners that divide the lavender header
+/// from the white content area below.
+class _HeaderBottomCurveClipper extends CustomClipper<Path> {
+  const _HeaderBottomCurveClipper();
+
+  @override
+  Path getClip(Size size) {
+    const double r = 16.0; // corner radius
+    return Path()
+      ..moveTo(0, size.height)
+      ..lineTo(0, r)
+      ..quadraticBezierTo(0, 0, r, 0)
+      ..lineTo(size.width - r, 0)
+      ..quadraticBezierTo(size.width, 0, size.width, r)
+      ..lineTo(size.width, size.height)
+      ..close();
+  }
+
+  @override
+  bool shouldReclip(covariant CustomClipper<Path> oldClipper) => false;
+}
+
+/// Wallet + profile circular actions kept on a shared baseline so both
+/// circles align, while the wallet balance pill overhangs below.
+class _HeaderActions extends StatelessWidget {
+  const _HeaderActions({
+    required this.onWalletTap,
+    required this.onProfileTap,
+  });
+
+  final VoidCallback? onWalletTap;
+  final VoidCallback onProfileTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final double circle = 46.w;
+    final double gap = 12.w;
+
+    return SizedBox(
+      width: circle * 2 + gap,
+      height: circle + 14.h,
+      child: Stack(
+        clipBehavior: Clip.none,
+        children: <Widget>[
+          // Both circles aligned on the same top baseline.
+          Positioned(
+            top: 0,
+            left: 0,
+            child: Row(
+              children: <Widget>[
+                _CircleIconButton(
+                  asset: 'assets/icon/wallet_icon.png',
+                  size: circle,
+                  iconSize: 38.w,
+                  onTap: onWalletTap,
+                ),
+                Gap(gap),
+                _CircleIconButton(
+                  asset: 'assets/icon/profile_icon.png',
+                  size: circle,
+                  iconSize: 38.w,
+                  onTap: onProfileTap,
                 ),
               ],
             ),
           ),
-          Gap(8.w),
-          GestureDetector(
-            onTap: onProfileTap,
-            child: DotLottieLoader.fromAsset(
-              'assets/lottie/profile_loop.lottie',
-              frameBuilder: (BuildContext ctx, DotLottie? dotlottie) {
-                if (dotlottie != null) {
-                  final shouldAnimate = TickerMode.valuesOf(ctx).enabled;
-                  return Lottie.memory(
-                    dotlottie.animations.values.single,
-                    repeat: shouldAnimate,
-                    animate: shouldAnimate,
-                    width: 52.w,
-                    height: 52.w,
-                    frameRate: FrameRate.composition,
-                    renderCache: RenderCache.raster,
-                    backgroundLoading: true,
-                    addRepaintBoundary: true,
-                    filterQuality: FilterQuality.low,
-                  );
-                }
-                return Container(
-                  width: 52,
-                  height: 52,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    border: Border.all(
-                      color: mutedIconColor,
-                      width: 2,
-                    ),
-                  ),
-                  child: Icon(
-                    Icons.person_rounded,
-                    size: 28,
-                    color: primaryTextColor,
-                  ),
-                );
-              },
-            ),
+          // Balance pill, centered under the wallet (left) circle.
+          Positioned(
+            bottom: 0,
+            left: -10.w,
+            width: circle + 20.w,
+            child: const Center(child: _WalletPill()),
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _WalletPill extends ConsumerWidget {
+  const _WalletPill();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final balance = ref.watch(walletBalanceProvider).asData?.value;
+    if (balance == null || balance <= 0) return const SizedBox.shrink();
+
+    return Container(
+      padding: EdgeInsets.symmetric(horizontal: 9.w, vertical: 3.h),
+      decoration: BoxDecoration(
+        color: const Color(0xFF6B3FA0),
+        borderRadius: BorderRadius.circular(20.r),
+        boxShadow: <BoxShadow>[
+          BoxShadow(
+            color: const Color(0xFF6B3FA0).withValues(alpha: 0.32),
+            blurRadius: 7,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Text(
+        '\u20b9${_formatBalance(balance)}',
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+        style: TextStyle(
+          fontFamily: 'Inter',
+          fontSize: 11.sp,
+          fontWeight: FontWeight.w700,
+          color: Colors.white,
+          height: 1.0,
+        ),
+      ),
+    );
+  }
+
+  String _formatBalance(double value) {
+    final intVal = value.round();
+    final str = intVal.toString();
+    if (str.length <= 3) return str;
+    final lastThree = str.substring(str.length - 3);
+    var rest = str.substring(0, str.length - 3);
+    final groups = <String>[];
+    while (rest.length > 2) {
+      groups.insert(0, rest.substring(rest.length - 2));
+      rest = rest.substring(0, rest.length - 2);
+    }
+    if (rest.isNotEmpty) groups.insert(0, rest);
+    return '${groups.join(',')},$lastThree';
+  }
+}
+
+class _CircleIconButton extends StatelessWidget {
+  const _CircleIconButton({
+    required this.asset,
+    required this.size,
+    required this.iconSize,
+    required this.onTap,
+  });
+
+  final String asset;
+  final double size;
+  final double iconSize;
+  final VoidCallback? onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      behavior: HitTestBehavior.opaque,
+      child: Container(
+        width: size,
+        height: size,
+        decoration: const BoxDecoration(
+          shape: BoxShape.circle,
+          boxShadow: <BoxShadow>[
+            BoxShadow(
+              color: Color(0x242A1A47),
+              blurRadius: 12,
+              offset: Offset(0, 4),
+            ),
+          ],
+        ),
+        child: ClipOval(
+          child: ColoredBox(
+            color: Colors.white,
+            child: Center(
+              child: Image.asset(
+                asset,
+                width: iconSize,
+                height: iconSize,
+                cacheWidth: (iconSize * 6).round(),
+                cacheHeight: (iconSize * 6).round(),
+                fit: BoxFit.contain,
+                filterQuality: FilterQuality.high,
+              ),
+            ),
+          ),
+        ),
       ),
     );
   }

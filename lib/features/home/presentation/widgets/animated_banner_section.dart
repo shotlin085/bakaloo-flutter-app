@@ -92,26 +92,6 @@ class AnimatedBannerSection extends StatelessWidget {
                     imageUrl: imageUrl,
                     lottieUrl: lottieUrl,
                   ),
-                  Positioned(
-                    bottom: 0,
-                    left: 0,
-                    right: 0,
-                    height: 42.h,
-                    child: const DecoratedBox(
-                      decoration: BoxDecoration(
-                        gradient: LinearGradient(
-                          begin: Alignment.topCenter,
-                          end: Alignment.bottomCenter,
-                          colors: <Color>[
-                            Color(0x00FFFFFF),
-                            Color(0x40FFFFFF),
-                            Color(0xD9FFFFFF),
-                          ],
-                          stops: <double>[0, 0.56, 1],
-                        ),
-                      ),
-                    ),
-                  ),
                 ],
               ),
             ),
@@ -217,7 +197,7 @@ class _NetworkBannerImage extends StatelessWidget {
         memCacheWidth: optimized.memCacheWidth,
         memCacheHeight: optimized.memCacheHeight,
         fit: BoxFit.cover,
-        filterQuality: FilterQuality.low,
+        filterQuality: FilterQuality.high,
         placeholder: const SizedBox.expand(),
         errorWidget: _AssetDotLottieAnimation(assetPath: fallbackAssetPath),
       ),

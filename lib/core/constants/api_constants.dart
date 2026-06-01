@@ -355,14 +355,14 @@ class ApiConstants {
     switch (profile) {
       case CustomerImageProfile.banner:
         return const _ImageProfileConfig(
-          width: 480,
-          height: 216,
+          width: 1080,
+          height: 486,
           crop: 'fill',
         );
       case CustomerImageProfile.customBanner:
         return const _ImageProfileConfig(
-          width: 720,
-          height: 360,
+          width: 1080,
+          height: 540,
           crop: 'fit',
         );
       case CustomerImageProfile.categoryTile:

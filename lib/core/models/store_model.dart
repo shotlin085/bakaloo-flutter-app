@@ -24,7 +24,7 @@ const List<StoreModel> appStores = <StoreModel>[
   StoreModel(
     id: 'zepto',
     label: 'Zepto',
-    subtitle: '6 mins delivery',
+    subtitle: '6 mins',
     backgroundColor: Color(0xFF88D4FE),
     chipActiveColor: Color(0xFF1A3461),
     textColor: Colors.black,

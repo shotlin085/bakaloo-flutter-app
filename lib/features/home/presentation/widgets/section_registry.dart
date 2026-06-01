@@ -222,6 +222,7 @@ Widget _buildCategoryProductGrid(
     title: entry.title ?? 'Products for you',
     products: products.take(columns * 2).toList(growable: false),
     columns: columns,
+    variant: productCardVariantFromString(entry.productCardStyle),
   );
 }
 
@@ -238,6 +239,7 @@ Widget _buildProductCarousel(
   return _ManifestHorizontalProductSection(
     title: entry.title ?? 'Fresh picks',
     products: products,
+    variant: productCardVariantFromString(entry.productCardStyle),
   );
 }
 
@@ -260,6 +262,7 @@ Widget _buildTrendingProducts(
     title: entry.title ?? 'Trending Near You',
     products: products,
     accentColor: const Color(0xFF0D8320),
+    variant: productCardVariantFromString(entry.productCardStyle),
   );
 }
 
@@ -1133,11 +1136,13 @@ class _ManifestProductGridSection extends StatelessWidget {
     required this.title,
     required this.products,
     required this.columns,
+    this.variant = ProductCardVariant.quickCommerceCompact,
   });
 
   final String title;
   final List<ProductEntity> products;
   final int columns;
+  final ProductCardVariant variant;
 
   @override
   Widget build(BuildContext context) {
@@ -1177,6 +1182,7 @@ class _ManifestProductGridSection extends StatelessWidget {
                           product: product,
                           width: cardWidth,
                           style: ProductCardStyle.grid,
+                          variant: variant,
                           onTap: () => context.push('/product/${product.id}'),
                           onOptionsTap: product.hasMultipleOptions
                               ? () => showProductOptionsSheet(context, product)
@@ -1199,11 +1205,13 @@ class _ManifestHorizontalProductSection extends StatelessWidget {
     required this.title,
     required this.products,
     this.accentColor,
+    this.variant = ProductCardVariant.quickCommerceCompact,
   });
 
   final String title;
   final List<ProductEntity> products;
   final Color? accentColor;
+  final ProductCardVariant variant;
 
   @override
   Widget build(BuildContext context) {
@@ -1241,6 +1249,7 @@ class _ManifestHorizontalProductSection extends StatelessWidget {
                     product: product,
                     width: 132,
                     style: ProductCardStyle.scroll,
+                    variant: variant,
                     onTap: () => context.push('/product/${product.id}'),
                     onOptionsTap: product.hasMultipleOptions
                         ? () => showProductOptionsSheet(context, product)
@@ -1482,9 +1491,9 @@ class _ManifestBankOffersRow extends StatelessWidget {
                       imageUrl: resolvedImage,
                       fit: BoxFit.contain,
                       alignment: Alignment.centerLeft,
-                      memCacheWidth: 336,
-                      memCacheHeight: 74,
-                      filterQuality: FilterQuality.low,
+                      memCacheWidth: 1008,
+                      memCacheHeight: 222,
+                      filterQuality: FilterQuality.high,
                       placeholder: const ColoredBox(
                         color: Color(0xFFF2F8FF),
                         child: SizedBox.expand(),

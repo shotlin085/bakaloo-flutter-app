@@ -127,6 +127,29 @@ class ProductOptionBottomSheet extends ConsumerWidget {
     final familyName =
         response.family?.name ?? product.familyName ?? product.name;
 
+    if (response.options.isEmpty) {
+      return Padding(
+        padding: EdgeInsets.fromLTRB(16.w, 16.h, 16.w, 32.h),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: <Widget>[
+            PhosphorIcon(
+              PhosphorIcons.package(),
+              size: 40.sp,
+              color: AppColors.textTertiary,
+            ),
+            Gap(12.h),
+            Text(
+              'No options available',
+              style: AppTextStyles.bodyLarge.copyWith(
+                color: AppColors.textSecondary,
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
     return Flexible(
       child: Column(
         mainAxisSize: MainAxisSize.min,

@@ -1,5 +1,12 @@
 // Plain Dart classes for the product options API response.
 // Uses manual fromJson to avoid build_runner complexity.
+//
+// The backend `/products/:id/options` endpoint serialises shop-enriched
+// option rows using snake_case column names (shop_product_id, option_label,
+// sale_price, ...), while older builds used camelCase. To stay resilient to
+// both shapes (and to differing deploy versions of the production API) the
+// parser below reads each field from the camelCase key first and falls back
+// to the snake_case key.
 
 class ProductOptionsFamily {
   const ProductOptionsFamily({
@@ -19,7 +26,7 @@ class ProductOptionsFamily {
       id: json['id'] as String?,
       name: json['name'] as String?,
       slug: json['slug'] as String?,
-      thumbnailUrl: json['thumbnailUrl'] as String?,
+      thumbnailUrl: (json['thumbnailUrl'] ?? json['thumbnail_url']) as String?,
     );
   }
 }
@@ -97,27 +104,42 @@ class ProductOptionItem {
   String get displayUnit => optionLabel ?? netQuantity ?? unit;
 
   factory ProductOptionItem.fromJson(Map<String, dynamic> json) {
+    Object? pick(String camel, String snake) => json[camel] ?? json[snake];
+
+    final salePrice = _toNullableDouble(pick('salePrice', 'sale_price'));
+    final spSalePrice = _toNullableDouble(json['sp_sale_price']);
+    final spPrice = _toNullableDouble(json['sp_price']);
+
     return ProductOptionItem(
       id: json['id'] as String? ?? '',
-      shopProductId: json['shopProductId'] as String?,
-      shopId: json['shopId'] as String?,
+      shopProductId: pick('shopProductId', 'shop_product_id') as String?,
+      shopId: pick('shopId', 'shop_id') as String?,
       name: json['name'] as String? ?? '',
-      optionLabel: json['optionLabel'] as String?,
+      optionLabel: pick('optionLabel', 'option_label') as String?,
       unit: json['unit'] as String? ?? 'unit',
-      netQuantity: json['netQuantity'] as String?,
-      price: _toDouble(json['price']),
-      salePrice: _toNullableDouble(json['salePrice']),
-      stockQuantity: json['stockQuantity'] as int?,
-      maxOrderQty: json['maxOrderQty'] as int?,
-      isAvailable: json['isAvailable'] as bool? ?? true,
-      thumbnailUrl: json['thumbnailUrl'] as String?,
+      netQuantity: pick('netQuantity', 'net_quantity') as String?,
+      price: spPrice ?? _toDouble(json['price']),
+      salePrice: spSalePrice ?? salePrice,
+      stockQuantity: _toNullableInt(
+        pick('stockQuantity', 'stock_quantity') ?? json['sp_stock_quantity'],
+      ),
+      maxOrderQty: _toNullableInt(
+        pick('maxOrderQty', 'max_order_qty') ?? json['sp_max_order_qty'],
+      ),
+      isAvailable: _toBool(
+        pick('isAvailable', 'is_available') ?? json['sp_is_available'],
+        fallback: true,
+      ),
+      thumbnailUrl: pick('thumbnailUrl', 'thumbnail_url') as String?,
       images: _toStringList(json['images']),
-      foodType: json['foodType'] as String? ?? 'NONE',
-      originTag: json['originTag'] as String? ?? 'NONE',
-      customBadges: _toStringList(json['customBadges']),
-      avgRating: _toDouble(json['avgRating']),
-      ratingCount: json['ratingCount'] as int? ?? 0,
-      displayDeliveryMinutes: json['displayDeliveryMinutes'] as int?,
+      foodType: (pick('foodType', 'food_type') as String?) ?? 'NONE',
+      originTag: (pick('originTag', 'origin_tag') as String?) ?? 'NONE',
+      customBadges: _toStringList(pick('customBadges', 'custom_badges')),
+      avgRating: _toDouble(pick('avgRating', 'avg_rating')),
+      ratingCount: _toNullableInt(pick('ratingCount', 'rating_count')) ?? 0,
+      displayDeliveryMinutes: _toNullableInt(
+        pick('displayDeliveryMinutes', 'display_delivery_minutes'),
+      ),
     );
   }
 }
@@ -166,6 +188,21 @@ double? _toNullableDouble(Object? value) {
   if (value is num) return value.toDouble();
   if (value is String) return double.tryParse(value);
   return null;
+}
+
+int? _toNullableInt(Object? value) {
+  if (value == null) return null;
+  if (value is int) return value;
+  if (value is num) return value.toInt();
+  if (value is String) return int.tryParse(value);
+  return null;
+}
+
+bool _toBool(Object? value, {bool fallback = false}) {
+  if (value is bool) return value;
+  if (value is String) return value.toLowerCase() == 'true';
+  if (value is num) return value != 0;
+  return fallback;
 }
 
 List<String> _toStringList(dynamic value) {

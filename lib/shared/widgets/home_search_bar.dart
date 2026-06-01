@@ -1,6 +1,5 @@
 import 'dart:async';
 
-import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
@@ -9,14 +8,16 @@ import 'package:gap/gap.dart';
 import 'package:bakaloo_flutter_app/core/theme/remote_theme_model.dart';
 
 const List<String> _searchHints = <String>[
-  'Safai Abhiyaan products',
+  'atta, dal, cold drinks',
   'Amul butter',
-  'cold drinks',
   'fresh vegetables',
-  'dishwash liquid',
   'snacks',
+  'dishwash liquid',
+  'Safai Abhiyaan products',
 ];
-const String _promoBoxAsset = 'assets/images/everyday_essentials.png';
+const String _promoBasketAsset = 'assets/images/search_bannder.png';
+const String _searchIconAsset = 'assets/icon/bakaloo-search-icon.png';
+const String _scanIconAsset = 'assets/icon/bakaloo-scan-icon.png';
 
 class HomeSearchBar extends StatefulWidget {
   const HomeSearchBar({
@@ -39,6 +40,10 @@ class HomeSearchBar extends StatefulWidget {
 class _HomeSearchBarState extends State<HomeSearchBar> {
   int _hintIndex = 0;
   Timer? _hintTimer;
+
+  static const Color _purple = Color(0xFF6B3FA0);
+  static const Color _borderColor = Color(0xFFEAE7F0);
+  static const Color _hintColor = Color(0xFF6B6770);
 
   List<String> get _resolvedSearchHints {
     final themeHints = widget.searchTheme?.searchHints;
@@ -103,21 +108,18 @@ class _HomeSearchBarState extends State<HomeSearchBar> {
   @override
   Widget build(BuildContext context) {
     final searchHints = _resolvedSearchHints;
-    final BorderRadius borderRadius = BorderRadius.circular(16.r);
-    final BorderRadius rightBoxBorderRadius = BorderRadius.only(
-      topLeft: Radius.circular(16.r),
-      bottomLeft: Radius.circular(16.r),
-    );
+    final BorderRadius borderRadius = BorderRadius.circular(12.r);
     final hintLabel = Align(
       alignment: Alignment.centerLeft,
       key: ValueKey<int>(_hintIndex),
       child: Text(
-        'Search for "${searchHints[_hintIndex]}"',
+        "Search '${searchHints[_hintIndex]}'",
         maxLines: 1,
         overflow: TextOverflow.ellipsis,
         style: TextStyle(
+          fontFamily: 'Inter',
           fontSize: 15.sp,
-          color: const Color(0xFF2F2F2F),
+          color: _hintColor,
           fontWeight: FontWeight.w400,
           height: 1,
         ),
@@ -125,13 +127,14 @@ class _HomeSearchBarState extends State<HomeSearchBar> {
     );
 
     return Padding(
-      padding: widget.outerPadding ?? EdgeInsets.fromLTRB(12.w, 7.h, 0, 0),
+      padding: widget.outerPadding ?? EdgeInsets.fromLTRB(12.w, 7.h, 12.w, 0),
       child: SizedBox(
-        height: 56.h,
+        height: 50.h,
         child: Row(
           children: <Widget>[
+            // Main search box.
             Expanded(
-              flex: 7,
+              flex: 73,
               child: GestureDetector(
                 onTap: widget.onSearchTap,
                 child: Container(
@@ -139,19 +142,38 @@ class _HomeSearchBarState extends State<HomeSearchBar> {
                   decoration: BoxDecoration(
                     color: Colors.white,
                     borderRadius: borderRadius,
-                    border: Border.all(
-                      color: const Color(0xFFD8D8D8),
-                    ),
+                    border: Border.all(color: _borderColor),
+                    boxShadow: <BoxShadow>[
+                      BoxShadow(
+                        color: const Color(0xFF2A1A47).withValues(alpha: 0.06),
+                        blurRadius: 14,
+                        offset: const Offset(0, 4),
+                      ),
+                    ],
                   ),
-                  padding: EdgeInsets.symmetric(horizontal: 16.w),
+                  padding: EdgeInsets.symmetric(horizontal: 14.w),
                   child: Row(
                     children: <Widget>[
-                      const Icon(
-                        Icons.search_rounded,
-                        color: Color(0xFF222222),
-                        size: 24,
+                      Image.asset(
+                        _searchIconAsset,
+                        width: 28.w,
+                        height: 28.w,
+                        cacheWidth: 224,
+                        cacheHeight: 224,
+                        fit: BoxFit.contain,
+                        filterQuality: FilterQuality.high,
                       ),
-                      Gap(14.w),
+                      Gap(10.w),
+                      // Thin purple divider.
+                      Container(
+                        width: 1.5,
+                        height: 20.h,
+                        decoration: BoxDecoration(
+                          color: _purple,
+                          borderRadius: BorderRadius.circular(2.r),
+                        ),
+                      ),
+                      Gap(10.w),
                       Expanded(
                         child: widget.animateHints
                             ? AnimatedSwitcher(
@@ -179,32 +201,43 @@ class _HomeSearchBarState extends State<HomeSearchBar> {
                               )
                             : hintLabel,
                       ),
+                      Gap(8.w),
+                      // Scan icon.
+                      Image.asset(
+                        _scanIconAsset,
+                        width: 34.w,
+                        height: 34.w,
+                        cacheWidth: 272,
+                        cacheHeight: 272,
+                        fit: BoxFit.contain,
+                        filterQuality: FilterQuality.high,
+                      ),
                     ],
                   ),
                 ),
               ),
             ),
-            Gap(8.w),
+            Gap(10.w),
+            // Everyday Essentials promo box.
             Expanded(
-              flex: 3,
-              child: Container(
-                height: double.infinity,
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: rightBoxBorderRadius,
-                  border: Border.all(
-                    color: const Color(0xFFD8D8D8),
+              flex: 28,
+              child: GestureDetector(
+                onTap: widget.onSearchTap,
+                child: Container(
+                  height: double.infinity,
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: borderRadius,
+                    border: Border.all(color: _borderColor),
+                    boxShadow: <BoxShadow>[
+                      BoxShadow(
+                        color: const Color(0xFF2A1A47).withValues(alpha: 0.06),
+                        blurRadius: 14,
+                        offset: const Offset(0, 4),
+                      ),
+                    ],
                   ),
-                ),
-                child: ClipRRect(
-                  borderRadius: rightBoxBorderRadius,
-                  child: Padding(
-                    padding:
-                        EdgeInsets.symmetric(horizontal: 4.w, vertical: 6.h),
-                    child: _PromoBoxImage(
-                      imageUrl: widget.searchTheme?.promoBoxImageUrl,
-                    ),
-                  ),
+                  child: const _PromoBox(),
                 ),
               ),
             ),
@@ -215,32 +248,64 @@ class _HomeSearchBarState extends State<HomeSearchBar> {
   }
 }
 
-class _PromoBoxImage extends StatelessWidget {
-  const _PromoBoxImage({this.imageUrl});
+class _PromoBox extends StatelessWidget {
+  const _PromoBox();
 
-  final String? imageUrl;
+  static const Color _textColor = Color(0xFF141217);
+  static const Color _chevronColor = Color(0xFF6B6770);
 
   @override
   Widget build(BuildContext context) {
-    if (imageUrl != null) {
-      return CachedNetworkImage(
-        imageUrl: imageUrl!,
-        fit: BoxFit.contain,
-        filterQuality: FilterQuality.low,
-        fadeInDuration: Duration.zero,
-        placeholder: (_, __) => const SizedBox.expand(),
-        errorWidget: (_, __, ___) => Image.asset(
-          _promoBoxAsset,
-          fit: BoxFit.contain,
-          filterQuality: FilterQuality.low,
-        ),
-      );
-    }
+    return Padding(
+      padding: EdgeInsets.fromLTRB(7.w, 6.h, 6.w, 6.h),
+      child: Row(
+        children: <Widget>[
+          const _PromoBasketImage(),
+          Gap(5.w),
+          Expanded(
+            child: FittedBox(
+              fit: BoxFit.scaleDown,
+              alignment: Alignment.centerLeft,
+              child: Text(
+                'Everyday\nEssentials',
+                maxLines: 2,
+                style: TextStyle(
+                  fontFamily: 'Inter',
+                  fontSize: 12.sp,
+                  height: 1.12,
+                  letterSpacing: -0.2,
+                  fontWeight: FontWeight.w600,
+                  color: _textColor,
+                ),
+              ),
+            ),
+          ),
+          Gap(2.w),
+          Icon(
+            Icons.chevron_right_rounded,
+            size: 16.sp,
+            color: _chevronColor,
+          ),
+        ],
+      ),
+    );
+  }
+}
 
+class _PromoBasketImage extends StatelessWidget {
+  const _PromoBasketImage();
+
+  @override
+  Widget build(BuildContext context) {
+    final double size = 38.w;
     return Image.asset(
-      _promoBoxAsset,
+      _promoBasketAsset,
+      width: size,
+      height: size,
+      cacheWidth: 304,
+      cacheHeight: 304,
       fit: BoxFit.contain,
-      filterQuality: FilterQuality.low,
+      filterQuality: FilterQuality.high,
     );
   }
 }
