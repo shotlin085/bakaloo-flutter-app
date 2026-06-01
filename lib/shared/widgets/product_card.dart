@@ -77,18 +77,56 @@ class _ProductCardState extends State<ProductCard> {
 
   @override
   Widget build(BuildContext context) {
-    final product = widget.product;
     final style = widget.style ?? _inferStyle(context);
     final isGridStyle = style == ProductCardStyle.grid;
-    final compactGrid = isGridStyle && widget.width < 126;
-    final tightGrid = isGridStyle && widget.width < 112;
+
+    final Widget card =
+        isGridStyle ? _buildGridCard(context) : _buildScrollCard(context);
+
+    return RepaintBoundary(
+      child: GestureDetector(
+        onTapDown: (_) => setState(() => _isPressed = true),
+        onTapUp: (_) => setState(() => _isPressed = false),
+        onTapCancel: () => setState(() => _isPressed = false),
+        onTap: widget.onTap,
+        child: AnimatedScale(
+          scale: _isPressed ? 0.97 : 1.0,
+          duration: const Duration(milliseconds: 100),
+          curve: Curves.easeOut,
+          child: SizedBox(width: widget.width.w, child: card),
+        ),
+      ),
+    );
+  }
+
+  // ───────────────────────────────────────────────────────────────────────
+  // Grid card (reference layout)
+  //
+  //   ┌───────────────────────────┐  ← white rounded box
+  //   │  image  (♡, veg, dots)    │
+  //   │ ───────────────────────── │  ← faint divider
+  //   │  95 g            [ ADD ]  │
+  //   │                  3 options│
+  //   └───────────────────────────┘
+  //      ₹20   ₹25                   ← price (OUTSIDE the box)
+  //      5% OFF on MRP
+  //      Maggi Double Masala …
+  //      ★ 4.4  (104)
+  //      ◐ 28 mins
+  //
+  // The image + unit + ADD live inside ONE white box; price/name/rating/
+  // delivery sit on the page background below it.
+  // ───────────────────────────────────────────────────────────────────────
+  Widget _buildGridCard(BuildContext context) {
+    final product = widget.product;
     final cardWidth = widget.width.w;
-    final imageHeight = cardWidth * (isGridStyle ? 0.96 : 0.88);
-    final contentPadding = tightGrid ? 8.w : 10.w;
-    final priceFontSize = tightGrid ? 12.sp : 14.sp;
-    final comparePriceFontSize = tightGrid ? 10.sp : 12.sp;
+    final tightGrid = widget.width < 112;
+    final compactGrid = widget.width < 126;
+    final imageHeight = cardWidth * 0.84;
+    final unitFontSize = tightGrid ? 11.sp : 12.sp;
+    final priceFontSize = tightGrid ? 14.sp : 16.sp;
+    final comparePriceFontSize = tightGrid ? 10.sp : 11.5.sp;
     final titleFontSize = tightGrid ? 11.6.sp : 12.8.sp;
-    final unitFontSize = tightGrid ? 10.sp : 10.8.sp;
     final offFontSize = tightGrid ? 10.sp : 11.sp;
     final imageUrl = product.thumbnailUrl ??
         (product.images.isNotEmpty ? product.images.first : null);
@@ -103,376 +141,571 @@ class _ProductCardState extends State<ProductCard> {
     final offAmount =
         isOnSale ? (product.price - product.salePrice!).toInt() : null;
 
-    return Align(
-      alignment: Alignment.topLeft,
-      child: RepaintBoundary(
-        child: GestureDetector(
-          onTapDown: (_) => setState(() => _isPressed = true),
-          onTapUp: (_) => setState(() => _isPressed = false),
-          onTapCancel: () => setState(() => _isPressed = false),
-          onTap: widget.onTap,
-          child: AnimatedScale(
-            scale: _isPressed ? 0.97 : 1.0,
-            duration: const Duration(milliseconds: 100),
-            curve: Curves.easeOut,
-            child: SizedBox(
-              width: cardWidth,
-              child: DecoratedBox(
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(AppDimensions.radiusMd),
-                  border: Border.all(
-                    color: const Color(0xFFE8E8E8),
-                    width: 0.8,
-                  ),
+    // ── The white box (image + divider + unit/ADD row) ────────────────────
+    final whiteBox = DecoratedBox(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(AppDimensions.radiusMd),
+        border: Border.all(color: const Color(0xFFEDEDED), width: 0.8),
+      ),
+      child: Stack(
+        children: <Widget>[
+          Column(
+            mainAxisSize: MainAxisSize.min,
+            children: <Widget>[
+              ClipRRect(
+                borderRadius: const BorderRadius.vertical(
+                  top: Radius.circular(AppDimensions.radiusMd),
                 ),
-                child: ClipRRect(
-                  borderRadius: BorderRadius.circular(AppDimensions.radiusMd),
-                  child: Stack(
-                    children: <Widget>[
-                      Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        mainAxisSize: MainAxisSize.min,
-                        children: <Widget>[
-                          SizedBox(
-                            height: imageHeight,
-                            width: double.infinity,
-                            child: Stack(
-                              children: <Widget>[
-                                Positioned.fill(
-                                  child: imageUrl == null || imageUrl.isEmpty
-                                      ? const ColoredBox(
-                                          color: Color(0xFFFAFAFA),
-                                          child: Center(
-                                            child: Icon(
-                                              Icons.image_outlined,
-                                              color: AppColors.textDisabled,
-                                              size: 28,
-                                            ),
-                                          ),
-                                        )
-                                      : AppImage(
-                                          imageUrl:
-                                              optimizedImage.url ?? imageUrl,
-                                          memCacheWidth:
-                                              optimizedImage.memCacheWidth,
-                                          memCacheHeight:
-                                              optimizedImage.memCacheHeight,
-                                          fit: BoxFit.cover,
-                                          filterQuality: FilterQuality.low,
-                                          placeholder: const ColoredBox(
-                                            color: Color(0xFFFAFAFA),
-                                            child: SizedBox.expand(),
-                                          ),
-                                          errorWidget: const ColoredBox(
-                                            color: Color(0xFFFAFAFA),
-                                            child: Center(
-                                              child: Icon(
-                                                Icons.broken_image_outlined,
-                                                color: AppColors.textDisabled,
-                                                size: 28,
-                                              ),
-                                            ),
-                                          ),
-                                        ),
-                                ),
-                                if (widget.showWishlist)
-                                  Positioned(
-                                    top: 8.h,
-                                    right: 8.w,
-                                    child: _IsolatedWishlistButton(
-                                      product: product,
-                                      showWishlist: widget.showWishlist,
-                                    ),
-                                  ),
-                                // Origin badge (top-left)
-                                if (product.hasOriginTag && product.isImported)
-                                  Positioned(
-                                    top: 6.h,
-                                    left: 6.w,
-                                    child: Container(
-                                      padding: EdgeInsets.symmetric(
-                                        horizontal: 5.w,
-                                        vertical: 2.h,
-                                      ),
-                                      decoration: BoxDecoration(
-                                        color: const Color(0xFFFFF3E0),
-                                        borderRadius: BorderRadius.circular(4.r),
-                                        border: Border.all(
-                                          color: const Color(0xFFFFB74D),
-                                          width: 0.8,
-                                        ),
-                                      ),
-                                      child: Text(
-                                        'Imported',
-                                        style: TextStyle(
-                                          fontSize: 9.sp,
-                                          fontWeight: FontWeight.w600,
-                                          color: const Color(0xFFE65100),
-                                          height: 1.1,
-                                        ),
-                                      ),
-                                    ),
-                                  ),
-                                // Food marker (top-right under wishlist)
-                                if (product.hasFoodMarker)
-                                  Positioned(
-                                    top: widget.showWishlist ? 34.h : 6.h,
-                                    right: 8.w,
-                                    child: Container(
-                                      width: 16.w,
-                                      height: 16.w,
-                                      decoration: BoxDecoration(
-                                        color: Colors.white,
-                                        borderRadius: BorderRadius.circular(3.r),
-                                        border: Border.all(
-                                          color: product.isVeg
-                                              ? const Color(0xFF2E7D32)
-                                              : product.isNonVeg
-                                                  ? const Color(0xFFC62828)
-                                                  : const Color(0xFFF9A825),
-                                          width: 1.5,
-                                        ),
-                                      ),
-                                      alignment: Alignment.center,
-                                      child: Container(
-                                        width: 8.w,
-                                        height: 8.w,
-                                        decoration: BoxDecoration(
-                                          shape: BoxShape.circle,
-                                          color: product.isVeg
-                                              ? const Color(0xFF2E7D32)
-                                              : product.isNonVeg
-                                                  ? const Color(0xFFC62828)
-                                                  : const Color(0xFFF9A825),
-                                        ),
-                                      ),
-                                    ),
-                                  ),
-                                Positioned(
-                                  right: tightGrid ? 6.w : 8.w,
-                                  bottom: tightGrid ? 6.h : 8.h,
-                                  child: _IsolatedCartButton(
-                                    style: style,
-                                    compact: compactGrid,
-                                    tight: tightGrid,
-                                    product: product,
-                                    onAdd: widget.onAdd,
-                                    onOptionsTap: widget.onOptionsTap,
-                                  ),
-                                ),
-                                // Weight / unit chip (bottom-left on image)
-                                if (product.displayUnit.trim().isNotEmpty)
-                                  Positioned(
-                                    left: tightGrid ? 6.w : 8.w,
-                                    bottom: tightGrid ? 6.h : 8.h,
-                                    child: Container(
-                                      padding: EdgeInsets.symmetric(
-                                        horizontal: tightGrid ? 6.w : 8.w,
-                                        vertical: tightGrid ? 2.h : 3.h,
-                                      ),
-                                      decoration: BoxDecoration(
-                                        color: Colors.white,
-                                        borderRadius:
-                                            BorderRadius.circular(6.r),
-                                        boxShadow: <BoxShadow>[
-                                          BoxShadow(
-                                            color: Colors.black
-                                                .withValues(alpha: 0.08),
-                                            blurRadius: 4,
-                                            offset: const Offset(0, 1),
-                                          ),
-                                        ],
-                                      ),
-                                      child: Text(
-                                        product.displayUnit,
-                                        maxLines: 1,
-                                        overflow: TextOverflow.ellipsis,
-                                        style: TextStyle(
-                                          fontSize: unitFontSize,
-                                          fontWeight: FontWeight.w600,
-                                          color: const Color(0xFF3A3A3A),
-                                          height: 1.1,
-                                        ),
-                                      ),
-                                    ),
-                                  ),
-                              ],
-                            ),
-                          ),
-                          Padding(
-                            padding: EdgeInsets.fromLTRB(
-                              contentPadding,
-                              6.h,
-                              contentPadding,
-                              0,
-                            ),
-                            child: Row(
-                              crossAxisAlignment: CrossAxisAlignment.center,
-                              children: <Widget>[
-                                Text(
-                                  '₹${effectivePrice.toInt()}',
-                                  style: TextStyle(
-                                    fontSize: priceFontSize + 2,
-                                    fontWeight: FontWeight.w800,
-                                    color: const Color(0xFF1A1A1A),
-                                    height: 1.1,
-                                  ),
-                                ),
-                                if (isOnSale) ...<Widget>[
-                                  Gap(tightGrid ? 4.w : 6.w),
-                                  Expanded(
-                                    child: Align(
-                                      alignment: Alignment.centerLeft,
-                                      child: FittedBox(
-                                        fit: BoxFit.scaleDown,
-                                        alignment: Alignment.centerLeft,
-                                        child: Text(
-                                          '₹${product.price.toInt()}',
-                                          maxLines: 1,
-                                          style: TextStyle(
-                                            fontSize: comparePriceFontSize,
-                                            fontWeight: FontWeight.w500,
-                                            color: const Color(0xFF999999),
-                                            decoration:
-                                                TextDecoration.lineThrough,
-                                            decorationColor:
-                                                const Color(0xFF999999),
-                                          ),
-                                        ),
-                                      ),
-                                    ),
-                                  ),
-                                ],
-                              ],
-                            ),
-                          ),
-                          if (offAmount != null && offAmount > 0)
-                            Padding(
-                              padding: EdgeInsets.fromLTRB(
-                                contentPadding,
-                                3.h,
-                                contentPadding,
-                                0,
-                              ),
-                              child: Text(
-                                product.discountPercent > 0
-                                    ? '${product.discountPercent}% OFF on MRP'
-                                    : '₹$offAmount OFF',
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: TextStyle(
-                                  fontSize: offFontSize,
-                                  fontWeight: FontWeight.w700,
-                                  color: const Color(0xFF2B7FFF),
-                                ),
-                              ),
-                            ),
-                          Gap(4.h),
-                          Flexible(
-                            child: Padding(
-                              padding: EdgeInsets.symmetric(
-                                horizontal: contentPadding,
-                              ),
-                              child: Text(
-                                product.name,
-                                maxLines: 2,
-                                overflow: TextOverflow.ellipsis,
-                                style: AppTextStyles.labelLarge.copyWith(
-                                  fontSize: titleFontSize,
-                                  fontWeight: FontWeight.w700,
-                                  height: 1.25,
-                                  color: const Color(0xFF222222),
-                                ),
-                              ),
-                            ),
-                          ),
-                          // Rating row
-                          if (product.hasRating)
-                            Padding(
-                              padding: EdgeInsets.fromLTRB(
-                                contentPadding,
-                                3.h,
-                                contentPadding,
-                                0,
-                              ),
-                              child: Row(
-                                children: <Widget>[
-                                  Icon(
-                                    Icons.star_rounded,
-                                    size: 12.sp,
-                                    color: const Color(0xFFFFA000),
-                                  ),
-                                  Gap(2.w),
-                                  Expanded(
-                                    child: Text(
-                                      product.formattedRating,
-                                      maxLines: 1,
-                                      overflow: TextOverflow.ellipsis,
-                                      style: TextStyle(
-                                        fontSize: 10.sp,
-                                        fontWeight: FontWeight.w500,
-                                        color: const Color(0xFF666666),
-                                        height: 1.2,
-                                      ),
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          // Delivery time row
-                          if (product.hasDeliveryTime)
-                            Padding(
-                              padding: EdgeInsets.fromLTRB(
-                                contentPadding,
-                                2.h,
-                                contentPadding,
-                                0,
-                              ),
-                              child: Row(
-                                children: <Widget>[
-                                  PhosphorIcon(
-                                    PhosphorIcons.clock(),
-                                    size: 11.sp,
-                                    color: const Color(0xFF888888),
-                                  ),
-                                  Gap(3.w),
-                                  Text(
-                                    product.formattedDeliveryTime,
-                                    style: TextStyle(
-                                      fontSize: 10.sp,
-                                      fontWeight: FontWeight.w400,
-                                      color: const Color(0xFF888888),
-                                      height: 1.2,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          Gap(6.h),
-                        ],
-                      ),
-                      if (!product.inStock)
-                        Positioned.fill(
-                          child: Container(
-                            color: AppColors.overlayLight,
-                            alignment: Alignment.center,
-                            child: Text(
-                              'Out of stock',
-                              style: AppTextStyles.h3.copyWith(
-                                color: AppColors.outOfStockRed,
-                                fontWeight: FontWeight.w700,
-                              ),
-                            ),
-                          ),
+                child: _buildImageArea(
+                  product: product,
+                  imageUrl: imageUrl,
+                  optimizedImage: optimizedImage,
+                  imageHeight: imageHeight,
+                  isGridStyle: true,
+                  tightGrid: tightGrid,
+                  unitFontSize: unitFontSize,
+                  style: ProductCardStyle.grid,
+                  compactGrid: compactGrid,
+                ),
+              ),
+              const Divider(height: 1, thickness: 1, color: Color(0xFFF0F0F0)),
+              // Unit label (left) + ADD button (right) — both inside the box.
+              Padding(
+                padding: EdgeInsets.fromLTRB(
+                  tightGrid ? 8.w : 10.w,
+                  8.h,
+                  tightGrid ? 7.w : 8.w,
+                  8.h,
+                ),
+                child: Row(
+                  children: <Widget>[
+                    Expanded(
+                      child: Text(
+                        product.displayUnit.trim().isNotEmpty
+                            ? product.displayUnit
+                            : product.unit,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          fontSize: unitFontSize,
+                          fontWeight: FontWeight.w600,
+                          color: const Color(0xFF5A5A5A),
+                          height: 1.1,
                         ),
-                    ],
+                      ),
+                    ),
+                    Gap(4.w),
+                    _IsolatedCartButton(
+                      style: ProductCardStyle.grid,
+                      compact: compactGrid,
+                      tight: tightGrid,
+                      product: product,
+                      onAdd: widget.onAdd,
+                      onOptionsTap: widget.onOptionsTap,
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          if (!product.inStock)
+            Positioned.fill(
+              child: Container(
+                decoration: BoxDecoration(
+                  color: AppColors.overlayLight,
+                  borderRadius:
+                      BorderRadius.circular(AppDimensions.radiusMd),
+                ),
+                alignment: Alignment.center,
+                child: Text(
+                  'Out of stock',
+                  style: AppTextStyles.labelLarge.copyWith(
+                    color: AppColors.outOfStockRed,
+                    fontWeight: FontWeight.w700,
                   ),
                 ),
               ),
             ),
+        ],
+      ),
+    );
+
+    // ── Below-box content (no border, on page background) ─────────────────
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisSize: MainAxisSize.min,
+      children: <Widget>[
+        whiteBox,
+        Gap(8.h),
+        // Price + struck MRP
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.center,
+          children: <Widget>[
+            Text(
+              '₹${effectivePrice.toInt()}',
+              style: TextStyle(
+                fontSize: priceFontSize,
+                fontWeight: FontWeight.w800,
+                color: const Color(0xFF1A1A1A),
+                height: 1.1,
+              ),
+            ),
+            if (isOnSale) ...<Widget>[
+              Gap(6.w),
+              Expanded(
+                child: Align(
+                  alignment: Alignment.centerLeft,
+                  child: FittedBox(
+                    fit: BoxFit.scaleDown,
+                    alignment: Alignment.centerLeft,
+                    child: Text(
+                      '₹${product.price.toInt()}',
+                      maxLines: 1,
+                      style: TextStyle(
+                        fontSize: comparePriceFontSize,
+                        fontWeight: FontWeight.w500,
+                        color: const Color(0xFF999999),
+                        decoration: TextDecoration.lineThrough,
+                        decorationColor: const Color(0xFF999999),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ],
+        ),
+        // Discount line — only when a real discount exists
+        if (offAmount != null && offAmount > 0) ...<Widget>[
+          Gap(3.h),
+          Text(
+            product.discountPercent > 0
+                ? '${product.discountPercent}% OFF on MRP'
+                : '₹$offAmount OFF',
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              fontSize: offFontSize,
+              fontWeight: FontWeight.w700,
+              color: const Color(0xFF2B7FFF),
+            ),
+          ),
+        ],
+        Gap(4.h),
+        // Product name
+        Text(
+          product.name,
+          maxLines: 2,
+          overflow: TextOverflow.ellipsis,
+          style: AppTextStyles.labelLarge.copyWith(
+            fontSize: titleFontSize,
+            fontWeight: FontWeight.w700,
+            height: 1.25,
+            color: const Color(0xFF222222),
           ),
         ),
+        // Rating row
+        if (product.hasRating) ...<Widget>[
+          Gap(4.h),
+          Row(
+            children: <Widget>[
+              Icon(
+                Icons.star_rounded,
+                size: 12.sp,
+                color: const Color(0xFFFFA000),
+              ),
+              Gap(2.w),
+              Expanded(
+                child: Text(
+                  product.formattedRating,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontSize: 10.sp,
+                    fontWeight: FontWeight.w500,
+                    color: const Color(0xFF666666),
+                    height: 1.2,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ],
+        // Delivery time row
+        if (product.hasDeliveryTime) ...<Widget>[
+          Gap(3.h),
+          Row(
+            children: <Widget>[
+              PhosphorIcon(
+                PhosphorIcons.clock(),
+                size: 11.sp,
+                color: const Color(0xFF888888),
+              ),
+              Gap(3.w),
+              Text(
+                product.formattedDeliveryTime,
+                style: TextStyle(
+                  fontSize: 10.sp,
+                  fontWeight: FontWeight.w400,
+                  color: const Color(0xFF888888),
+                  height: 1.2,
+                ),
+              ),
+            ],
+          ),
+        ],
+        Gap(4.h),
+      ],
+    );
+  }
+
+  // ───────────────────────────────────────────────────────────────────────
+  // Scroll / rail card — compact single-box layout (unit + ADD overlaid on
+  // the image) so the fixed horizontal rail height is preserved.
+  // ───────────────────────────────────────────────────────────────────────
+  Widget _buildScrollCard(BuildContext context) {
+    final product = widget.product;
+    final cardWidth = widget.width.w;
+    final imageHeight = cardWidth * 0.88;
+    final contentPadding = 10.w;
+    final priceFontSize = 14.sp;
+    final comparePriceFontSize = 12.sp;
+    final titleFontSize = 12.8.sp;
+    final unitFontSize = 10.8.sp;
+    final offFontSize = 11.sp;
+    final imageUrl = product.thumbnailUrl ??
+        (product.images.isNotEmpty ? product.images.first : null);
+    final optimizedImage = ApiConstants.optimizedMedia(
+      imageUrl,
+      profile: CustomerImageProfile.listProduct,
+    );
+
+    final effectivePrice = product.salePrice ?? product.price;
+    final isOnSale =
+        product.salePrice != null && product.salePrice! < product.price;
+    final offAmount =
+        isOnSale ? (product.price - product.salePrice!).toInt() : null;
+
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(AppDimensions.radiusMd),
+        border: Border.all(color: const Color(0xFFE8E8E8), width: 0.8),
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(AppDimensions.radiusMd),
+        child: Stack(
+          children: <Widget>[
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: <Widget>[
+                _buildImageArea(
+                  product: product,
+                  imageUrl: imageUrl,
+                  optimizedImage: optimizedImage,
+                  imageHeight: imageHeight,
+                  isGridStyle: false,
+                  tightGrid: false,
+                  unitFontSize: unitFontSize,
+                  style: ProductCardStyle.scroll,
+                  compactGrid: false,
+                ),
+                Padding(
+                  padding: EdgeInsets.fromLTRB(contentPadding, 6.h, contentPadding, 0),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.center,
+                    children: <Widget>[
+                      Text(
+                        '₹${effectivePrice.toInt()}',
+                        style: TextStyle(
+                          fontSize: priceFontSize + 2,
+                          fontWeight: FontWeight.w800,
+                          color: const Color(0xFF1A1A1A),
+                          height: 1.1,
+                        ),
+                      ),
+                      if (isOnSale) ...<Widget>[
+                        Gap(6.w),
+                        Expanded(
+                          child: Align(
+                            alignment: Alignment.centerLeft,
+                            child: FittedBox(
+                              fit: BoxFit.scaleDown,
+                              alignment: Alignment.centerLeft,
+                              child: Text(
+                                '₹${product.price.toInt()}',
+                                maxLines: 1,
+                                style: TextStyle(
+                                  fontSize: comparePriceFontSize,
+                                  fontWeight: FontWeight.w500,
+                                  color: const Color(0xFF999999),
+                                  decoration: TextDecoration.lineThrough,
+                                  decorationColor: const Color(0xFF999999),
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
+                if (offAmount != null && offAmount > 0)
+                  Padding(
+                    padding: EdgeInsets.fromLTRB(contentPadding, 3.h, contentPadding, 0),
+                    child: Text(
+                      product.discountPercent > 0
+                          ? '${product.discountPercent}% OFF on MRP'
+                          : '₹$offAmount OFF',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        fontSize: offFontSize,
+                        fontWeight: FontWeight.w700,
+                        color: const Color(0xFF2B7FFF),
+                      ),
+                    ),
+                  ),
+                Gap(4.h),
+                Flexible(
+                  child: Padding(
+                    padding: EdgeInsets.symmetric(horizontal: contentPadding),
+                    child: Text(
+                      product.name,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: AppTextStyles.labelLarge.copyWith(
+                        fontSize: titleFontSize,
+                        fontWeight: FontWeight.w700,
+                        height: 1.25,
+                        color: const Color(0xFF222222),
+                      ),
+                    ),
+                  ),
+                ),
+                if (product.hasRating)
+                  Padding(
+                    padding: EdgeInsets.fromLTRB(contentPadding, 3.h, contentPadding, 0),
+                    child: Row(
+                      children: <Widget>[
+                        Icon(Icons.star_rounded, size: 12.sp, color: const Color(0xFFFFA000)),
+                        Gap(2.w),
+                        Expanded(
+                          child: Text(
+                            product.formattedRating,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              fontSize: 10.sp,
+                              fontWeight: FontWeight.w500,
+                              color: const Color(0xFF666666),
+                              height: 1.2,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                if (product.hasDeliveryTime)
+                  Padding(
+                    padding: EdgeInsets.fromLTRB(contentPadding, 2.h, contentPadding, 0),
+                    child: Row(
+                      children: <Widget>[
+                        PhosphorIcon(PhosphorIcons.clock(), size: 11.sp, color: const Color(0xFF888888)),
+                        Gap(3.w),
+                        Text(
+                          product.formattedDeliveryTime,
+                          style: TextStyle(
+                            fontSize: 10.sp,
+                            fontWeight: FontWeight.w400,
+                            color: const Color(0xFF888888),
+                            height: 1.2,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                Gap(6.h),
+              ],
+            ),
+            if (!product.inStock)
+              Positioned.fill(
+                child: Container(
+                  color: AppColors.overlayLight,
+                  alignment: Alignment.center,
+                  child: Text(
+                    'Out of stock',
+                    style: AppTextStyles.h3.copyWith(
+                      color: AppColors.outOfStockRed,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// Builds the top image area. When [style] is a horizontal rail the unit
+  /// chip + ADD button are overlaid on the image (compact); grid cards render
+  /// those below the image instead (reference layout).
+  Widget _buildImageArea({
+    required ProductEntity product,
+    required String? imageUrl,
+    required OptimizedMediaAsset optimizedImage,
+    required double imageHeight,
+    required bool isGridStyle,
+    required bool tightGrid,
+    required double unitFontSize,
+    required ProductCardStyle style,
+    required bool compactGrid,
+  }) {
+    final imageCount = product.images.length;
+    return SizedBox(
+      height: imageHeight,
+      width: double.infinity,
+      child: Stack(
+        children: <Widget>[
+          Positioned.fill(
+            child: ColoredBox(
+              color: const Color(0xFFF7F7F7),
+              child: imageUrl == null || imageUrl.isEmpty
+                  ? const Center(
+                      child: Icon(
+                        Icons.image_outlined,
+                        color: AppColors.textDisabled,
+                        size: 28,
+                      ),
+                    )
+                  : Padding(
+                      padding: EdgeInsets.all(isGridStyle ? 8.w : 4.w),
+                      child: AppImage(
+                        imageUrl: optimizedImage.url ?? imageUrl,
+                        memCacheWidth: optimizedImage.memCacheWidth,
+                        memCacheHeight: optimizedImage.memCacheHeight,
+                        fit: isGridStyle ? BoxFit.contain : BoxFit.cover,
+                        filterQuality: FilterQuality.low,
+                        placeholder: const ColoredBox(
+                          color: Color(0xFFF7F7F7),
+                          child: SizedBox.expand(),
+                        ),
+                        errorWidget: const ColoredBox(
+                          color: Color(0xFFF7F7F7),
+                          child: Center(
+                            child: Icon(
+                              Icons.broken_image_outlined,
+                              color: AppColors.textDisabled,
+                              size: 28,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+            ),
+          ),
+          if (widget.showWishlist)
+            Positioned(
+              top: 8.h,
+              right: 8.w,
+              child: _IsolatedWishlistButton(
+                product: product,
+                showWishlist: widget.showWishlist,
+              ),
+            ),
+          // Origin badge (top-left)
+          if (product.hasOriginTag && product.isImported)
+            Positioned(
+              top: 6.h,
+              left: 6.w,
+              child: Container(
+                padding: EdgeInsets.symmetric(horizontal: 5.w, vertical: 2.h),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFFFF3E0),
+                  borderRadius: BorderRadius.circular(4.r),
+                  border: Border.all(
+                    color: const Color(0xFFFFB74D),
+                    width: 0.8,
+                  ),
+                ),
+                child: Text(
+                  'Imported',
+                  style: TextStyle(
+                    fontSize: 9.sp,
+                    fontWeight: FontWeight.w600,
+                    color: const Color(0xFFE65100),
+                    height: 1.1,
+                  ),
+                ),
+              ),
+            ),
+          // Food marker (veg / non-veg / egg) — shape + colour, image edge
+          if (product.hasFoodMarker)
+            Positioned(
+              right: 8.w,
+              bottom: 8.h,
+              child: _FoodMarkerBox(product: product),
+            ),
+          // Multi-image carousel dots (indicator only)
+          if (imageCount > 1)
+            Positioned(
+              left: 8.w,
+              bottom: 8.h,
+              child: _ImageDots(count: imageCount),
+            ),
+          // Rails keep the compact overlay (unit chip + ADD) so the fixed
+          // rail height is preserved.
+          if (!isGridStyle) ...<Widget>[
+            Positioned(
+              right: tightGrid ? 6.w : 8.w,
+              bottom: tightGrid ? 6.h : 8.h,
+              child: _IsolatedCartButton(
+                style: style,
+                compact: compactGrid,
+                tight: tightGrid,
+                product: product,
+                onAdd: widget.onAdd,
+                onOptionsTap: widget.onOptionsTap,
+              ),
+            ),
+            if (product.displayUnit.trim().isNotEmpty)
+              Positioned(
+                left: tightGrid ? 6.w : 8.w,
+                bottom: tightGrid ? 6.h : 8.h,
+                child: Container(
+                  padding: EdgeInsets.symmetric(
+                    horizontal: tightGrid ? 6.w : 8.w,
+                    vertical: tightGrid ? 2.h : 3.h,
+                  ),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(6.r),
+                    boxShadow: <BoxShadow>[
+                      BoxShadow(
+                        color: Colors.black.withValues(alpha: 0.08),
+                        blurRadius: 4,
+                        offset: const Offset(0, 1),
+                      ),
+                    ],
+                  ),
+                  child: Text(
+                    product.displayUnit,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      fontSize: unitFontSize,
+                      fontWeight: FontWeight.w600,
+                      color: const Color(0xFF3A3A3A),
+                      height: 1.1,
+                    ),
+                  ),
+                ),
+              ),
+          ],
+        ],
       ),
     );
   }
@@ -484,6 +717,85 @@ class _ProductCardState extends State<ProductCard> {
       return ProductCardStyle.scroll;
     }
     return ProductCardStyle.grid;
+  }
+}
+
+/// Veg / non-veg / egg marker — square outline + filled dot (shape + colour
+/// so it is distinguishable without relying on colour alone).
+class _FoodMarkerBox extends StatelessWidget {
+  const _FoodMarkerBox({required this.product});
+
+  final ProductEntity product;
+
+  @override
+  Widget build(BuildContext context) {
+    final color = product.isVeg
+        ? const Color(0xFF2E7D32)
+        : product.isNonVeg
+            ? const Color(0xFFC62828)
+            : const Color(0xFFF9A825);
+
+    final isEgg = product.isEgg;
+
+    return Container(
+      width: 16.w,
+      height: 16.w,
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(3.r),
+        border: Border.all(color: color, width: 1.5),
+      ),
+      alignment: Alignment.center,
+      child: isEgg
+          // Egg: hollow ring to distinguish from veg/non-veg solid dots.
+          ? Container(
+              width: 8.w,
+              height: 8.w,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                border: Border.all(color: color, width: 1.6),
+              ),
+            )
+          : Container(
+              width: 8.w,
+              height: 8.w,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: color,
+              ),
+            ),
+    );
+  }
+}
+
+/// Carousel-style dots indicator (cosmetic — reflects image count).
+class _ImageDots extends StatelessWidget {
+  const _ImageDots({required this.count});
+
+  final int count;
+
+  @override
+  Widget build(BuildContext context) {
+    final dots = count.clamp(1, 4);
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: List<Widget>.generate(dots, (index) {
+        final active = index == 0;
+        return Padding(
+          padding: EdgeInsets.only(right: index == dots - 1 ? 0 : 4.w),
+          child: Container(
+            width: active ? 6.w : 5.w,
+            height: active ? 6.w : 5.w,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: active
+                  ? const Color(0xFF5B2A86)
+                  : const Color(0xFFCBC3D6),
+            ),
+          ),
+        );
+      }),
+    );
   }
 }
 
@@ -588,7 +900,11 @@ class _IsolatedCartButton extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final quantity = ref.watch(cartItemQuantityProvider(product.id));
+    // Multi-option families never reflect a combined quantity on the card —
+    // they always show ADD + "N options"; exact quantities live in the sheet.
+    final quantity = product.hasMultipleOptions
+        ? 0
+        : ref.watch(cartItemQuantityProvider(product.id));
     final authGate = ref.read(authGateControllerProvider);
 
     return _ZeptoAddQtyButton(
@@ -627,21 +943,23 @@ class _ZeptoAddQtyButton extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    const pinkBorder = AppColors.primaryGreen;
+    const greenBorder = AppColors.primaryGreen;
     final buttonHeight = tight ? 30.h : 32.h;
+    // Inline grid ADD buttons sit next to the unit label in a narrow 3-col
+    // cell, so they are kept compact to leave room for "200 g" / "6 eggs".
     final gridButtonWidth = tight
-        ? 58.w
+        ? 50.w
         : compact
-            ? 66.w
-            : 76.w;
-    final controlWidth = tight ? 24.w : 28.w;
-    final quantityWidth = tight ? 16.w : 18.w;
-    final iconSize = tight ? 13.0 : 14.0;
+            ? 56.w
+            : 64.w;
+    final controlWidth = tight ? 20.w : 22.w;
+    final quantityWidth = tight ? 14.w : 16.w;
+    final iconSize = tight ? 12.0 : 13.0;
     final addFontSize = tight
-        ? 11.5.sp
+        ? 11.sp
         : compact
-            ? 12.sp
-            : 13.sp;
+            ? 11.5.sp
+            : 12.5.sp;
 
     if (quantity > 0) {
       return Container(
@@ -724,93 +1042,98 @@ class _ZeptoAddQtyButton extends ConsumerWidget {
       );
     }
 
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      children: <Widget>[
-        Container(
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(8.r),
-            boxShadow: <BoxShadow>[
-              BoxShadow(
-                color: Colors.black.withValues(alpha: 0.12),
-                blurRadius: 5,
-                offset: const Offset(0, 2),
-              ),
-            ],
+    final bool isGrid = style == ProductCardStyle.grid;
+    final bool showOptions = product.hasMultipleOptions;
+
+    return Container(
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(8.r),
+        boxShadow: <BoxShadow>[
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.12),
+            blurRadius: 5,
+            offset: const Offset(0, 2),
           ),
-          child: Material(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(8.r),
-            child: InkWell(
-              onTap: product.inStock
-                  ? () async {
-                      // If product has multiple options, open options sheet
-                      if (product.hasMultipleOptions && onOptionsTap != null) {
-                        onOptionsTap!.call();
-                        return;
-                      }
-                      final allowed = await authGate.protectAddToCart(
-                        context,
-                        product,
-                      );
-                      if (!allowed || !context.mounted) return;
-                      final result = await ref
-                          .read(cartProvider.notifier)
-                          .addItem(product.id, 1, product: product);
-                      if (!context.mounted) return;
-                      if (!result.isSuccess) {
-                        showCartSnackBar(context, result.failure!.message);
-                        return;
-                      }
-                      onAdd?.call();
-                    }
-                  : null,
+        ],
+      ),
+      child: Material(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(8.r),
+        child: InkWell(
+          onTap: product.inStock
+              ? () async {
+                  // Multi-option products open the option sheet instead of
+                  // adding the representative directly.
+                  if (product.hasMultipleOptions && onOptionsTap != null) {
+                    onOptionsTap!.call();
+                    return;
+                  }
+                  final allowed = await authGate.protectAddToCart(
+                    context,
+                    product,
+                  );
+                  if (!allowed || !context.mounted) return;
+                  final result = await ref
+                      .read(cartProvider.notifier)
+                      .addItem(product.id, 1, product: product);
+                  if (!context.mounted) return;
+                  if (!result.isSuccess) {
+                    showCartSnackBar(context, result.failure!.message);
+                    return;
+                  }
+                  onAdd?.call();
+                }
+              : null,
+          borderRadius: BorderRadius.circular(8.r),
+          child: Container(
+            // Multi-option grid buttons grow taller to stack "ADD" over the
+            // "N options" line INSIDE the green border (reference layout).
+            height: isGrid && showOptions ? buttonHeight + 16.h : buttonHeight,
+            width: isGrid ? gridButtonWidth : buttonHeight,
+            padding: EdgeInsets.symmetric(vertical: 3.h),
+            decoration: BoxDecoration(
+              border: Border.all(color: greenBorder, width: 1.5),
               borderRadius: BorderRadius.circular(8.r),
-              child: Container(
-                height: buttonHeight,
-                width:
-                    style == ProductCardStyle.grid ? gridButtonWidth : buttonHeight,
-                decoration: BoxDecoration(
-                  border: Border.all(color: pinkBorder, width: 1.5),
-                  borderRadius: BorderRadius.circular(8.r),
-                ),
-                alignment: Alignment.center,
-                child: style == ProductCardStyle.grid
-                    ? Text(
+            ),
+            alignment: Alignment.center,
+            child: isGrid
+                ? Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    mainAxisSize: MainAxisSize.min,
+                    children: <Widget>[
+                      Text(
                         'ADD',
                         style: TextStyle(
-                          color: pinkBorder,
+                          color: greenBorder,
                           fontWeight: FontWeight.w700,
                           fontSize: addFontSize,
+                          letterSpacing: 0.4,
+                          height: 1.0,
                         ),
-                      )
-                    : PhosphorIcon(
-                        PhosphorIcons.plus(PhosphorIconsStyle.bold),
-                        size: tight ? 15.0 : 18.0,
-                        color: pinkBorder,
                       ),
-              ),
-            ),
+                      if (showOptions)
+                        Text(
+                          '${product.optionCount} options',
+                          maxLines: 1,
+                          softWrap: false,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            fontSize: 8.5.sp,
+                            fontWeight: FontWeight.w500,
+                            color: greenBorder,
+                            height: 1.2,
+                          ),
+                        ),
+                    ],
+                  )
+                : PhosphorIcon(
+                    PhosphorIcons.plus(PhosphorIconsStyle.bold),
+                    size: tight ? 15.0 : 18.0,
+                    color: greenBorder,
+                  ),
           ),
         ),
-        // "N options" label below ADD button
-        if (product.hasMultipleOptions)
-          Padding(
-            padding: EdgeInsets.only(top: 3.h),
-            child: Text(
-              '${product.optionCount} options',
-              maxLines: 1,
-              softWrap: false,
-              overflow: TextOverflow.ellipsis,
-              style: TextStyle(
-                fontSize: 9.sp,
-                fontWeight: FontWeight.w500,
-                color: const Color(0xFF888888),
-                height: 1.1,
-              ),
-            ),
-          ),
-      ],
+      ),
     );
   }
 }

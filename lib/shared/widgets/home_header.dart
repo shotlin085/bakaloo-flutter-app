@@ -49,18 +49,29 @@ class HomeHeader extends ConsumerWidget {
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: <Widget>[
-                // Centered brand logo on top.
-                Image.asset(
-                  'assets/icon/brand_logo.png',
-                  height: 40.h,
-                  cacheHeight: 160,
-                  fit: BoxFit.contain,
-                  filterQuality: FilterQuality.medium,
+                // Centered brand logo on top. The PNG has transparent
+                // whitespace baked in above/below the glyph, so we render it
+                // large but clip the layout box down to the glyph height to
+                // remove the unnecessary top/bottom space.
+                ClipRect(
+                  child: SizedBox(
+                    height: 44.h,
+                    child: OverflowBox(
+                      minHeight: 95.h,
+                      maxHeight: 95.h,
+                      child: Image.asset(
+                        'assets/icon/brand_logo.png',
+                        height: 95.h,
+                        cacheHeight: 300,
+                        fit: BoxFit.contain,
+                        filterQuality: FilterQuality.medium,
+                      ),
+                    ),
+                  ),
                 ),
-                // Pull the bottom row up so it overlaps the logo's lower
-                // whitespace, keeping the overall header height compact.
+                // Pull the bottom row up so it sits tight under the logo.
                 Transform.translate(
-                  offset: Offset(0, -6.h),
+                  offset: Offset(0, -16.h),
                   child: Row(
                     crossAxisAlignment: CrossAxisAlignment.center,
                     children: <Widget>[

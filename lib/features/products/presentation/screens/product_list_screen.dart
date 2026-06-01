@@ -120,7 +120,7 @@ class _ProductListScreenState extends ConsumerState<ProductListScreen> {
                       crossAxisCount: 2,
                       crossAxisSpacing: 12.w,
                       mainAxisSpacing: 12.h,
-                      mainAxisExtent: 246.h,
+                      mainAxisExtent: 268.h,
                     ),
                     itemBuilder: (context, index) {
                       final product = viewState.items[index];
@@ -183,7 +183,7 @@ class _ProductListScreenState extends ConsumerState<ProductListScreen> {
         crossAxisCount: 2,
         crossAxisSpacing: 12.w,
         mainAxisSpacing: 12.h,
-        mainAxisExtent: 246.h,
+        mainAxisExtent: 268.h,
       ),
       itemCount: 6,
       itemBuilder: (_, __) => const Column(

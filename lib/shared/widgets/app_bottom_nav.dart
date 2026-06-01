@@ -17,7 +17,6 @@ import 'package:bakaloo_flutter_app/features/orders/presentation/providers/order
 import 'package:bakaloo_flutter_app/features/tracking/presentation/providers/order_status_stream_provider.dart';
 import 'package:bakaloo_flutter_app/routing/route_access.dart';
 import 'package:bakaloo_flutter_app/routing/route_names.dart';
-import 'package:bakaloo_flutter_app/shared/widgets/badge_count.dart';
 import 'package:bakaloo_flutter_app/shared/widgets/app_route_loading_gate.dart';
 
 class AppShell extends ConsumerWidget {
@@ -124,19 +123,19 @@ class AppShell extends ConsumerWidget {
                   );
                   return;
                 }
-                navigationShell.goBranch(1);
+                context.push(RouteNames.cart);
               },
             ),
           ],
         ),
         bottomNavigationBar: DecoratedBox(
           decoration: const BoxDecoration(
-            color: Colors.white,
+            color: Color(0xFFFBF9FF),
             boxShadow: <BoxShadow>[
               BoxShadow(
-                color: Color(0x12000000),
-                blurRadius: 18,
-                offset: Offset(0, -4),
+                color: Color(0x14000000),
+                blurRadius: 20,
+                offset: Offset(0, -6),
               ),
             ],
           ),
@@ -144,15 +143,10 @@ class AppShell extends ConsumerWidget {
             top: false,
             child: Container(
               padding: EdgeInsets.fromLTRB(
-                10.w,
-                8.h,
-                10.w,
-                bottomInset > 0 ? 4.h : 8.h,
-              ),
-              decoration: const BoxDecoration(
-                border: Border(
-                  top: BorderSide(color: Color(0xFFEAEAEA)),
-                ),
+                12.w,
+                10.h,
+                12.w,
+                bottomInset > 0 ? 4.h : 10.h,
               ),
               child: Row(
                 children: List<Widget>.generate(_tabs.length, (index) {
@@ -161,7 +155,6 @@ class AppShell extends ConsumerWidget {
                     child: _NavTabButton(
                       tab: tab,
                       selected: index == selectedIndex,
-                      isCartTab: tab.path == RouteNames.cart,
                       onTap: () async {
                         HapticFeedback.lightImpact();
                         if (index == selectedIndex) return;
@@ -172,11 +165,11 @@ class AppShell extends ConsumerWidget {
                           await authGate.protectRoute(
                             context,
                             route: nextPath,
-                            title: nextPath == RouteNames.cart
-                                ? 'Log in to view your cart'
+                            title: nextPath == RouteNames.orders
+                                ? 'Log in to view your orders'
                                 : 'Log in to open your profile',
-                            message: nextPath == RouteNames.cart
-                                ? 'Please log in first to review your items and continue to checkout.'
+                            message: nextPath == RouteNames.orders
+                                ? 'Please log in first to track and manage your orders.'
                                 : 'Please log in first to access your profile, orders, saved addresses, and notifications.',
                           );
                           return;
@@ -211,39 +204,37 @@ class _CartPillHost extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final cartCount = ref.watch(cartCountProvider);
-    final showCartPill = cartCount > 0 && selectedIndex != 1;
+    final showCartPill = cartCount > 0;
+    // Pill sits just above the bottom nav (≈12dp gap), centred horizontally,
+    // and spans ~60% of the screen width — never full-width, never mid-screen.
+    final screenWidth = MediaQuery.sizeOf(context).width;
+    final pillWidth = (screenWidth * 0.60).clamp(220.0, 360.0);
     return Positioned(
-      left: 16.w,
-      right: 16.w,
-      bottom: navBarHeight + 8.h,
-      child: RepaintBoundary(
-        child: AnimatedSlide(
-          offset: showCartPill ? Offset.zero : const Offset(0, 1.5),
-          duration: const Duration(milliseconds: 280),
-          curve: Curves.easeOutCubic,
-          child: AnimatedOpacity(
-            opacity: showCartPill ? 1.0 : 0.0,
-            duration: const Duration(milliseconds: 220),
-            curve: Curves.easeOut,
-            child: IgnorePointer(
-              ignoring: !showCartPill,
-              child: _FloatingCartPill(cartCount: cartCount, onTap: onTap),
+      bottom: 8.h,
+      left: 0,
+      right: 0,
+      child: IgnorePointer(
+        ignoring: !showCartPill,
+        child: Center(
+          child: RepaintBoundary(
+            child: AnimatedSlide(
+              offset: showCartPill ? Offset.zero : const Offset(0, 1.5),
+              duration: const Duration(milliseconds: 280),
+              curve: Curves.easeOutCubic,
+              child: AnimatedOpacity(
+                opacity: showCartPill ? 1.0 : 0.0,
+                duration: const Duration(milliseconds: 220),
+                curve: Curves.easeOut,
+                child: SizedBox(
+                  width: pillWidth,
+                  child: _FloatingCartPill(cartCount: cartCount, onTap: onTap),
+                ),
+              ),
             ),
           ),
         ),
       ),
     );
-  }
-}
-
-class _CartTabBadge extends ConsumerWidget {
-  const _CartTabBadge();
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final count = ref.watch(cartCountProvider);
-    if (count <= 0) return const SizedBox.shrink();
-    return BadgeCount(count: count);
   }
 }
 
@@ -258,62 +249,77 @@ class _FloatingCartPill extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    const Color pillColor = Color(0xFF6C4DFF);
     return GestureDetector(
       onTap: onTap,
       child: Container(
-        height: 52.h,
+        height: 56.h,
         decoration: BoxDecoration(
-          color: AppColors.primaryGreen,
-          borderRadius: BorderRadius.circular(26.r),
+          color: pillColor,
+          borderRadius: BorderRadius.circular(30.r),
           boxShadow: <BoxShadow>[
             BoxShadow(
-              color: AppColors.primaryGreen.withValues(alpha: 0.40),
-              blurRadius: 16,
-              offset: const Offset(0, 4),
-            ),
-            BoxShadow(
-              color: Colors.black.withValues(alpha: 0.12),
+              color: Colors.black.withValues(alpha: 0.10),
               blurRadius: 8,
               offset: const Offset(0, 2),
             ),
           ],
         ),
         child: Padding(
-          padding: EdgeInsets.symmetric(horizontal: 16.w),
+          padding: EdgeInsets.symmetric(horizontal: 14.w),
           child: Row(
             children: <Widget>[
+              // Leading cart icon in a soft translucent circle.
               Container(
-                width: 28.w,
-                height: 28.w,
+                width: 34.w,
+                height: 34.w,
                 decoration: BoxDecoration(
                   color: Colors.white.withValues(alpha: 0.22),
-                  borderRadius: BorderRadius.circular(8.r),
+                  shape: BoxShape.circle,
                 ),
                 alignment: Alignment.center,
-                child: Text(
-                  '$cartCount',
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontWeight: FontWeight.w800,
-                    fontSize: 13.sp,
-                    height: 1.0,
-                  ),
+                child: PhosphorIcon(
+                  PhosphorIcons.basket(PhosphorIconsStyle.fill),
+                  size: 17.sp,
+                  color: Colors.white,
                 ),
               ),
               Gap(10.w),
               Expanded(
-                child: Text(
-                  'View cart',
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontWeight: FontWeight.w700,
-                    fontSize: 15.sp,
-                    letterSpacing: 0.1,
-                  ),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: <Widget>[
+                    Text(
+                      'View cart',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.w800,
+                        fontSize: 15.sp,
+                        letterSpacing: 0.1,
+                        height: 1.1,
+                      ),
+                    ),
+                    Text(
+                      '$cartCount item${cartCount == 1 ? '' : 's'}',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        color: Colors.white.withValues(alpha: 0.9),
+                        fontWeight: FontWeight.w500,
+                        fontSize: 11.sp,
+                        height: 1.15,
+                      ),
+                    ),
+                  ],
                 ),
               ),
+              Gap(6.w),
               PhosphorIcon(
-                PhosphorIcons.arrowRight(PhosphorIconsStyle.bold),
+                PhosphorIcons.caretRight(PhosphorIconsStyle.bold),
                 size: 18.sp,
                 color: Colors.white,
               ),
@@ -329,75 +335,82 @@ class _NavTabButton extends StatelessWidget {
   const _NavTabButton({
     required this.tab,
     required this.selected,
-    required this.isCartTab,
     required this.onTap,
   });
 
   final AppShellTab tab;
   final bool selected;
-  final bool isCartTab;
   final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
-    final icon = selected ? tab.activeIcon : tab.inactiveIcon;
-    const activeColor = Color(0xFF35D86F);
-    final iconColor = selected ? activeColor : const Color(0xFF171717);
-    const labelColor = Color(0xFF171717);
+    const Color activeColor = Color(0xFF6C4DFF);
+    const Color inactiveColor = Color(0xFF1A1A1A);
+    final String iconAsset = selected ? tab.activeIcon : tab.inactiveIcon;
+    final Color labelColor = selected ? activeColor : inactiveColor;
 
     return Material(
       color: Colors.transparent,
       child: InkWell(
         onTap: onTap,
-        borderRadius: BorderRadius.circular(20.r),
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 220),
-          curve: Curves.easeOutCubic,
-          margin: EdgeInsets.symmetric(horizontal: 4.w),
-          padding: EdgeInsets.symmetric(vertical: 6.h, horizontal: 6.w),
-          decoration: BoxDecoration(
-            color: Colors.transparent,
-            borderRadius: BorderRadius.circular(18.r),
-          ),
+        borderRadius: BorderRadius.circular(22.r),
+        child: Padding(
+          padding: EdgeInsets.symmetric(vertical: 10.h, horizontal: 6.w),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: <Widget>[
               SizedBox(
-                width: 42.w,
-                height: 28.h,
-                child: Stack(
-                  clipBehavior: Clip.none,
-                  children: <Widget>[
-                    Center(
-                      child: AnimatedScale(
-                        scale: selected ? 1.06 : 1.0,
-                        duration: const Duration(milliseconds: 220),
-                        curve: Curves.easeOutCubic,
-                        child: PhosphorIcon(
-                          icon,
-                          size: 22.sp,
-                          color: iconColor,
-                        ),
-                      ),
-                    ),
-                    if (isCartTab)
-                      const Positioned(
-                        right: -2,
-                        top: -4,
-                        child: _CartTabBadge(),
-                      ),
-                  ],
+                width: 48.w,
+                height: 36.h,
+                child: Center(
+                  child: AnimatedScale(
+                    scale: selected ? 1.05 : 1.0,
+                    duration: const Duration(milliseconds: 220),
+                    curve: Curves.easeOutCubic,
+                    child: selected
+                        ? Image.asset(
+                            iconAsset,
+                            width: 34.w,
+                            height: 34.h,
+                            fit: BoxFit.contain,
+                            filterQuality: FilterQuality.medium,
+                          )
+                        : ColorFiltered(
+                            colorFilter: const ColorFilter.mode(
+                              Color(0xFF1A1A1A),
+                              BlendMode.srcIn,
+                            ),
+                            child: Image.asset(
+                              iconAsset,
+                              width: 34.w,
+                              height: 34.h,
+                              fit: BoxFit.contain,
+                              filterQuality: FilterQuality.medium,
+                            ),
+                          ),
+                  ),
                 ),
               ),
-              Gap(4.h),
+              Gap(6.h),
               AnimatedDefaultTextStyle(
                 duration: const Duration(milliseconds: 220),
                 style: AppTextStyles.labelSmall.copyWith(
                   color: labelColor,
                   fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
-                  fontSize: 11.sp,
+                  fontSize: 12.sp,
                 ),
                 child: Text(tab.label),
+              ),
+              Gap(6.h),
+              AnimatedContainer(
+                duration: const Duration(milliseconds: 220),
+                curve: Curves.easeOutCubic,
+                height: 3.h,
+                width: selected ? 22.w : 0,
+                decoration: BoxDecoration(
+                  color: activeColor,
+                  borderRadius: BorderRadius.circular(2.r),
+                ),
               ),
             ],
           ),
@@ -417,33 +430,35 @@ class AppShellTab {
 
   final String label;
   final String path;
-  final PhosphorIconData inactiveIcon;
-  final PhosphorIconData activeIcon;
+  final String inactiveIcon;
+  final String activeIcon;
 }
+
+const String _footerIconBase = 'assets/icon/footer_icon';
 
 final List<AppShellTab> _tabs = <AppShellTab>[
   AppShellTab(
     label: 'Home',
     path: RouteNames.home,
-    inactiveIcon: PhosphorIcons.house(),
-    activeIcon: PhosphorIcons.house(PhosphorIconsStyle.fill),
+    inactiveIcon: '$_footerIconBase/bakaloo-home-outline-icon.png',
+    activeIcon: '$_footerIconBase/bakaloo-home-filled-icon.png',
   ),
   AppShellTab(
-    label: 'Cart',
-    path: RouteNames.cart,
-    inactiveIcon: PhosphorIcons.basket(),
-    activeIcon: PhosphorIcons.basket(PhosphorIconsStyle.fill),
+    label: 'Orders',
+    path: RouteNames.orders,
+    inactiveIcon: '$_footerIconBase/bakaloo-orders-outline-icon.png',
+    activeIcon: '$_footerIconBase/bakaloo-orders-filled-icon.png',
   ),
   AppShellTab(
     label: 'Categories',
     path: RouteNames.categories,
-    inactiveIcon: PhosphorIcons.gridFour(),
-    activeIcon: PhosphorIcons.gridFour(PhosphorIconsStyle.fill),
+    inactiveIcon: '$_footerIconBase/bakaloo-categories-outline-icon.png',
+    activeIcon: '$_footerIconBase/bakaloo-categories-filled-icon.png',
   ),
   AppShellTab(
     label: 'Profile',
     path: RouteNames.profile,
-    inactiveIcon: PhosphorIcons.user(),
-    activeIcon: PhosphorIcons.user(PhosphorIconsStyle.fill),
+    inactiveIcon: '$_footerIconBase/bakaloo-profile-outline-icon.png',
+    activeIcon: '$_footerIconBase/bakaloo-profile-filled-icon.png',
   ),
 ];

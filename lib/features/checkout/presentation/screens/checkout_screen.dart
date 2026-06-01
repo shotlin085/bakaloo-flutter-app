@@ -10,14 +10,17 @@ import 'package:bakaloo_flutter_app/core/theme/app_colors.dart';
 import 'package:bakaloo_flutter_app/core/theme/app_dimensions.dart';
 import 'package:bakaloo_flutter_app/core/theme/app_shadows.dart';
 import 'package:bakaloo_flutter_app/core/theme/app_text_styles.dart';
+import 'package:bakaloo_flutter_app/core/constants/api_constants.dart';
 import 'package:bakaloo_flutter_app/core/utils/extensions/double_extensions.dart';
 import 'package:bakaloo_flutter_app/features/addresses/domain/entities/address_entity.dart';
 import 'package:bakaloo_flutter_app/features/addresses/presentation/providers/address_provider.dart';
+import 'package:bakaloo_flutter_app/features/cart/domain/entities/cart_item_entity.dart';
 import 'package:bakaloo_flutter_app/features/cart/presentation/providers/cart_provider.dart';
 import 'package:bakaloo_flutter_app/features/checkout/domain/entities/checkout_summary_entity.dart';
 import 'package:bakaloo_flutter_app/features/checkout/presentation/providers/checkout_provider.dart';
 import 'package:bakaloo_flutter_app/features/payments/presentation/providers/payment_provider.dart';
 import 'package:bakaloo_flutter_app/routing/route_names.dart';
+import 'package:bakaloo_flutter_app/shared/widgets/app_image.dart';
 
 // ═══════════════════════════════════════════════════════════════════════════
 // CheckoutScreen — Payment-only page: Wallet + Razorpay Online
@@ -104,6 +107,7 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
             walletBalance: walletBalance,
             walletLoading: walletBalanceAsync.isLoading,
             itemCount: cart.itemCount,
+            items: cart.items,
           );
         },
       ),
@@ -148,6 +152,7 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
     required double walletBalance,
     required bool walletLoading,
     required int itemCount,
+    required List<CartItemEntity> items,
   }) {
     final address = checkoutState.selectedAddress;
     final shortfall = summary.total - walletBalance;
@@ -155,6 +160,11 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
     return ListView(
       padding: EdgeInsets.fromLTRB(16.w, 16.h, 16.w, 100.h),
       children: <Widget>[
+        // ── Order Items Review (option labels visible) ──────────────
+        _OrderItemsReviewCard(items: items),
+
+        Gap(12.h),
+
         // ── Bill Accordion ──────────────────────────────────────────
         _BillAccordion(
           summary: summary,
@@ -491,6 +501,177 @@ class _BillRow extends StatelessWidget {
                 color: valueColor ?? AppColors.textPrimary,
                 fontWeight: FontWeight.w600,
               ),
+        ),
+      ],
+    );
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Order Items Review Card — shows each selected option clearly at checkout
+// ═══════════════════════════════════════════════════════════════════════════
+
+class _OrderItemsReviewCard extends StatelessWidget {
+  const _OrderItemsReviewCard({required this.items});
+
+  final List<CartItemEntity> items;
+
+  @override
+  Widget build(BuildContext context) {
+    if (items.isEmpty) return const SizedBox.shrink();
+
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(AppDimensions.radiusMd),
+        boxShadow: const <BoxShadow>[AppShadows.cardShadow],
+      ),
+      padding: EdgeInsets.symmetric(horizontal: 14.w, vertical: 12.h),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: <Widget>[
+          Row(
+            children: <Widget>[
+              Text(
+                'Order Summary',
+                style: AppTextStyles.bodyLarge.copyWith(
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+              const Spacer(),
+              Text(
+                '${items.length} item${items.length == 1 ? '' : 's'}',
+                style: AppTextStyles.bodySmall.copyWith(
+                  color: AppColors.textSecondary,
+                ),
+              ),
+            ],
+          ),
+          Gap(10.h),
+          ...List<Widget>.generate(items.length, (index) {
+            final item = items[index];
+            return Padding(
+              padding: EdgeInsets.only(bottom: index == items.length - 1 ? 0 : 10.h),
+              child: _OrderItemReviewRow(item: item),
+            );
+          }),
+        ],
+      ),
+    );
+  }
+}
+
+class _OrderItemReviewRow extends StatelessWidget {
+  const _OrderItemReviewRow({required this.item});
+
+  final CartItemEntity item;
+
+  @override
+  Widget build(BuildContext context) {
+    final optimized = ApiConstants.optimizedMedia(
+      item.thumbnailUrl,
+      profile: CustomerImageProfile.cartThumb,
+    );
+    // The option label (e.g. "500g", "4 x 95g") is the key disambiguator
+    // between sibling options — surface it prominently next to the name.
+    final optionLabel = item.optionLabel?.trim();
+    final hasOption = optionLabel != null && optionLabel.isNotEmpty;
+
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.center,
+      children: <Widget>[
+        ClipRRect(
+          borderRadius: BorderRadius.circular(8.r),
+          child: SizedBox(
+            width: 40.w,
+            height: 40.w,
+            child: (item.thumbnailUrl != null && item.thumbnailUrl!.isNotEmpty)
+                ? AppImage(
+                    imageUrl: optimized.url ?? item.thumbnailUrl!,
+                    memCacheWidth: optimized.memCacheWidth,
+                    memCacheHeight: optimized.memCacheHeight,
+                    fit: BoxFit.cover,
+                    placeholder: const ColoredBox(color: Color(0xFFF4F4F4)),
+                    errorWidget: const ColoredBox(
+                      color: Color(0xFFF4F4F4),
+                      child: Icon(
+                        Icons.image_outlined,
+                        size: 16,
+                        color: Color(0xFFB5B5B5),
+                      ),
+                    ),
+                  )
+                : const ColoredBox(
+                    color: Color(0xFFF4F4F4),
+                    child: Icon(
+                      Icons.image_outlined,
+                      size: 16,
+                      color: Color(0xFFB5B5B5),
+                    ),
+                  ),
+          ),
+        ),
+        Gap(10.w),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: <Widget>[
+              Text(
+                item.name,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: AppTextStyles.bodyMedium.copyWith(
+                  fontWeight: FontWeight.w600,
+                  height: 1.25,
+                ),
+              ),
+              Gap(2.h),
+              Row(
+                children: <Widget>[
+                  if (hasOption)
+                    Container(
+                      padding: EdgeInsets.symmetric(horizontal: 6.w, vertical: 1.h),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFF1F5F9),
+                        borderRadius: BorderRadius.circular(4.r),
+                      ),
+                      child: Text(
+                        optionLabel,
+                        style: AppTextStyles.bodySmall.copyWith(
+                          fontSize: 11.sp,
+                          fontWeight: FontWeight.w600,
+                          color: AppColors.textSecondary,
+                        ),
+                      ),
+                    )
+                  else if (item.unit != null && item.unit!.isNotEmpty)
+                    Text(
+                      item.unit!,
+                      style: AppTextStyles.bodySmall.copyWith(
+                        fontSize: 11.sp,
+                        color: AppColors.textSecondary,
+                      ),
+                    ),
+                  Gap(6.w),
+                  Text(
+                    'Qty ${item.quantity}',
+                    style: AppTextStyles.bodySmall.copyWith(
+                      fontSize: 11.sp,
+                      color: AppColors.textSecondary,
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+        Gap(8.w),
+        Text(
+          '₹${item.total.toStringAsFixed(0)}',
+          style: AppTextStyles.bodyMedium.copyWith(
+            fontWeight: FontWeight.w700,
+          ),
         ),
       ],
     );

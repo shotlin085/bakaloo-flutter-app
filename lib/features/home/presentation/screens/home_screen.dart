@@ -1084,7 +1084,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
                             }(),
                           ] else
                             const DynamicHomeSections(),
-                          SliverToBoxAdapter(child: Gap(124.h)),
+                          SliverToBoxAdapter(child: Gap(0)),
                         ],
                       ),
                     ),
@@ -3156,22 +3156,27 @@ class _ThreeColumnProductGrid<T> extends StatelessWidget {
       children: <Widget>[
         for (var rowIndex = 0; rowIndex < rows.length; rowIndex++) ...<Widget>[
           if (rowIndex > 0) Gap(12.h),
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: <Widget>[
-              for (var columnIndex = 0;
-                  columnIndex < 3;
-                  columnIndex++) ...<Widget>[
-                Expanded(
-                  child: columnIndex < rows[rowIndex].length
-                      ? RepaintBoundary(
-                          child: itemBuilder(rows[rowIndex][columnIndex]),
-                        )
-                      : const SizedBox.shrink(),
-                ),
-                if (columnIndex < 2) Gap(10.w),
+          // IntrinsicHeight + stretch makes every card in a row share the
+          // tallest card's height so product boxes align across the grid
+          // regardless of name length / option label / rating presence.
+          IntrinsicHeight(
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: <Widget>[
+                for (var columnIndex = 0;
+                    columnIndex < 3;
+                    columnIndex++) ...<Widget>[
+                  Expanded(
+                    child: columnIndex < rows[rowIndex].length
+                        ? RepaintBoundary(
+                            child: itemBuilder(rows[rowIndex][columnIndex]),
+                          )
+                        : const SizedBox.shrink(),
+                  ),
+                  if (columnIndex < 2) Gap(10.w),
+                ],
               ],
-            ],
+            ),
           ),
         ],
       ],

@@ -10,6 +10,7 @@ import 'package:bakaloo_flutter_app/core/theme/app_colors.dart';
 import 'package:bakaloo_flutter_app/features/auth/presentation/providers/auth_gate_controller.dart';
 import 'package:bakaloo_flutter_app/features/cart/presentation/providers/cart_provider.dart';
 import 'package:bakaloo_flutter_app/features/products/domain/entities/product_entity.dart';
+import 'package:bakaloo_flutter_app/features/products/presentation/widgets/show_product_options.dart';
 import 'package:bakaloo_flutter_app/shared/widgets/app_image.dart';
 import 'package:bakaloo_flutter_app/shared/widgets/arched_top_box_clipper.dart';
 
@@ -482,6 +483,12 @@ class _ArchedAddButton extends ConsumerWidget {
       child: InkWell(
         onTap: product.inStock
             ? () async {
+                // Multi-option products open the option sheet instead of
+                // adding directly, so the customer picks the exact option.
+                if (product.hasMultipleOptions) {
+                  showProductOptionsSheet(context, product);
+                  return;
+                }
                 final allowed = await authGate.protectAddToCart(
                   context,
                   product,
@@ -514,13 +521,35 @@ class _ArchedAddButton extends ConsumerWidget {
             ],
           ),
           alignment: Alignment.center,
-          child: Text(
-            'ADD',
-            style: TextStyle(
-              color: const Color(0xFFCD2D55),
-              fontWeight: FontWeight.w700,
-              fontSize: 14.sp,
-            ),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            mainAxisSize: MainAxisSize.min,
+            children: <Widget>[
+              Text(
+                'ADD',
+                style: TextStyle(
+                  color: const Color(0xFFCD2D55),
+                  fontWeight: FontWeight.w700,
+                  fontSize: 14.sp,
+                  height: 1.0,
+                ),
+              ),
+              // "N options" sits INSIDE the fixed-size ADD button so the
+              // arched showcase card height never changes (no overflow).
+              if (product.hasMultipleOptions)
+                Text(
+                  '${product.optionCount} options',
+                  maxLines: 1,
+                  softWrap: false,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontSize: 8.sp,
+                    fontWeight: FontWeight.w500,
+                    color: const Color(0xFFCD2D55),
+                    height: 1.0,
+                  ),
+                ),
+            ],
           ),
         ),
       ),

@@ -45,8 +45,8 @@ part 'app_router.g.dart';
 
 final GlobalKey<NavigatorState> _homeBranchNavigatorKey =
     GlobalKey<NavigatorState>(debugLabel: 'homeBranch');
-final GlobalKey<NavigatorState> _cartBranchNavigatorKey =
-    GlobalKey<NavigatorState>(debugLabel: 'cartBranch');
+final GlobalKey<NavigatorState> _ordersBranchNavigatorKey =
+    GlobalKey<NavigatorState>(debugLabel: 'ordersBranch');
 final GlobalKey<NavigatorState> _categoriesBranchNavigatorKey =
     GlobalKey<NavigatorState>(debugLabel: 'categoriesBranch');
 final GlobalKey<NavigatorState> _profileBranchNavigatorKey =
@@ -156,6 +156,28 @@ GoRouter appRouter(Ref ref) {
           );
         },
       ),
+      GoRoute(
+        path: RouteNames.cart,
+        builder: (BuildContext context, GoRouterState state) {
+          return const CartScreen();
+        },
+        routes: <RouteBase>[
+          GoRoute(
+            path: 'checkout',
+            builder: (BuildContext context, GoRouterState state) {
+              return const CheckoutScreen();
+            },
+            routes: <RouteBase>[
+              GoRoute(
+                path: 'payment',
+                builder: (BuildContext context, GoRouterState state) {
+                  return const _RoutePlaceholderScreen('PaymentScreen');
+                },
+              ),
+            ],
+          ),
+        ],
+      ),
       StatefulShellRoute.indexedStack(
         builder: (
           BuildContext context,
@@ -166,7 +188,7 @@ GoRouter appRouter(Ref ref) {
             navigationShell: navigationShell,
             branchNavigatorKeys: <GlobalKey<NavigatorState>>[
               _homeBranchNavigatorKey,
-              _cartBranchNavigatorKey,
+              _ordersBranchNavigatorKey,
               _categoriesBranchNavigatorKey,
               _profileBranchNavigatorKey,
             ],
@@ -203,24 +225,28 @@ GoRouter appRouter(Ref ref) {
             ],
           ),
           StatefulShellBranch(
-            navigatorKey: _cartBranchNavigatorKey,
+            navigatorKey: _ordersBranchNavigatorKey,
             routes: <RouteBase>[
               GoRoute(
-                path: RouteNames.cart,
+                path: RouteNames.orders,
                 builder: (BuildContext context, GoRouterState state) {
-                  return const CartScreen();
+                  return const OrdersScreen();
                 },
                 routes: <RouteBase>[
                   GoRoute(
-                    path: 'checkout',
+                    path: ':orderId',
                     builder: (BuildContext context, GoRouterState state) {
-                      return const CheckoutScreen();
+                      return OrderDetailScreen(
+                        id: state.pathParameters['orderId'] ?? '',
+                      );
                     },
                     routes: <RouteBase>[
                       GoRoute(
-                        path: 'payment',
+                        path: 'track',
                         builder: (BuildContext context, GoRouterState state) {
-                          return const _RoutePlaceholderScreen('PaymentScreen');
+                          return OrderTrackingScreen(
+                            id: state.pathParameters['orderId'] ?? '',
+                          );
                         },
                       ),
                     ],
@@ -326,32 +352,6 @@ GoRouter appRouter(Ref ref) {
                     builder: (BuildContext context, GoRouterState state) {
                       return const _RoutePlaceholderScreen('SettingsScreen');
                     },
-                  ),
-                ],
-              ),
-              GoRoute(
-                path: RouteNames.orders,
-                builder: (BuildContext context, GoRouterState state) {
-                  return const OrdersScreen();
-                },
-                routes: <RouteBase>[
-                  GoRoute(
-                    path: ':orderId',
-                    builder: (BuildContext context, GoRouterState state) {
-                      return OrderDetailScreen(
-                        id: state.pathParameters['orderId'] ?? '',
-                      );
-                    },
-                    routes: <RouteBase>[
-                      GoRoute(
-                        path: 'track',
-                        builder: (BuildContext context, GoRouterState state) {
-                          return OrderTrackingScreen(
-                            id: state.pathParameters['orderId'] ?? '',
-                          );
-                        },
-                      ),
-                    ],
                   ),
                 ],
               ),

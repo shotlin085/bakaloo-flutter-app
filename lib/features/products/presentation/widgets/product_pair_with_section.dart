@@ -197,6 +197,12 @@ class _ProductRecommendationCardState extends State<ProductRecommendationCard> {
   }
 
   int? get _variantCount {
+    // Prefer the real product-family option count so the strip matches the
+    // grid card's "N options" semantics; fall back to legacy attribute
+    // count only when the product carries no family.
+    if (widget.product.hasMultipleOptions) {
+      return widget.product.optionCount;
+    }
     final count = widget.product.attributes?.length ?? 0;
     return count > 1 ? count : null;
   }

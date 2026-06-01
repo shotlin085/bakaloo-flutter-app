@@ -102,6 +102,7 @@ flutter:
     - assets/animations/
     - assets/3d_icons/
     - assets/icon/
+    - assets/icon/footer_icon/
     - assets/lottie/
     - .env
   fonts:
@@ -130,14 +131,14 @@ flutter:
         - asset: assets/fonts/Nexa-Trial-Regular.otf
 
 flutter_native_splash:
-  color: "#0C831F"
-  image: assets/images/logo_icon.png
-  color_dark: "#0C831F"
-  image_dark: assets/images/logo_icon.png
+  color: "#FFFFFF"
+  image: assets/images/bakaloo-splash-screen.png
+  color_dark: "#FFFFFF"
+  image_dark: assets/images/bakaloo-splash-screen.png
   android_12:
-    image: assets/images/logo_icon.png
-    color: "#0C831F"
-    icon_background_color: "#0C831F"
+    image: assets/images/bakaloo-splash-screen.png
+    color: "#FFFFFF"
+    icon_background_color: "#FFFFFF"
   web: false
 
 flutter_launcher_icons:

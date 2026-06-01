@@ -7,6 +7,7 @@ class RouteAccess {
   /// Everything else is freely accessible (industry-standard blacklist).
   static const _protectedPrefixes = <String>[
     '/cart',
+    '/orders',
     '/profile',
   ];
 
@@ -24,7 +25,7 @@ class RouteAccess {
 
   static bool isProtectedTab(String path) {
     final normalized = _normalize(path);
-    return normalized == RouteNames.cart || normalized == RouteNames.profile;
+    return normalized == RouteNames.orders || normalized == RouteNames.profile;
   }
 
   static String _normalize(String value) {

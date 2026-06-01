@@ -86,7 +86,7 @@ class WishlistScreen extends ConsumerWidget {
                 crossAxisCount: 2,
                 crossAxisSpacing: 12.w,
                 mainAxisSpacing: 12.h,
-                childAspectRatio: 0.64,
+                childAspectRatio: 0.58,
               ),
               itemBuilder: (context, index) {
                 final item = wishlistData.items[index];
