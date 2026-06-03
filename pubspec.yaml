@@ -92,6 +92,7 @@ flutter:
     - assets/3d_icons/
     - assets/icon/
     - assets/icon/footer_icon/
+    - assets/lottie/
     - .env
   fonts:
     - family: Inter

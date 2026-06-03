@@ -4,8 +4,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import 'package:bakaloo_flutter_app/shared/widgets/app_loading_animation.dart';
-
 const Duration kAppRouteLoadingFadeDuration = Duration(milliseconds: 120);
 
 enum AppRouteLoadingPhase {
@@ -106,7 +104,10 @@ class AppRouteLoadingGate extends ConsumerWidget {
                 opacity: targetOpacity,
                 duration: kAppRouteLoadingFadeDuration,
                 curve: Curves.easeInOutCubic,
-                child: const AppLoadingAnimation(),
+                // Plain background — no animation widget.
+                child: const ColoredBox(
+                  color: Color.fromARGB(255, 241, 244, 249),
+                ),
               ),
             ),
           ),

@@ -26,8 +26,6 @@ class AnimatedBannerSection extends StatelessWidget {
   final double height;
   final BannerAnimationTheme? bannerTheme;
   final FeeStripTheme? feeStripTheme;
-  static const String _feeStripPath =
-      'assets/images/summer_zero_fees_strip.png'; // Legacy — only used if no remote feeStrip imageUrl configured
 
   @override
   Widget build(BuildContext context) {
@@ -44,7 +42,6 @@ class AnimatedBannerSection extends StatelessWidget {
     final feeStripImageUrl = feeStripTheme?.imageUrl;
     final double feeStripHeight = 60.h;
     final double feeStripHorizontalInset = 5.w;
-    final double feeStripImageHeight = 60.h;
     final double feeStripImageYOffset = -2.h;
 
     return RepaintBoundary(
@@ -115,21 +112,9 @@ class AnimatedBannerSection extends StatelessWidget {
                               fit: BoxFit.fill,
                               filterQuality: FilterQuality.low,
                               placeholder: const SizedBox.expand(),
-                              errorWidget: Image.asset(
-                                _feeStripPath,
-                                width: double.infinity,
-                                height: feeStripImageHeight,
-                                fit: BoxFit.fill,
-                                filterQuality: FilterQuality.low,
-                              ),
+                              errorWidget: const SizedBox.expand(),
                             )
-                          : Image.asset(
-                              _feeStripPath,
-                              width: double.infinity,
-                              height: feeStripImageHeight,
-                              fit: BoxFit.fill,
-                              filterQuality: FilterQuality.low,
-                            ),
+                          : const SizedBox.expand(),
                     ),
                   ),
                 ),
