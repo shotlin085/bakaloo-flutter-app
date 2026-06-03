@@ -24,42 +24,57 @@ class MenuTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final tileColor = isDanger ? AppColors.errorRed : AppColors.textPrimary;
+    final labelColor = isDanger ? AppColors.errorRed : AppColors.textPrimary;
+    final iconColor = isDanger ? AppColors.errorRed : AppColors.textPrimary;
+    final chipColor =
+        isDanger ? AppColors.orderStatusRedBg : const Color(0xFFF4F4F7);
 
     return Material(
       color: Colors.transparent,
       child: InkWell(
         onTap: onTap,
         child: SizedBox(
-          height: 52.h,
+          height: 56.h,
           child: Padding(
-            padding: EdgeInsets.symmetric(horizontal: 16.w),
+            padding: EdgeInsets.symmetric(horizontal: 12.w),
             child: Row(
               children: <Widget>[
-                PhosphorIcon(
-                  icon,
-                  size: 20.sp,
-                  color: tileColor,
+                Container(
+                  width: 36.w,
+                  height: 36.w,
+                  decoration: BoxDecoration(
+                    color: chipColor,
+                    shape: BoxShape.circle,
+                  ),
+                  child: Center(
+                    child: PhosphorIcon(
+                      icon,
+                      size: 18.sp,
+                      color: iconColor,
+                    ),
+                  ),
                 ),
-                Gap(14.w),
+                Gap(12.w),
                 Expanded(
                   child: Text(
                     label,
                     style: AppTextStyles.bodyLarge.copyWith(
+                      fontSize: 14.5.sp,
                       fontWeight: FontWeight.w500,
-                      color: tileColor,
+                      color: labelColor,
                     ),
                   ),
                 ),
                 if (trailing != null) ...<Widget>[
                   trailing!,
-                  Gap(10.w),
+                  Gap(8.w),
                 ],
                 PhosphorIcon(
                   PhosphorIcons.caretRight(),
-                  size: 18.sp,
-                  color:
-                      isDanger ? AppColors.errorRed : AppColors.textSecondary,
+                  size: 16.sp,
+                  color: isDanger
+                      ? AppColors.errorRed
+                      : AppColors.textTertiary,
                 ),
               ],
             ),

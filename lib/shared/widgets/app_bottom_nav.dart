@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
@@ -19,7 +20,7 @@ import 'package:bakaloo_flutter_app/routing/route_access.dart';
 import 'package:bakaloo_flutter_app/routing/route_names.dart';
 import 'package:bakaloo_flutter_app/shared/widgets/app_route_loading_gate.dart';
 
-class AppShell extends ConsumerWidget {
+class AppShell extends ConsumerStatefulWidget {
   const AppShell({
     required this.navigationShell,
     required this.branchNavigatorKeys,
@@ -30,7 +31,75 @@ class AppShell extends ConsumerWidget {
   final List<GlobalKey<NavigatorState>> branchNavigatorKeys;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<AppShell> createState() => _AppShellState();
+}
+
+class _AppShellState extends ConsumerState<AppShell>
+    with SingleTickerProviderStateMixin {
+  // Drives the footer nav reveal. 1.0 = fully visible, 0.0 = hidden.
+  late final AnimationController _navController;
+  late final Animation<double> _navAnimation;
+
+  @override
+  void initState() {
+    super.initState();
+    _navController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 240),
+      reverseDuration: const Duration(milliseconds: 200),
+      value: 1,
+    );
+    _navAnimation = CurvedAnimation(
+      parent: _navController,
+      curve: Curves.easeOutCubic,
+      reverseCurve: Curves.easeInCubic,
+    );
+  }
+
+  @override
+  void dispose() {
+    _navController.dispose();
+    super.dispose();
+  }
+
+  void _showNav() {
+    if (_navController.status != AnimationStatus.completed) {
+      _navController.forward();
+    }
+  }
+
+  void _hideNav() {
+    if (_navController.status != AnimationStatus.dismissed) {
+      _navController.reverse();
+    }
+  }
+
+  bool _handleScroll(UserScrollNotification notification) {
+    // Ignore horizontal scrollers (carousels, chip rows) — only vertical
+    // page scrolling should toggle the footer.
+    if (notification.metrics.axis != Axis.vertical) {
+      return false;
+    }
+    // Keep the bar visible when the content isn't tall enough to scroll.
+    if (notification.metrics.maxScrollExtent <= 0) {
+      _showNav();
+      return false;
+    }
+    switch (notification.direction) {
+      case ScrollDirection.reverse:
+        _hideNav();
+      case ScrollDirection.forward:
+        _showNav();
+      case ScrollDirection.idle:
+        break;
+    }
+    return false;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final navigationShell = widget.navigationShell;
+    final branchNavigatorKeys = widget.branchNavigatorKeys;
     final bottomInset = MediaQuery.paddingOf(context).bottom;
     final selectedIndex = navigationShell.currentIndex;
     final liveSyncController = ref.read(orderLiveSyncControllerProvider);
@@ -39,8 +108,6 @@ class AppShell extends ConsumerWidget {
     final currentBranchNavigator =
         branchNavigatorKeys[selectedIndex].currentState;
     final branchCanPop = currentBranchNavigator?.canPop() ?? false;
-
-    final navBarHeight = 64.h + (bottomInset > 0 ? bottomInset + 4.h : 8.h);
 
     ref
       ..listen(socketNotificationStreamProvider, (previous, next) {
@@ -107,10 +174,14 @@ class AppShell extends ConsumerWidget {
         extendBody: false,
         body: Stack(
           children: <Widget>[
-            navigationShell,
+            NotificationListener<UserScrollNotification>(
+              onNotification: _handleScroll,
+              child: navigationShell,
+            ),
             _CartPillHost(
               selectedIndex: selectedIndex,
-              navBarHeight: navBarHeight,
+              navAnimation: _navAnimation,
+              bottomInset: bottomInset,
               onTap: () {
                 HapticFeedback.lightImpact();
                 if (!authGate.isAuthenticated && context.mounted) {
@@ -128,59 +199,65 @@ class AppShell extends ConsumerWidget {
             ),
           ],
         ),
-        bottomNavigationBar: DecoratedBox(
-          decoration: const BoxDecoration(
-            color: Color(0xFFFBF9FF),
-            boxShadow: <BoxShadow>[
-              BoxShadow(
-                color: Color(0x14000000),
-                blurRadius: 20,
-                offset: Offset(0, -6),
-              ),
-            ],
-          ),
-          child: SafeArea(
-            top: false,
-            child: Container(
-              padding: EdgeInsets.fromLTRB(
-                12.w,
-                10.h,
-                12.w,
-                bottomInset > 0 ? 4.h : 10.h,
-              ),
-              child: Row(
-                children: List<Widget>.generate(_tabs.length, (index) {
-                  final tab = _tabs[index];
-                  return Expanded(
-                    child: _NavTabButton(
-                      tab: tab,
-                      selected: index == selectedIndex,
-                      onTap: () async {
-                        HapticFeedback.lightImpact();
-                        if (index == selectedIndex) return;
-                        final nextPath = tab.path;
-                        if (RouteAccess.isProtectedTab(nextPath) &&
-                            !authGate.isAuthenticated &&
-                            context.mounted) {
-                          await authGate.protectRoute(
-                            context,
-                            route: nextPath,
-                            title: nextPath == RouteNames.orders
-                                ? 'Log in to view your orders'
-                                : 'Log in to open your profile',
-                            message: nextPath == RouteNames.orders
-                                ? 'Please log in first to track and manage your orders.'
-                                : 'Please log in first to access your profile, orders, saved addresses, and notifications.',
+        bottomNavigationBar: SizeTransition(
+          sizeFactor: _navAnimation,
+          axisAlignment: -1,
+          child: DecoratedBox(
+            decoration: const BoxDecoration(
+              color: Color(0xFFFBF9FF),
+              boxShadow: <BoxShadow>[
+                BoxShadow(
+                  color: Color(0x14000000),
+                  blurRadius: 20,
+                  offset: Offset(0, -6),
+                ),
+              ],
+            ),
+            child: SafeArea(
+              top: false,
+              child: Container(
+                padding: EdgeInsets.fromLTRB(
+                  12.w,
+                  10.h,
+                  12.w,
+                  bottomInset > 0 ? 4.h : 10.h,
+                ),
+                child: Row(
+                  children: List<Widget>.generate(_tabs.length, (index) {
+                    final tab = _tabs[index];
+                    return Expanded(
+                      child: _NavTabButton(
+                        tab: tab,
+                        selected: index == selectedIndex,
+                        onTap: () async {
+                          HapticFeedback.lightImpact();
+                          if (index == selectedIndex) return;
+                          final nextPath = tab.path;
+                          if (RouteAccess.isProtectedTab(nextPath) &&
+                              !authGate.isAuthenticated &&
+                              context.mounted) {
+                            await authGate.protectRoute(
+                              context,
+                              route: nextPath,
+                              title: nextPath == RouteNames.orders
+                                  ? 'Log in to view your orders'
+                                  : 'Log in to open your profile',
+                              message: nextPath == RouteNames.orders
+                                  ? 'Please log in first to track and manage your orders.'
+                                  : 'Please log in first to access your profile, orders, saved addresses, and notifications.',
+                            );
+                            return;
+                          }
+                          // Reveal the footer whenever the user switches tabs.
+                          _showNav();
+                          await routeLoadingController.playForFooterNavigation(
+                            () => navigationShell.goBranch(index),
                           );
-                          return;
-                        }
-                        await routeLoadingController.playForFooterNavigation(
-                          () => navigationShell.goBranch(index),
-                        );
-                      },
-                    ),
-                  );
-                }),
+                        },
+                      ),
+                    );
+                  }),
+                ),
               ),
             ),
           ),
@@ -193,12 +270,14 @@ class AppShell extends ConsumerWidget {
 class _CartPillHost extends ConsumerWidget {
   const _CartPillHost({
     required this.selectedIndex,
-    required this.navBarHeight,
+    required this.navAnimation,
+    required this.bottomInset,
     required this.onTap,
   });
 
   final int selectedIndex;
-  final double navBarHeight;
+  final Animation<double> navAnimation;
+  final double bottomInset;
   final VoidCallback onTap;
 
   @override
@@ -209,10 +288,25 @@ class _CartPillHost extends ConsumerWidget {
     // and spans ~60% of the screen width — never full-width, never mid-screen.
     final screenWidth = MediaQuery.sizeOf(context).width;
     final pillWidth = (screenWidth * 0.60).clamp(220.0, 360.0);
-    return Positioned(
-      bottom: 8.h,
-      left: 0,
-      right: 0,
+    // When the footer nav is hidden the body grows to the screen edge, so the
+    // pill must keep a comfortable gap above the bottom safe area instead of
+    // dropping under the home indicator. The body's bottom reference moves with
+    // the nav's SizeTransition, so we add back just enough to (a) keep an 8.h
+    // gap above the nav when shown, and (b) clear the safe area when hidden —
+    // letting the pill glide down with the nav without ever clipping.
+    final hiddenGap = bottomInset > 0 ? bottomInset : 10.h;
+    return AnimatedBuilder(
+      animation: navAnimation,
+      builder: (context, child) {
+        // navAnimation: 1 = nav visible, 0 = nav hidden.
+        final bottomOffset = 8.h + hiddenGap * (1 - navAnimation.value);
+        return Positioned(
+          bottom: bottomOffset,
+          left: 0,
+          right: 0,
+          child: child!,
+        );
+      },
       child: IgnorePointer(
         ignoring: !showCartPill,
         child: Center(

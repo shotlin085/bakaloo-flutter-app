@@ -156,6 +156,7 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
   }) {
     final address = checkoutState.selectedAddress;
     final shortfall = summary.total - walletBalance;
+    final selectedMethod = checkoutState.paymentMethod;
 
     return ListView(
       padding: EdgeInsets.fromLTRB(16.w, 16.h, 16.w, 100.h),
@@ -184,17 +185,17 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
         else
           _AddAddressCard(onTap: () => _changeAddress(context)),
 
-        Gap(20.h),
+        Gap(24.h),
 
         // ── Section Label ───────────────────────────────────────────
         Padding(
-          padding: EdgeInsets.only(bottom: 12.h),
+          padding: EdgeInsets.only(left: 4.w, bottom: 12.h),
           child: Text(
             'CHOOSE PAYMENT',
             style: AppTextStyles.bodySmall.copyWith(
-              color: AppColors.textSecondary,
-              fontWeight: FontWeight.w600,
-              letterSpacing: 0.8,
+              color: AppColors.orderViolet,
+              fontWeight: FontWeight.w700,
+              letterSpacing: 1,
               fontSize: 11.sp,
             ),
           ),
@@ -206,6 +207,10 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
           total: summary.total,
           isLoading: walletLoading,
           shortfall: shortfall > 0 ? shortfall : 0,
+          selected: selectedMethod == PaymentMethod.wallet,
+          onSelect: () => ref
+              .read(checkoutProvider.notifier)
+              .selectPaymentMethod(PaymentMethod.wallet),
           onPay: () => _handlePayment(PaymentMethod.wallet),
           onAddMoney: _goToTopup,
           isPlacingOrder: checkoutState.paymentMethod == PaymentMethod.wallet &&
@@ -217,14 +222,22 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
         // ── Razorpay Card ───────────────────────────────────────────
         _RazorpayPaymentCard(
           total: summary.total,
+          selected: selectedMethod == PaymentMethod.online,
+          onSelect: () => ref
+              .read(checkoutProvider.notifier)
+              .selectPaymentMethod(PaymentMethod.online),
           onPay: () => _handlePayment(PaymentMethod.online),
           isPlacingOrder: checkoutState.paymentMethod == PaymentMethod.online &&
               checkoutState.isPlacingOrder,
         ),
 
-        Gap(20.h),
+        Gap(18.h),
 
         // ── Footer Info ─────────────────────────────────────────────
+        const _SecurePaymentBadge(),
+
+        Gap(16.h),
+
         const _CheckoutFooter(),
       ],
     );
@@ -354,24 +367,22 @@ class _BillAccordion extends StatelessWidget {
         decoration: BoxDecoration(
           color: Colors.white,
           borderRadius: BorderRadius.circular(AppDimensions.radiusLg),
+          border: Border.all(color: AppColors.borderLight),
           boxShadow: const <BoxShadow>[AppShadows.cardShadow],
         ),
         child: Column(
           children: <Widget>[
             Padding(
-              padding: EdgeInsets.symmetric(horizontal: 16.w, vertical: 14.h),
+              padding: EdgeInsets.symmetric(horizontal: 14.w, vertical: 12.h),
               child: Row(
                 children: <Widget>[
-                  Icon(
-                    Icons.receipt_long_outlined,
-                    size: 18.sp,
-                    color: AppColors.textSecondary,
-                  ),
-                  Gap(8.w),
+                  const _PaymentIconTile(icon: Icons.receipt_long_rounded),
+                  Gap(12.w),
                   Text(
                     'To Pay',
-                    style: AppTextStyles.bodyMedium
-                        .copyWith(color: AppColors.textSecondary),
+                    style: AppTextStyles.labelLarge.copyWith(
+                      fontWeight: FontWeight.w700,
+                    ),
                   ),
                   const Spacer(),
                   Text(
@@ -381,22 +392,23 @@ class _BillAccordion extends StatelessWidget {
                       fontWeight: FontWeight.w800,
                     ),
                   ),
-                  Gap(6.w),
-                  AnimatedRotation(
-                    turns: expanded ? 0.5 : 0,
-                    duration: const Duration(milliseconds: 250),
-                    child: Icon(
-                      Icons.keyboard_arrow_down_rounded,
-                      color: AppColors.primaryGreen,
-                      size: 20.sp,
-                    ),
-                  ),
-                  Gap(2.w),
+                  Gap(10.w),
                   Text(
                     expanded ? 'Hide' : 'View Bill',
                     style: AppTextStyles.bodySmall.copyWith(
                       color: AppColors.primaryGreen,
-                      fontWeight: FontWeight.w600,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                  Gap(2.w),
+                  AnimatedRotation(
+                    turns: expanded ? 0.5 : 0,
+                    duration: const Duration(milliseconds: 200),
+                    curve: Curves.easeOut,
+                    child: Icon(
+                      Icons.keyboard_arrow_down_rounded,
+                      color: AppColors.primaryGreen,
+                      size: 18.sp,
                     ),
                   ),
                 ],
@@ -523,7 +535,8 @@ class _OrderItemsReviewCard extends StatelessWidget {
     return Container(
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(AppDimensions.radiusMd),
+        borderRadius: BorderRadius.circular(AppDimensions.radiusLg),
+        border: Border.all(color: AppColors.borderLight),
         boxShadow: const <BoxShadow>[AppShadows.cardShadow],
       ),
       padding: EdgeInsets.symmetric(horizontal: 14.w, vertical: 12.h),
@@ -534,8 +547,9 @@ class _OrderItemsReviewCard extends StatelessWidget {
             children: <Widget>[
               Text(
                 'Order Summary',
-                style: AppTextStyles.bodyLarge.copyWith(
+                style: AppTextStyles.labelLarge.copyWith(
                   fontWeight: FontWeight.w700,
+                  fontSize: 15.sp,
                 ),
               ),
               const Spacer(),
@@ -698,25 +712,25 @@ class _DeliveryInfoCard extends StatelessWidget {
     return Container(
       padding: EdgeInsets.all(14.w),
       decoration: BoxDecoration(
-        color: AppColors.primaryGreenLight,
+        color: Colors.white,
         borderRadius: BorderRadius.circular(AppDimensions.radiusLg),
-        border:
-            Border.all(color: AppColors.primaryGreen.withValues(alpha: 0.2)),
+        border: Border.all(color: AppColors.borderLight),
+        boxShadow: const <BoxShadow>[AppShadows.cardShadow],
       ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: <Widget>[
           Container(
-            width: 32.w,
-            height: 32.w,
+            width: 40.w,
+            height: 40.w,
             decoration: const BoxDecoration(
-              color: AppColors.primaryGreen,
+              color: AppColors.primaryGreenLight,
               shape: BoxShape.circle,
             ),
             child: Icon(
               Icons.location_on_rounded,
-              color: Colors.white,
-              size: 16.sp,
+              color: AppColors.primaryGreen,
+              size: 20.sp,
             ),
           ),
           Gap(12.w),
@@ -730,48 +744,58 @@ class _DeliveryInfoCard extends StatelessWidget {
                       address.label,
                       style: AppTextStyles.labelLarge.copyWith(
                         fontWeight: FontWeight.w700,
-                        color: AppColors.primaryGreen,
+                        fontSize: 14.sp,
                       ),
                     ),
-                    Gap(6.w),
+                    Gap(8.w),
                     Container(
                       padding:
-                          EdgeInsets.symmetric(horizontal: 6.w, vertical: 2.h),
+                          EdgeInsets.symmetric(horizontal: 8.w, vertical: 2.h),
                       decoration: BoxDecoration(
-                        color: AppColors.primaryGreen,
-                        borderRadius: BorderRadius.circular(4),
+                        color: AppColors.orderVioletSurface,
+                        borderRadius:
+                            BorderRadius.circular(AppDimensions.radiusFull),
                       ),
                       child: Text(
                         '$itemCount item${itemCount == 1 ? '' : 's'}',
                         style: AppTextStyles.bodySmall.copyWith(
-                          color: Colors.white,
+                          color: AppColors.orderViolet,
                           fontSize: 10.sp,
-                          fontWeight: FontWeight.w600,
+                          fontWeight: FontWeight.w700,
                         ),
                       ),
                     ),
                   ],
                 ),
-                Gap(3.h),
+                Gap(4.h),
                 Text(
                   _format(address),
-                  style: AppTextStyles.bodySmall
-                      .copyWith(color: AppColors.textPrimary),
+                  style: AppTextStyles.bodySmall.copyWith(
+                    color: AppColors.textSecondary,
+                    height: 1.45,
+                  ),
                 ),
               ],
             ),
           ),
-          TextButton(
-            onPressed: onChangeAddress,
-            style: TextButton.styleFrom(
-              padding: EdgeInsets.symmetric(horizontal: 8.w, vertical: 4.h),
-              minimumSize: Size.zero,
-              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-            ),
-            child: Text(
-              'Change',
-              style: AppTextStyles.buttonSmall
-                  .copyWith(color: AppColors.primaryGreen),
+          Gap(8.w),
+          GestureDetector(
+            onTap: onChangeAddress,
+            behavior: HitTestBehavior.opaque,
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: <Widget>[
+                Text(
+                  'Change',
+                  style: AppTextStyles.buttonSmall
+                      .copyWith(color: AppColors.primaryGreen),
+                ),
+                Icon(
+                  Icons.chevron_right_rounded,
+                  color: AppColors.primaryGreen,
+                  size: 16.sp,
+                ),
+              ],
             ),
           ),
         ],
@@ -837,7 +861,110 @@ class _AddAddressCard extends StatelessWidget {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-// Wallet Payment Card  (indigo gradient)
+// Payment selection primitives (premium minimalist)
+// ═══════════════════════════════════════════════════════════════════════════
+
+/// A leading rounded-square icon tile used across payment + summary cards.
+class _PaymentIconTile extends StatelessWidget {
+  const _PaymentIconTile({
+    required this.icon,
+    this.background = AppColors.orderVioletSurface,
+    this.foreground = AppColors.orderViolet,
+  });
+
+  final IconData icon;
+  final Color background;
+  final Color foreground;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: 40.w,
+      height: 40.w,
+      decoration: BoxDecoration(
+        color: background,
+        borderRadius: BorderRadius.circular(AppDimensions.radiusMd),
+      ),
+      child: Icon(icon, color: foreground, size: 20.sp),
+    );
+  }
+}
+
+/// Animated radio indicator. Filled green ring when selected.
+class _SelectionRadio extends StatelessWidget {
+  const _SelectionRadio({required this.selected});
+
+  final bool selected;
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 180),
+      curve: Curves.easeOut,
+      width: 22.w,
+      height: 22.w,
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        border: Border.all(
+          color: selected ? AppColors.primaryGreen : AppColors.borderLight,
+          width: selected ? 6.5 : 2,
+        ),
+      ),
+    );
+  }
+}
+
+/// Shared outer shell for a selectable payment card. Wraps content with a
+/// white surface, an animated selection border, and press feedback.
+class _PaymentCardShell extends StatelessWidget {
+  const _PaymentCardShell({
+    required this.selected,
+    required this.onSelect,
+    required this.child,
+  });
+
+  final bool selected;
+  final VoidCallback onSelect;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 180),
+      curve: Curves.easeOut,
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(AppDimensions.radiusLg),
+        border: Border.all(
+          color: selected ? AppColors.primaryGreen : AppColors.borderLight,
+          width: selected ? 1.5 : 1,
+        ),
+        boxShadow: <BoxShadow>[
+          if (selected)
+            BoxShadow(
+              color: AppColors.primaryGreen.withValues(alpha: 0.10),
+              blurRadius: 16,
+              offset: const Offset(0, 6),
+            )
+          else
+            AppShadows.cardShadow,
+        ],
+      ),
+      child: Material(
+        color: Colors.transparent,
+        borderRadius: BorderRadius.circular(AppDimensions.radiusLg),
+        clipBehavior: Clip.antiAlias,
+        child: InkWell(
+          onTap: onSelect,
+          child: child,
+        ),
+      ),
+    );
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Wallet Payment Card  (minimal, selectable)
 // ═══════════════════════════════════════════════════════════════════════════
 
 class _WalletPaymentCard extends StatelessWidget {
@@ -846,6 +973,8 @@ class _WalletPaymentCard extends StatelessWidget {
     required this.total,
     required this.isLoading,
     required this.shortfall,
+    required this.selected,
+    required this.onSelect,
     required this.onPay,
     required this.onAddMoney,
     required this.isPlacingOrder,
@@ -855,6 +984,8 @@ class _WalletPaymentCard extends StatelessWidget {
   final double total;
   final bool isLoading;
   final double shortfall;
+  final bool selected;
+  final VoidCallback onSelect;
   final VoidCallback onPay;
   final VoidCallback onAddMoney;
   final bool isPlacingOrder;
@@ -863,115 +994,88 @@ class _WalletPaymentCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(AppDimensions.radiusXl),
-        gradient: AppColors.walletCardGradient,
-        boxShadow: <BoxShadow>[
-          BoxShadow(
-            color: const Color(0xFF1A237E).withValues(alpha: 0.3),
-            blurRadius: 18,
-            offset: const Offset(0, 6),
-          ),
-        ],
-      ),
+    return _PaymentCardShell(
+      selected: selected,
+      onSelect: onSelect,
       child: Padding(
-        padding: EdgeInsets.all(20.w),
+        padding: EdgeInsets.all(16.w),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: <Widget>[
-            // Header
+            // Header row: icon + title/balance + radio
             Row(
               children: <Widget>[
-                Container(
-                  width: 42.w,
-                  height: 42.w,
-                  decoration: BoxDecoration(
-                    color: Colors.white.withValues(alpha: 0.15),
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: Icon(
-                    Icons.account_balance_wallet_rounded,
-                    color: Colors.white,
-                    size: 22.sp,
-                  ),
+                const _PaymentIconTile(
+                  icon: Icons.account_balance_wallet_rounded,
                 ),
                 Gap(12.w),
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: <Widget>[
-                    Text(
-                      'Bakaloo Wallet',
-                      style: AppTextStyles.labelLarge.copyWith(
-                        color: Colors.white,
-                        fontWeight: FontWeight.w700,
-                        fontSize: 16.sp,
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: <Widget>[
+                      Text(
+                        'Bakaloo Wallet',
+                        style: AppTextStyles.labelLarge.copyWith(
+                          fontWeight: FontWeight.w700,
+                          fontSize: 15.sp,
+                        ),
                       ),
-                    ),
-                    Gap(2.h),
-                    isLoading
-                        ? Container(
-                            width: 80.w,
-                            height: 12.h,
-                            decoration: BoxDecoration(
-                              color: Colors.white.withValues(alpha: 0.2),
-                              borderRadius: BorderRadius.circular(6),
+                      Gap(2.h),
+                      isLoading
+                          ? Container(
+                              width: 70.w,
+                              height: 11.h,
+                              decoration: BoxDecoration(
+                                color: AppColors.bgSkeleton,
+                                borderRadius: BorderRadius.circular(6),
+                              ),
+                            )
+                          : Text(
+                              'Balance: ${balance.toInrCurrency}',
+                              style: AppTextStyles.bodySmall.copyWith(
+                                color: AppColors.textSecondary,
+                              ),
                             ),
-                          )
-                        : Text(
-                            'Balance: ${balance.toInrCurrency}',
-                            style: AppTextStyles.bodySmall.copyWith(
-                              color: Colors.white.withValues(alpha: 0.85),
-                            ),
-                          ),
-                  ],
+                    ],
+                  ),
                 ),
+                _SelectionRadio(selected: selected),
               ],
             ),
-            Gap(16.h),
 
-            // Insufficient balance warning
+            // Insufficient balance notice
             if (!_sufficient) ...<Widget>[
+              Gap(12.h),
               Container(
-                padding: EdgeInsets.symmetric(horizontal: 12.w, vertical: 8.h),
+                padding: EdgeInsets.symmetric(horizontal: 12.w, vertical: 10.h),
                 decoration: BoxDecoration(
-                  color: const Color(0xFFFF6D00).withValues(alpha: 0.18),
-                  borderRadius: BorderRadius.circular(8),
-                  border: Border.all(
-                    color: const Color(0xFFFF6D00).withValues(alpha: 0.5),
-                  ),
+                  color: AppColors.warmOrangeSoft.withValues(alpha: 0.35),
+                  borderRadius: BorderRadius.circular(AppDimensions.radiusMd),
                 ),
                 child: Row(
                   children: <Widget>[
-                    const Icon(
-                      Icons.warning_amber_rounded,
-                      color: Color(0xFFFFB74D),
-                      size: 16,
+                    Icon(
+                      Icons.error_outline_rounded,
+                      color: AppColors.warningOrange,
+                      size: 16.sp,
                     ),
                     Gap(8.w),
                     Expanded(
                       child: Text(
                         'Add ${shortfall.toInrCurrency} more to pay with wallet',
                         style: AppTextStyles.bodySmall.copyWith(
-                          color: const Color(0xFFFFCC80),
+                          color: AppColors.textPrimary,
                           fontWeight: FontWeight.w500,
                         ),
                       ),
                     ),
-                    TextButton(
-                      onPressed: onAddMoney,
-                      style: TextButton.styleFrom(
-                        padding: EdgeInsets.symmetric(
-                          horizontal: 8.w,
-                          vertical: 4.h,
-                        ),
-                        minimumSize: Size.zero,
-                        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                      ),
+                    GestureDetector(
+                      onTap: onAddMoney,
+                      behavior: HitTestBehavior.opaque,
                       child: Text(
                         'Add Money',
                         style: AppTextStyles.buttonSmall.copyWith(
-                          color: Colors.white,
+                          color: AppColors.warningOrange,
                           fontWeight: FontWeight.w700,
                         ),
                       ),
@@ -979,49 +1083,30 @@ class _WalletPaymentCard extends StatelessWidget {
                   ],
                 ),
               ),
-              Gap(12.h),
             ],
 
-            // Pay button
-            SizedBox(
-              width: double.infinity,
-              height: 48.h,
-              child: FilledButton(
-                onPressed: (_sufficient && !isPlacingOrder)
-                    ? onPay
-                    : (!_sufficient ? onAddMoney : null),
-                style: FilledButton.styleFrom(
-                  backgroundColor: _sufficient
-                      ? Colors.white
-                      : Colors.white.withValues(alpha: 0.2),
-                  disabledBackgroundColor: Colors.white.withValues(alpha: 0.2),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                ),
-                child: isPlacingOrder
-                    ? SizedBox(
-                        width: 18.w,
-                        height: 18.w,
-                        child: const CircularProgressIndicator(
-                          strokeWidth: 2,
-                          valueColor: AlwaysStoppedAnimation<Color>(
-                            Color(0xFF1A237E),
-                          ),
-                        ),
-                      )
-                    : Text(
-                        _sufficient
+            // Action only shows when this method is selected.
+            AnimatedSize(
+              duration: const Duration(milliseconds: 200),
+              curve: Curves.easeOutCubic,
+              alignment: Alignment.topCenter,
+              child: selected
+                  ? Padding(
+                      padding: EdgeInsets.only(top: 14.h),
+                      child: _PaymentActionButton(
+                        label: _sufficient
                             ? 'Pay ${total.toInrCurrency} from Wallet'
                             : 'Add Money to Wallet',
-                        style: AppTextStyles.buttonMedium.copyWith(
-                          color: _sufficient
-                              ? const Color(0xFF1A237E)
-                              : Colors.white.withValues(alpha: 0.7),
-                          fontWeight: FontWeight.w700,
-                        ),
+                        icon: _sufficient
+                            ? Icons.lock_rounded
+                            : Icons.add_rounded,
+                        isLoading: isPlacingOrder,
+                        onPressed: (_sufficient && !isPlacingOrder)
+                            ? onPay
+                            : (!_sufficient ? onAddMoney : null),
                       ),
-              ),
+                    )
+                  : const SizedBox(width: double.infinity),
             ),
           ],
         ),
@@ -1030,155 +1115,215 @@ class _WalletPaymentCard extends StatelessWidget {
   }
 }
 
+/// Full-width primary action button shared by both payment cards.
+class _PaymentActionButton extends StatelessWidget {
+  const _PaymentActionButton({
+    required this.label,
+    required this.icon,
+    required this.isLoading,
+    required this.onPressed,
+  });
+
+  final String label;
+  final IconData icon;
+  final bool isLoading;
+  final VoidCallback? onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: double.infinity,
+      height: 50.h,
+      child: FilledButton(
+        onPressed: isLoading ? null : onPressed,
+        style: FilledButton.styleFrom(
+          backgroundColor: AppColors.primaryGreen,
+          disabledBackgroundColor:
+              AppColors.primaryGreen.withValues(alpha: 0.45),
+          elevation: 0,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(AppDimensions.radiusMd),
+          ),
+        ),
+        child: isLoading
+            ? SizedBox(
+                width: 18.w,
+                height: 18.w,
+                child: const CircularProgressIndicator(
+                  strokeWidth: 2,
+                  valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                ),
+              )
+            : Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: <Widget>[
+                  Icon(icon, color: Colors.white, size: 17.sp),
+                  Gap(8.w),
+                  Text(
+                    label,
+                    style: AppTextStyles.buttonMedium.copyWith(
+                      color: Colors.white,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ],
+              ),
+      ),
+    );
+  }
+}
+
 // ═══════════════════════════════════════════════════════════════════════════
-// Razorpay Payment Card  (white + green left accent)
+// Razorpay Payment Card  (minimal, selectable)
 // ═══════════════════════════════════════════════════════════════════════════
 
 class _RazorpayPaymentCard extends StatelessWidget {
   const _RazorpayPaymentCard({
     required this.total,
+    required this.selected,
+    required this.onSelect,
     required this.onPay,
     required this.isPlacingOrder,
   });
 
   final double total;
+  final bool selected;
+  final VoidCallback onSelect;
   final VoidCallback onPay;
   final bool isPlacingOrder;
 
   @override
   Widget build(BuildContext context) {
-    // Use ClipRRect + Row to avoid Border(left:) + borderRadius crash
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(AppDimensions.radiusXl),
-      child: Container(
-        decoration: const BoxDecoration(
-          color: Colors.white,
-          boxShadow: <BoxShadow>[AppShadows.cardShadow],
-        ),
-        child: IntrinsicHeight(
-          child: Row(
-            children: <Widget>[
-              // Green left accent bar
-              Container(width: 4, color: AppColors.primaryGreen),
-              // Card content
-              Expanded(
-                child: Padding(
-                  padding: EdgeInsets.all(20.w),
+    return _PaymentCardShell(
+      selected: selected,
+      onSelect: onSelect,
+      child: Padding(
+        padding: EdgeInsets.all(16.w),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: <Widget>[
+            Row(
+              children: <Widget>[
+                const _PaymentIconTile(
+                  icon: Icons.bolt_rounded,
+                  background: AppColors.primaryGreenLight,
+                  foreground: AppColors.primaryGreen,
+                ),
+                Gap(12.w),
+                Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: <Widget>[
                       Row(
                         children: <Widget>[
-                          Container(
-                            width: 42.w,
-                            height: 42.w,
-                            decoration: BoxDecoration(
-                              color: AppColors.primaryGreenLight,
-                              borderRadius: BorderRadius.circular(12),
-                            ),
-                            child: Icon(
-                              Icons.lock_rounded,
-                              color: AppColors.primaryGreen,
-                              size: 22.sp,
+                          Text(
+                            'Pay Online',
+                            style: AppTextStyles.labelLarge.copyWith(
+                              fontWeight: FontWeight.w700,
+                              fontSize: 15.sp,
                             ),
                           ),
-                          Gap(12.w),
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: <Widget>[
-                                Text(
-                                  'Pay Online',
-                                  style: AppTextStyles.labelLarge.copyWith(
-                                    fontWeight: FontWeight.w700,
-                                    fontSize: 16.sp,
-                                  ),
-                                ),
-                                Gap(2.h),
-                                Text(
-                                  'UPI • Cards • Netbanking & more',
-                                  style: AppTextStyles.bodySmall.copyWith(
-                                    color: AppColors.textSecondary,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                          Container(
-                            padding: EdgeInsets.symmetric(
-                              horizontal: 8.w,
-                              vertical: 3.h,
-                            ),
-                            decoration: BoxDecoration(
-                              color: const Color(0xFF072654),
-                              borderRadius: BorderRadius.circular(4),
-                            ),
-                            child: Text(
-                              'Razorpay',
-                              style: AppTextStyles.bodySmall.copyWith(
-                                color: Colors.white,
-                                fontSize: 9.sp,
-                                fontWeight: FontWeight.w600,
-                                letterSpacing: 0.3,
-                              ),
-                            ),
-                          ),
+                          Gap(8.w),
+                          const _RazorpayBadge(),
                         ],
                       ),
-                      Gap(16.h),
-                      SizedBox(
-                        width: double.infinity,
-                        height: 48.h,
-                        child: FilledButton(
-                          onPressed: isPlacingOrder ? null : onPay,
-                          style: FilledButton.styleFrom(
-                            backgroundColor: AppColors.primaryGreen,
-                            disabledBackgroundColor:
-                                AppColors.primaryGreen.withValues(alpha: 0.5),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(12),
-                            ),
-                          ),
-                          child: isPlacingOrder
-                              ? SizedBox(
-                                  width: 18.w,
-                                  height: 18.w,
-                                  child: const CircularProgressIndicator(
-                                    strokeWidth: 2,
-                                    valueColor: AlwaysStoppedAnimation<Color>(
-                                      Colors.white,
-                                    ),
-                                  ),
-                                )
-                              : Row(
-                                  mainAxisAlignment: MainAxisAlignment.center,
-                                  children: <Widget>[
-                                    Text(
-                                      'Pay ${total.toInrCurrency} Online',
-                                      style:
-                                          AppTextStyles.buttonMedium.copyWith(
-                                        color: Colors.white,
-                                        fontWeight: FontWeight.w700,
-                                      ),
-                                    ),
-                                    Gap(6.w),
-                                    const Icon(
-                                      Icons.arrow_forward_rounded,
-                                      color: Colors.white,
-                                      size: 16,
-                                    ),
-                                  ],
-                                ),
+                      Gap(2.h),
+                      Text(
+                        'UPI • Cards • Netbanking & more',
+                        style: AppTextStyles.bodySmall.copyWith(
+                          color: AppColors.textSecondary,
                         ),
                       ),
                     ],
                   ),
                 ),
+                Gap(8.w),
+                _SelectionRadio(selected: selected),
+              ],
+            ),
+            AnimatedSize(
+              duration: const Duration(milliseconds: 200),
+              curve: Curves.easeOutCubic,
+              alignment: Alignment.topCenter,
+              child: selected
+                  ? Padding(
+                      padding: EdgeInsets.only(top: 14.h),
+                      child: _PaymentActionButton(
+                        label: 'Pay ${total.toInrCurrency} Online',
+                        icon: Icons.lock_rounded,
+                        isLoading: isPlacingOrder,
+                        onPressed: isPlacingOrder ? null : onPay,
+                      ),
+                    )
+                  : const SizedBox(width: double.infinity),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _RazorpayBadge extends StatelessWidget {
+  const _RazorpayBadge();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: EdgeInsets.symmetric(horizontal: 7.w, vertical: 3.h),
+      decoration: BoxDecoration(
+        color: const Color(0xFF072654),
+        borderRadius: BorderRadius.circular(AppDimensions.radiusXs),
+      ),
+      child: Text(
+        'Razorpay',
+        style: AppTextStyles.bodySmall.copyWith(
+          color: Colors.white,
+          fontSize: 9.sp,
+          fontWeight: FontWeight.w600,
+          letterSpacing: 0.3,
+        ),
+      ),
+    );
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Secure payment badge
+// ═══════════════════════════════════════════════════════════════════════════
+
+class _SecurePaymentBadge extends StatelessWidget {
+  const _SecurePaymentBadge();
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: <Widget>[
+        Icon(
+          Icons.verified_user_rounded,
+          size: 14.sp,
+          color: AppColors.orderViolet,
+        ),
+        Gap(6.w),
+        Text.rich(
+          TextSpan(
+            text: 'Secure payments powered by ',
+            style: AppTextStyles.bodySmall.copyWith(
+              color: AppColors.textSecondary,
+            ),
+            children: <InlineSpan>[
+              TextSpan(
+                text: 'Razorpay',
+                style: AppTextStyles.bodySmall.copyWith(
+                  color: AppColors.textPrimary,
+                  fontWeight: FontWeight.w700,
+                ),
               ),
             ],
           ),
         ),
-      ),
+      ],
     );
   }
 }

@@ -47,7 +47,7 @@ class _ProfileHeaderState extends ConsumerState<ProfileHeader> {
           begin: Alignment.topCenter,
           end: Alignment.bottomCenter,
           colors: <Color>[
-            Color(0xFFFFF4D7),
+            AppColors.orderVioletSurface,
             AppColors.bgPrimary,
           ],
         ),
@@ -84,12 +84,20 @@ class _ProfileHeaderState extends ConsumerState<ProfileHeader> {
               clipBehavior: Clip.none,
               children: <Widget>[
                 Container(
-                  height: 72.r,
-                  width: 72.r,
+                  height: 76.r,
+                  width: 76.r,
                   clipBehavior: Clip.antiAlias,
-                  decoration: const BoxDecoration(
+                  decoration: BoxDecoration(
                     shape: BoxShape.circle,
-                    color: AppColors.bgCard,
+                    color: AppColors.orderVioletSurface,
+                    border: Border.all(color: Colors.white, width: 3),
+                    boxShadow: <BoxShadow>[
+                      BoxShadow(
+                        color: AppColors.orderVioletGlow,
+                        blurRadius: 14.r,
+                        offset: Offset(0, 4.h),
+                      ),
+                    ],
                   ),
                   child: _isUploadingAvatar
                       ? Center(
@@ -98,11 +106,14 @@ class _ProfileHeaderState extends ConsumerState<ProfileHeader> {
                             height: 20.r,
                             child: const CircularProgressIndicator(
                               strokeWidth: 2,
-                              color: AppColors.primaryGreen,
+                              color: AppColors.orderViolet,
                             ),
                           ),
                         )
-                      : _AvatarImage(avatarUrl: widget.avatarUrl),
+                      : _AvatarImage(
+                          avatarUrl: widget.avatarUrl,
+                          name: widget.name,
+                        ),
                 ),
                 Positioned(
                   right: -2.w,
@@ -110,18 +121,18 @@ class _ProfileHeaderState extends ConsumerState<ProfileHeader> {
                   child: GestureDetector(
                     onTap: _pickAndUploadAvatar,
                     child: Container(
-                      height: 24.r,
-                      width: 24.r,
+                      height: 26.r,
+                      width: 26.r,
                       decoration: BoxDecoration(
-                        color: AppColors.bgCard,
+                        color: AppColors.orderViolet,
                         shape: BoxShape.circle,
-                        border: Border.all(color: AppColors.borderLight),
+                        border: Border.all(color: Colors.white, width: 2),
                       ),
                       child: Center(
                         child: PhosphorIcon(
-                          PhosphorIcons.camera(),
-                          size: 14.sp,
-                          color: AppColors.textPrimary,
+                          PhosphorIcons.camera(PhosphorIconsStyle.fill),
+                          size: 12.sp,
+                          color: Colors.white,
                         ),
                       ),
                     ),
@@ -137,7 +148,7 @@ class _ProfileHeaderState extends ConsumerState<ProfileHeader> {
                 'Good morning, $_displayName! 👋',
                 style: AppTextStyles.h2.copyWith(
                   fontSize: 18.sp,
-                  fontWeight: FontWeight.w600,
+                  fontWeight: FontWeight.w700,
                 ),
                 textAlign: TextAlign.center,
               ),
@@ -149,16 +160,8 @@ class _ProfileHeaderState extends ConsumerState<ProfileHeader> {
                   color: AppColors.textSecondary,
                 ),
               ),
-              Gap(4.h),
-              TextButton(
-                onPressed: widget.onAccountTap,
-                child: Text(
-                  'Edit profile',
-                  style: AppTextStyles.buttonSmall.copyWith(
-                    color: AppColors.primaryGreen,
-                  ),
-                ),
-              ),
+              Gap(10.h),
+              _EditProfileButton(onTap: widget.onAccountTap),
             ],
           ),
         ],
@@ -289,12 +292,57 @@ class _ProfileHeaderState extends ConsumerState<ProfileHeader> {
   }
 }
 
+class _EditProfileButton extends StatelessWidget {
+  const _EditProfileButton({this.onTap});
+
+  final VoidCallback? onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Colors.white,
+      borderRadius: BorderRadius.circular(100.r),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(100.r),
+        child: Container(
+          padding: EdgeInsets.symmetric(horizontal: 16.w, vertical: 8.h),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(100.r),
+            border: Border.all(color: AppColors.orderVioletBorder),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: <Widget>[
+              PhosphorIcon(
+                PhosphorIcons.pencilSimple(),
+                size: 14.sp,
+                color: AppColors.orderViolet,
+              ),
+              Gap(6.w),
+              Text(
+                'Edit profile',
+                style: AppTextStyles.buttonSmall.copyWith(
+                  color: AppColors.orderViolet,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 class _AvatarImage extends StatelessWidget {
   const _AvatarImage({
     required this.avatarUrl,
+    required this.name,
   });
 
   final String? avatarUrl;
+  final String? name;
 
   @override
   Widget build(BuildContext context) {
@@ -307,7 +355,7 @@ class _AvatarImage extends StatelessWidget {
       memCacheWidth: 300,
       fit: BoxFit.cover,
       placeholder: (context, url) => const ColoredBox(
-        color: AppColors.bgInput,
+        color: AppColors.orderVioletSurface,
       ),
       errorWidget: (context, url, error) => _fallback(),
     );
@@ -315,14 +363,31 @@ class _AvatarImage extends StatelessWidget {
 
   Widget _fallback() {
     return ColoredBox(
-      color: AppColors.primaryGreenLight,
+      color: AppColors.orderVioletSurface,
       child: Center(
-        child: PhosphorIcon(
-          PhosphorIcons.user(PhosphorIconsStyle.fill),
-          size: 28.sp,
-          color: AppColors.primaryGreen,
+        child: Text(
+          _initials,
+          style: TextStyle(
+            fontFamily: 'Poppins',
+            fontSize: 24.sp,
+            fontWeight: FontWeight.w700,
+            color: AppColors.orderViolet,
+          ),
         ),
       ),
     );
+  }
+
+  String get _initials {
+    final trimmed = name?.trim() ?? '';
+    if (trimmed.isEmpty) {
+      return '🙂';
+    }
+    final parts = trimmed.split(RegExp(r'\s+'));
+    if (parts.length == 1) {
+      return parts.first.characters.first.toUpperCase();
+    }
+    return (parts.first.characters.first + parts[1].characters.first)
+        .toUpperCase();
   }
 }

@@ -235,18 +235,7 @@ class _CartScreenState extends ConsumerState<CartScreen> {
     widgets.addAll(_buildItemCards(context, cart.items));
     widgets.add(const CartSectionDivider());
 
-    widgets.add(
-      RepaintBoundary(
-        child: CartWishlistCta(
-          onTap: () => context.push(RouteNames.wishlist),
-        ),
-      ),
-    );
-    widgets.add(const CartSectionDivider());
-
     widgets.add(const RepaintBoundary(child: CartLastMinuteSection()));
-    widgets.add(const CartSectionDivider());
-    widgets.add(const RepaintBoundary(child: CartPriceDropSection()));
     widgets.add(const CartSectionDivider());
     widgets.add(const RepaintBoundary(child: CartTipSection()));
 
@@ -281,8 +270,6 @@ class _CartScreenState extends ConsumerState<CartScreen> {
       );
     }
 
-    widgets.add(const CartSectionDivider());
-    widgets.add(const RepaintBoundary(child: CartYouMightAlsoLikeSection()));
     widgets.add(SizedBox(height: 110.h));
 
     return widgets;

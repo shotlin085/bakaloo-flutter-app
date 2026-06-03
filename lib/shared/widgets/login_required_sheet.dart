@@ -75,7 +75,7 @@ class LoginRequiredSheet extends StatelessWidget {
                       width: 48.w,
                       height: 48.w,
                       decoration: BoxDecoration(
-                        color: AppColors.primaryGreenLight,
+                        color: AppColors.orderVioletSurface,
                         borderRadius: BorderRadius.circular(
                           AppDimensions.radiusMd,
                         ),
@@ -83,7 +83,7 @@ class LoginRequiredSheet extends StatelessWidget {
                       child: Center(
                         child: PhosphorIcon(
                           PhosphorIcons.lockKey(PhosphorIconsStyle.fill),
-                          color: AppColors.primaryGreen,
+                          color: AppColors.orderViolet,
                           size: 22.sp,
                         ),
                       ),
@@ -110,17 +110,49 @@ class LoginRequiredSheet extends StatelessWidget {
                 Container(
                   padding: EdgeInsets.all(14.w),
                   decoration: BoxDecoration(
-                    color: AppColors.bgPrimary,
+                    color: AppColors.orderVioletSurface,
                     borderRadius: BorderRadius.circular(
                       AppDimensions.radiusMd,
                     ),
-                    border: Border.all(color: AppColors.borderLight),
+                    border: Border.all(color: AppColors.orderVioletBorder),
                   ),
-                  child: Text(
-                    'Log in once to add items, save favourites, manage addresses, and place orders securely.',
-                    style: AppTextStyles.bodySmall.copyWith(
-                      color: AppColors.textSecondary,
-                    ),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: <Widget>[
+                      PhosphorIcon(
+                        PhosphorIcons.shieldCheck(PhosphorIconsStyle.fill),
+                        color: AppColors.orderViolet,
+                        size: 20.sp,
+                      ),
+                      Gap(10.w),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: <Widget>[
+                            Text(
+                              'Your security is our priority.',
+                              style: AppTextStyles.labelLarge.copyWith(
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                            Gap(3.h),
+                            Text(
+                              'We protect your information and ensure a safe shopping experience.',
+                              style: AppTextStyles.bodySmall.copyWith(
+                                color: AppColors.textSecondary,
+                                height: 1.45,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      Gap(10.w),
+                      PhosphorIcon(
+                        PhosphorIcons.sparkle(PhosphorIconsStyle.fill),
+                        color: AppColors.orderViolet,
+                        size: 16.sp,
+                      ),
+                    ],
                   ),
                 ),
                 Gap(18.h),

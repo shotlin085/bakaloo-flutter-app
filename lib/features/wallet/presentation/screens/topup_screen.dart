@@ -124,7 +124,7 @@ class _TopupScreenState extends ConsumerState<TopupScreen> {
           contact: user?.phone,
           email: user?.email,
           prefillName: user?.name,
-          themeColorHex: '#0C831F',
+          themeColorHex: '#7C3AED',
         ),
       );
     } catch (_) {
@@ -218,13 +218,13 @@ class _TopupScreenState extends ConsumerState<TopupScreen> {
                     width: 44.w,
                     height: 44.w,
                     decoration: const BoxDecoration(
-                      color: AppColors.primaryGreenLight,
+                      color: AppColors.orderVioletSurface,
                       shape: BoxShape.circle,
                     ),
                     child: Center(
                       child: PhosphorIcon(
                         PhosphorIcons.wallet(),
-                        color: AppColors.primaryGreen,
+                        color: AppColors.orderViolet,
                         size: 20.sp,
                       ),
                     ),
@@ -288,7 +288,7 @@ class _TopupScreenState extends ConsumerState<TopupScreen> {
               child: FilledButton(
                 onPressed: _isStarting || _isVerifying ? null : _startTopup,
                 style: FilledButton.styleFrom(
-                  backgroundColor: AppColors.primaryGreen,
+                  backgroundColor: AppColors.orderViolet,
                   minimumSize: Size.fromHeight(50.h),
                 ),
                 child: _isStarting || _isVerifying

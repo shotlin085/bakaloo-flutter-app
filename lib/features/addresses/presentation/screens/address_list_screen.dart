@@ -62,6 +62,20 @@ class AddressListScreen extends ConsumerWidget {
           ),
         ),
         title: Text('Addresses', style: AppTextStyles.h2),
+        actions: <Widget>[
+          if (addressAsync.asData?.value.isNotEmpty ?? false)
+            TextButton(
+              onPressed: () => _openAddAddress(context, ref),
+              child: Text(
+                'Edit',
+                style: AppTextStyles.buttonMedium.copyWith(
+                  color: AppColors.orderViolet,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ),
+          Gap(6.w),
+        ],
       ),
       body: addressAsync.when(
         loading: () => const _AddressLoadingState(),
@@ -80,7 +94,7 @@ class AddressListScreen extends ConsumerWidget {
           final currentPosition = currentPositionAsync.asData?.value;
 
           return RefreshIndicator(
-            color: AppColors.primaryGreen,
+            color: AppColors.orderViolet,
             onRefresh: () => _refreshAddresses(ref),
             child: ListView(
               physics: const AlwaysScrollableScrollPhysics(),
@@ -230,65 +244,67 @@ class _AddNewAddressCard extends StatelessWidget {
       color: Colors.transparent,
       child: InkWell(
         onTap: onTap,
-        borderRadius: BorderRadius.circular(AppDimensions.radiusLg),
+        borderRadius: BorderRadius.circular(18.r),
         child: Ink(
           decoration: BoxDecoration(
             color: Colors.white,
-            borderRadius: BorderRadius.circular(AppDimensions.radiusLg),
-            boxShadow: const <BoxShadow>[AppShadows.cardShadow],
-            border: Border.all(color: const Color(0xFFE8F1EA)),
+            borderRadius: BorderRadius.circular(18.r),
+            border: Border.all(color: AppColors.orderCardBorder),
+            boxShadow: <BoxShadow>[
+              BoxShadow(
+                color: const Color(0x0F000000),
+                blurRadius: 10.r,
+                offset: Offset(0, 3.h),
+              ),
+            ],
           ),
-          child: Stack(
+          padding: EdgeInsets.fromLTRB(16.w, 16.h, 16.w, 16.h),
+          child: Row(
             children: <Widget>[
-              Positioned(
-                top: 0,
-                left: 0,
-                right: 0,
-                child: Container(
-                  height: 5.h,
-                  decoration: BoxDecoration(
-                    color: const Color(0xFFEEF8F0),
-                    borderRadius: BorderRadius.vertical(
-                      top: Radius.circular(AppDimensions.radiusLg.r),
-                    ),
+              Container(
+                width: 46.w,
+                height: 46.w,
+                decoration: const BoxDecoration(
+                  color: AppColors.orderVioletSurface,
+                  shape: BoxShape.circle,
+                ),
+                child: Center(
+                  child: PhosphorIcon(
+                    PhosphorIcons.plus(PhosphorIconsStyle.bold),
+                    size: 22.sp,
+                    color: AppColors.orderViolet,
                   ),
                 ),
               ),
-              Padding(
-                padding: EdgeInsets.fromLTRB(16.w, 18.h, 16.w, 18.h),
-                child: Row(
+              Gap(14.w),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: <Widget>[
-                    Container(
-                      width: 44.w,
-                      height: 44.w,
-                      decoration: const BoxDecoration(
-                        color: AppColors.primaryGreenLight,
-                        shape: BoxShape.circle,
-                      ),
-                      child: Icon(
-                        Icons.add_rounded,
-                        size: 22.sp,
-                        color: AppColors.primaryGreen,
+                    Text(
+                      'Add New Address',
+                      style: AppTextStyles.h3.copyWith(
+                        color: AppColors.orderViolet,
+                        fontSize: 15.5.sp,
+                        fontWeight: FontWeight.w700,
                       ),
                     ),
-                    Gap(14.w),
-                    Expanded(
-                      child: Text(
-                        'Add New Address',
-                        style: AppTextStyles.bodyMedium.copyWith(
-                          color: AppColors.primaryGreen,
-                          fontSize: 15.sp,
-                          fontWeight: FontWeight.w600,
-                        ),
+                    Gap(2.h),
+                    Text(
+                      'Add your new delivery address',
+                      style: AppTextStyles.bodyMedium.copyWith(
+                        color: AppColors.textSecondary,
+                        fontSize: 12.5.sp,
                       ),
-                    ),
-                    Icon(
-                      Icons.chevron_right_rounded,
-                      size: 22.sp,
-                      color: AppColors.textTertiary,
                     ),
                   ],
                 ),
+              ),
+              Gap(8.w),
+              PhosphorIcon(
+                PhosphorIcons.caretRight(PhosphorIconsStyle.bold),
+                size: 18.sp,
+                color: AppColors.textTertiary,
               ),
             ],
           ),
@@ -320,162 +336,265 @@ class _SavedAddressCard extends StatelessWidget {
     final label = address.label.trim().isEmpty ? 'Other' : address.label.trim();
 
     return Container(
-      padding: EdgeInsets.all(14.w),
+      padding: EdgeInsets.fromLTRB(14.w, 14.h, 14.w, 12.h),
       decoration: BoxDecoration(
         color: AppColors.bgCard,
-        borderRadius: BorderRadius.circular(AppDimensions.radiusMd),
-        boxShadow: const <BoxShadow>[AppShadows.cardShadow],
+        borderRadius: BorderRadius.circular(18.r),
+        border: Border.all(color: AppColors.orderCardBorder),
+        boxShadow: <BoxShadow>[
+          BoxShadow(
+            color: const Color(0x0F000000),
+            blurRadius: 10.r,
+            offset: Offset(0, 3.h),
+          ),
+        ],
       ),
-      child: Row(
+      child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: <Widget>[
-          Container(
-            width: 38.w,
-            height: 38.w,
-            decoration: const BoxDecoration(
-              color: Color(0xFFF3F4F5),
-              shape: BoxShape.circle,
-            ),
-            child: PhosphorIcon(
-              PhosphorIcons.mapPin(PhosphorIconsStyle.fill),
-              size: 18.sp,
-              color: AppColors.textSecondary,
-            ),
-          ),
-          Gap(12.w),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: <Widget>[
-                Wrap(
-                  crossAxisAlignment: WrapCrossAlignment.center,
-                  spacing: 6.w,
-                  runSpacing: 6.h,
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: <Widget>[
+              // Selected dot + label-based icon chip.
+              SizedBox(
+                width: 46.w,
+                child: Column(
                   children: <Widget>[
-                    Text(
-                      label,
-                      style: AppTextStyles.labelLarge.copyWith(
-                        fontFamily: 'Poppins',
-                        fontSize: 14.sp,
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                    if ((distanceLabel ?? '').isNotEmpty) ...<Widget>[
-                      Text(
-                        '•',
-                        style: AppTextStyles.bodyMedium.copyWith(
-                          color: AppColors.textTertiary,
-                          fontWeight: FontWeight.w600,
+                    Align(
+                      alignment: Alignment.centerLeft,
+                      child: Container(
+                        width: 8.w,
+                        height: 8.w,
+                        margin: EdgeInsets.only(left: 2.w, bottom: 6.h),
+                        decoration: BoxDecoration(
+                          color: address.isDefault
+                              ? AppColors.orderViolet
+                              : Colors.transparent,
+                          shape: BoxShape.circle,
                         ),
                       ),
+                    ),
+                    Container(
+                      width: 44.w,
+                      height: 44.w,
+                      decoration: const BoxDecoration(
+                        color: AppColors.orderVioletSurface,
+                        shape: BoxShape.circle,
+                      ),
+                      child: Center(
+                        child: PhosphorIcon(
+                          _iconForLabel(label),
+                          size: 20.sp,
+                          color: AppColors.orderViolet,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              Gap(12.w),
+              Expanded(
+                child: Padding(
+                  padding: EdgeInsets.only(top: 14.h),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: <Widget>[
+                      Row(
+                        children: <Widget>[
+                          Flexible(
+                            child: Text(
+                              label,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: AppTextStyles.h3.copyWith(
+                                fontSize: 16.sp,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                          ),
+                          if (address.isDefault) ...<Widget>[
+                            Gap(8.w),
+                            Container(
+                              padding: EdgeInsets.symmetric(
+                                horizontal: 10.w,
+                                vertical: 3.h,
+                              ),
+                              decoration: BoxDecoration(
+                                color: AppColors.orderVioletSurface,
+                                borderRadius: BorderRadius.circular(999.r),
+                              ),
+                              child: Text(
+                                'Selected',
+                                style: AppTextStyles.labelSmall.copyWith(
+                                  color: AppColors.orderViolet,
+                                  fontWeight: FontWeight.w700,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ],
+                      ),
+                      Gap(6.h),
+                      Row(
+                        children: <Widget>[
+                          PhosphorIcon(
+                            PhosphorIcons.mapPin(PhosphorIconsStyle.fill),
+                            size: 13.sp,
+                            color: AppColors.textTertiary,
+                          ),
+                          Gap(4.w),
+                          Text(
+                            '${distanceLabel ?? '0.0 km'} away',
+                            style: AppTextStyles.bodyMedium.copyWith(
+                              color: AppColors.textSecondary,
+                              fontSize: 12.5.sp,
+                            ),
+                          ),
+                        ],
+                      ),
+                      Gap(8.h),
                       Text(
-                        distanceLabel!,
+                        _fullAddress(address),
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
                         style: AppTextStyles.bodyMedium.copyWith(
                           color: AppColors.textSecondary,
                           fontSize: 13.sp,
+                          height: 1.4,
                         ),
                       ),
                     ],
-                    if (address.isDefault)
-                      Container(
-                        padding: EdgeInsets.symmetric(
-                          horizontal: 8.w,
-                          vertical: 3.h,
-                        ),
-                        decoration: BoxDecoration(
-                          border: Border.all(color: AppColors.primaryGreen),
-                          borderRadius: BorderRadius.circular(999.r),
-                        ),
-                        child: Text(
-                          'Selected',
-                          style: AppTextStyles.labelSmall.copyWith(
-                            color: AppColors.primaryGreen,
-                            fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ),
+              Gap(10.w),
+              Column(
+                children: <Widget>[
+                  _CardIconButton(
+                    icon: PhosphorIcons.shareNetwork(),
+                    onTap: onShare,
+                  ),
+                  Gap(8.h),
+                  PopupMenuButton<_AddressCardMenuAction>(
+                    tooltip: 'More actions',
+                    color: Colors.white,
+                    elevation: 8,
+                    shape: RoundedRectangleBorder(
+                      borderRadius:
+                          BorderRadius.circular(AppDimensions.radiusMd),
+                    ),
+                    onSelected: (_AddressCardMenuAction value) {
+                      switch (value) {
+                        case _AddressCardMenuAction.edit:
+                          onEdit();
+                          break;
+                        case _AddressCardMenuAction.delete:
+                          onDelete();
+                          break;
+                        case _AddressCardMenuAction.setDefault:
+                          onSetDefault?.call();
+                          break;
+                      }
+                    },
+                    itemBuilder: (BuildContext context) {
+                      return <PopupMenuEntry<_AddressCardMenuAction>>[
+                        PopupMenuItem<_AddressCardMenuAction>(
+                          value: _AddressCardMenuAction.edit,
+                          child: Text(
+                            'Edit',
+                            style: AppTextStyles.bodyMedium.copyWith(
+                              color: AppColors.textPrimary,
+                            ),
                           ),
                         ),
-                      ),
-                  ],
+                        PopupMenuItem<_AddressCardMenuAction>(
+                          value: _AddressCardMenuAction.delete,
+                          child: Text(
+                            'Delete',
+                            style: AppTextStyles.bodyMedium.copyWith(
+                              color: AppColors.errorRed,
+                            ),
+                          ),
+                        ),
+                        if (!address.isDefault)
+                          PopupMenuItem<_AddressCardMenuAction>(
+                            value: _AddressCardMenuAction.setDefault,
+                            child: Text(
+                              'Set as Default',
+                              style: AppTextStyles.bodyMedium.copyWith(
+                                color: AppColors.textPrimary,
+                              ),
+                            ),
+                          ),
+                      ];
+                    },
+                    child: const _CardIconButton(
+                      icon: null,
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+          Gap(12.h),
+          const Divider(height: 1, color: AppColors.divider),
+          Gap(10.h),
+          _EditPill(onTap: onEdit),
+        ],
+      ),
+    );
+  }
+
+  PhosphorIconData _iconForLabel(String label) {
+    final lower = label.toLowerCase();
+    if (lower.contains('home')) {
+      return PhosphorIcons.house();
+    }
+    if (lower.contains('work') || lower.contains('office')) {
+      return PhosphorIcons.briefcase();
+    }
+    return PhosphorIcons.mapPin();
+  }
+}
+
+/// Bottom-left violet "Edit" pill on each saved-address card.
+class _EditPill extends StatelessWidget {
+  const _EditPill({required this.onTap});
+
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Align(
+      alignment: Alignment.centerLeft,
+      child: Material(
+        color: AppColors.orderVioletSurface,
+        borderRadius: BorderRadius.circular(100.r),
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(100.r),
+          child: Padding(
+            padding: EdgeInsets.symmetric(horizontal: 14.w, vertical: 8.h),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: <Widget>[
+                PhosphorIcon(
+                  PhosphorIcons.pencilSimple(),
+                  size: 14.sp,
+                  color: AppColors.orderViolet,
                 ),
-                Gap(8.h),
+                Gap(6.w),
                 Text(
-                  _fullAddress(address),
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                  style: AppTextStyles.bodyMedium.copyWith(
-                    color: AppColors.textSecondary,
-                    fontSize: 13.sp,
+                  'Edit',
+                  style: AppTextStyles.buttonSmall.copyWith(
+                    color: AppColors.orderViolet,
+                    fontWeight: FontWeight.w700,
                   ),
                 ),
               ],
             ),
           ),
-          Gap(10.w),
-          Column(
-            children: <Widget>[
-              _CardIconButton(
-                icon: PhosphorIcons.shareNetwork(),
-                onTap: onShare,
-              ),
-              Gap(4.h),
-              PopupMenuButton<_AddressCardMenuAction>(
-                tooltip: 'More actions',
-                color: Colors.white,
-                elevation: 8,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(AppDimensions.radiusMd),
-                ),
-                onSelected: (_AddressCardMenuAction value) {
-                  switch (value) {
-                    case _AddressCardMenuAction.edit:
-                      onEdit();
-                      break;
-                    case _AddressCardMenuAction.delete:
-                      onDelete();
-                      break;
-                    case _AddressCardMenuAction.setDefault:
-                      onSetDefault?.call();
-                      break;
-                  }
-                },
-                itemBuilder: (BuildContext context) {
-                  return <PopupMenuEntry<_AddressCardMenuAction>>[
-                    PopupMenuItem<_AddressCardMenuAction>(
-                      value: _AddressCardMenuAction.edit,
-                      child: Text(
-                        'Edit',
-                        style: AppTextStyles.bodyMedium.copyWith(
-                          color: AppColors.textPrimary,
-                        ),
-                      ),
-                    ),
-                    PopupMenuItem<_AddressCardMenuAction>(
-                      value: _AddressCardMenuAction.delete,
-                      child: Text(
-                        'Delete',
-                        style: AppTextStyles.bodyMedium.copyWith(
-                          color: AppColors.errorRed,
-                        ),
-                      ),
-                    ),
-                    if (!address.isDefault)
-                      PopupMenuItem<_AddressCardMenuAction>(
-                        value: _AddressCardMenuAction.setDefault,
-                        child: Text(
-                          'Set as Default',
-                          style: AppTextStyles.bodyMedium.copyWith(
-                            color: AppColors.textPrimary,
-                          ),
-                        ),
-                      ),
-                  ];
-                },
-                child: const _CardIconButton(
-                  icon: null,
-                ),
-              ),
-            ],
-          ),
-        ],
+        ),
       ),
     );
   }
@@ -709,13 +828,13 @@ class _AddressEmptyState extends StatelessWidget {
             width: 72.w,
             height: 72.w,
             decoration: const BoxDecoration(
-              color: AppColors.primaryGreenLight,
+              color: AppColors.orderVioletSurface,
               shape: BoxShape.circle,
             ),
             child: PhosphorIcon(
               PhosphorIcons.mapPinLine(),
               size: 28.sp,
-              color: AppColors.primaryGreen,
+              color: AppColors.orderViolet,
             ),
           ),
           Gap(16.h),
@@ -790,7 +909,7 @@ class _AddressErrorState extends StatelessWidget {
             FilledButton(
               onPressed: onRetry,
               style: FilledButton.styleFrom(
-                backgroundColor: AppColors.primaryGreen,
+                backgroundColor: AppColors.orderViolet,
                 padding: EdgeInsets.symmetric(horizontal: 24.w, vertical: 12.h),
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(AppDimensions.radiusMd),

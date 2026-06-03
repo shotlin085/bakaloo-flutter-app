@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:ui';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -265,7 +264,7 @@ class _WalletScreenState extends ConsumerState<WalletScreen> {
         loading: () => wallet == null
             ? const Center(
                 child: CircularProgressIndicator(
-                  color: AppColors.primaryGreen,
+                  color: AppColors.orderViolet,
                 ),
               )
             : _buildContent(wallet),
@@ -319,7 +318,7 @@ class _WalletScreenState extends ConsumerState<WalletScreen> {
         ),
         Expanded(
           child: RefreshIndicator(
-            color: AppColors.primaryGreen,
+            color: AppColors.orderViolet,
             onRefresh: _refreshAll,
             child: PagedListView<int, TransactionEntity>(
               pagingController: _pagingController,
@@ -334,14 +333,14 @@ class _WalletScreenState extends ConsumerState<WalletScreen> {
                 },
                 firstPageProgressIndicatorBuilder: (_) => const Center(
                   child: CircularProgressIndicator(
-                    color: AppColors.primaryGreen,
+                    color: AppColors.orderViolet,
                   ),
                 ),
                 newPageProgressIndicatorBuilder: (_) => Padding(
                   padding: EdgeInsets.symmetric(vertical: 16.h),
                   child: const Center(
                     child: CircularProgressIndicator(
-                      color: AppColors.primaryGreen,
+                      color: AppColors.orderViolet,
                     ),
                   ),
                 ),
@@ -381,74 +380,85 @@ class _BalanceCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    Widget amountText = Text(
-      balance.toInrCurrency,
-      style: AppTextStyles.display.copyWith(
-        color: Colors.white,
-        fontSize: 32.sp,
+    final Widget amountText = Text(
+      unlocked ? balance.toInrCurrency : '₹••••',
+      style: TextStyle(
+        fontFamily: 'Poppins',
+        fontWeight: FontWeight.w800,
+        color: const Color(0xFF1A1A1A),
+        fontSize: 34.sp,
+        height: 1.1,
       ),
     );
-
-    if (!unlocked) {
-      amountText = ImageFiltered(
-        imageFilter: ImageFilter.blur(sigmaX: 8, sigmaY: 8),
-        child: amountText,
-      );
-    }
 
     return Container(
       width: double.infinity,
       padding: EdgeInsets.all(20.w),
       decoration: BoxDecoration(
-        gradient: AppColors.walletCardGradient,
-        borderRadius: BorderRadius.circular(AppDimensions.radiusLg),
-        boxShadow: const <BoxShadow>[AppShadows.floatingShadow],
+        color: AppColors.bgCard,
+        borderRadius: BorderRadius.circular(20.r),
+        border: Border.all(color: AppColors.orderCardBorder),
+        boxShadow: <BoxShadow>[
+          BoxShadow(
+            color: const Color(0x0F000000),
+            blurRadius: 12.r,
+            offset: Offset(0, 4.h),
+          ),
+        ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: <Widget>[
-          Text(
-            'Wallet balance',
-            style: AppTextStyles.bodyMedium.copyWith(
-              color: Colors.white.withValues(alpha: 0.92),
-            ),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: <Widget>[
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: <Widget>[
+                    Text(
+                      'Wallet balance',
+                      style: AppTextStyles.bodyMedium.copyWith(
+                        color: AppColors.textSecondary,
+                      ),
+                    ),
+                    Gap(8.h),
+                    Row(
+                      children: <Widget>[
+                        Flexible(child: amountText),
+                        Gap(10.w),
+                        _HideBalanceButton(
+                          unlocked: unlocked,
+                          isAuthenticating: isAuthenticating,
+                          onTap: onUnlock,
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+              const _WalletGlyph(),
+            ],
           ),
-          Gap(8.h),
-          amountText,
-          Gap(16.h),
+          Gap(18.h),
           Row(
             children: <Widget>[
-              _WalletPill(
-                icon: PhosphorIcons.plus(),
-                label: 'Add Money',
-                onTap: onAddMoney,
+              Expanded(
+                child: _WalletActionButton(
+                  icon: PhosphorIcons.plus(PhosphorIconsStyle.bold),
+                  label: 'Add Money',
+                  filled: true,
+                  onTap: onAddMoney,
+                ),
               ),
-              Gap(10.w),
-              _WalletPill(
-                icon: PhosphorIcons.arrowsClockwise(),
-                label: 'Transfer',
-                onTap: onTransfer,
-              ),
-              const Spacer(),
-              IconButton(
-                onPressed: isAuthenticating ? null : onUnlock,
-                icon: isAuthenticating
-                    ? SizedBox(
-                        width: 18.w,
-                        height: 18.w,
-                        child: const CircularProgressIndicator(
-                          strokeWidth: 2,
-                          valueColor: AlwaysStoppedAnimation<Color>(
-                            Colors.white,
-                          ),
-                        ),
-                      )
-                    : PhosphorIcon(
-                        unlocked
-                            ? PhosphorIcons.lockOpen()
-                            : PhosphorIcons.fingerprint(),
-                        color: Colors.white,
-                      ),
+              Gap(12.w),
+              Expanded(
+                child: _WalletActionButton(
+                  icon: PhosphorIcons.arrowsClockwise(),
+                  label: 'Transfer',
+                  filled: false,
+                  onTap: onTransfer,
+                ),
               ),
             ],
           ),
@@ -458,41 +468,127 @@ class _BalanceCard extends StatelessWidget {
   }
 }
 
-class _WalletPill extends StatelessWidget {
-  const _WalletPill({
+/// Small circular hide/show-balance button next to the amount.
+class _HideBalanceButton extends StatelessWidget {
+  const _HideBalanceButton({
+    required this.unlocked,
+    required this.isAuthenticating,
+    required this.onTap,
+  });
+
+  final bool unlocked;
+  final bool isAuthenticating;
+  final Future<void> Function() onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: isAuthenticating ? null : () => onTap(),
+      behavior: HitTestBehavior.opaque,
+      child: Container(
+        width: 30.w,
+        height: 30.w,
+        decoration: const BoxDecoration(
+          color: AppColors.orderVioletSurface,
+          shape: BoxShape.circle,
+        ),
+        child: Center(
+          child: isAuthenticating
+              ? SizedBox(
+                  width: 14.w,
+                  height: 14.w,
+                  child: const CircularProgressIndicator(
+                    strokeWidth: 2,
+                    valueColor:
+                        AlwaysStoppedAnimation<Color>(AppColors.orderViolet),
+                  ),
+                )
+              : PhosphorIcon(
+                  unlocked
+                      ? PhosphorIcons.eye()
+                      : PhosphorIcons.eyeSlash(),
+                  size: 16.sp,
+                  color: AppColors.orderViolet,
+                ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Decorative wallet glyph on the right of the balance card. Swap for a real
+/// 3D illustration asset by replacing this widget with an Image.asset.
+class _WalletGlyph extends StatelessWidget {
+  const _WalletGlyph();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: 64.w,
+      height: 64.w,
+      decoration: BoxDecoration(
+        color: AppColors.orderVioletSurface,
+        borderRadius: BorderRadius.circular(18.r),
+      ),
+      child: Center(
+        child: PhosphorIcon(
+          PhosphorIcons.wallet(PhosphorIconsStyle.fill),
+          size: 32.sp,
+          color: AppColors.orderViolet,
+        ),
+      ),
+    );
+  }
+}
+
+class _WalletActionButton extends StatelessWidget {
+  const _WalletActionButton({
     required this.icon,
     required this.label,
+    required this.filled,
     required this.onTap,
   });
 
   final PhosphorIconData icon;
   final String label;
+  final bool filled;
   final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(AppDimensions.radiusFull),
-      child: Container(
-        padding: EdgeInsets.symmetric(horizontal: 12.w, vertical: 8.h),
-        decoration: BoxDecoration(
-          color: Colors.white.withValues(alpha: 0.2),
-          borderRadius: BorderRadius.circular(AppDimensions.radiusFull),
-          border: Border.all(color: Colors.white24),
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: <Widget>[
-            PhosphorIcon(icon, color: Colors.white, size: 14.sp),
-            Gap(6.w),
-            Text(
-              label,
-              style: AppTextStyles.buttonSmall.copyWith(
-                color: Colors.white,
+    return Material(
+      color: filled ? AppColors.orderViolet : AppColors.bgCard,
+      borderRadius: BorderRadius.circular(12.r),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(12.r),
+        child: Container(
+          height: 48.h,
+          alignment: Alignment.center,
+          decoration: filled
+              ? null
+              : BoxDecoration(
+                  borderRadius: BorderRadius.circular(12.r),
+                  border: Border.all(color: AppColors.orderViolet, width: 1.4),
+                ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: <Widget>[
+              PhosphorIcon(
+                icon,
+                size: 16.sp,
+                color: filled ? Colors.white : AppColors.orderViolet,
               ),
-            ),
-          ],
+              Gap(8.w),
+              Text(
+                label,
+                style: AppTextStyles.buttonMedium.copyWith(
+                  color: filled ? Colors.white : AppColors.orderViolet,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -557,13 +653,13 @@ class _QuickActionCircle extends StatelessWidget {
             width: 56.w,
             height: 56.w,
             decoration: const BoxDecoration(
-              color: AppColors.primaryGreenLight,
+              color: AppColors.orderVioletSurface,
               shape: BoxShape.circle,
             ),
             child: Center(
               child: PhosphorIcon(
                 icon,
-                color: AppColors.primaryGreen,
+                color: AppColors.orderViolet,
                 size: 22.sp,
               ),
             ),
@@ -599,14 +695,14 @@ class _TransactionFilterChips extends StatelessWidget {
               filter.label,
               style: AppTextStyles.labelLarge.copyWith(
                 color:
-                    isSelected ? AppColors.primaryGreen : AppColors.textPrimary,
+                    isSelected ? AppColors.orderViolet : AppColors.textPrimary,
               ),
             ),
-            selectedColor: AppColors.primaryGreenLight,
+            selectedColor: AppColors.orderVioletSurface,
             backgroundColor: AppColors.bgCard,
             side: BorderSide(
               color:
-                  isSelected ? AppColors.primaryGreen : AppColors.borderLight,
+                  isSelected ? AppColors.orderViolet : AppColors.borderLight,
             ),
           ),
         );
@@ -812,7 +908,7 @@ class _TransferSheetState extends State<_TransferSheet> {
               child: FilledButton(
                 onPressed: _submitting ? null : _handleSubmit,
                 style: FilledButton.styleFrom(
-                  backgroundColor: AppColors.primaryGreen,
+                  backgroundColor: AppColors.orderViolet,
                   minimumSize: Size.fromHeight(48.h),
                 ),
                 child: _submitting

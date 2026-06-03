@@ -88,7 +88,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
       return const Scaffold(
         backgroundColor: AppColors.bgPrimary,
         body: Center(
-          child: CircularProgressIndicator(color: AppColors.primaryGreen),
+          child: CircularProgressIndicator(color: AppColors.orderViolet),
         ),
       );
     }
@@ -172,13 +172,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                       MenuTile(
                         icon: PhosphorIcons.wallet(),
                         label: 'Wallet',
-                        trailing: Text(
-                          _walletLabel(walletAsync),
-                          style: AppTextStyles.labelLarge.copyWith(
-                            color: AppColors.primaryGreen,
-                            fontSize: 13.sp,
-                          ),
-                        ),
+                        trailing: _WalletPill(label: _walletLabel(walletAsync)),
                         onTap: () =>
                             context.push('${RouteNames.profile}/wallet'),
                       ),
@@ -306,7 +300,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
           boxShadow: const <BoxShadow>[AppShadows.cardShadow],
         ),
         alignment: Alignment.center,
-        child: const CircularProgressIndicator(color: AppColors.primaryGreen),
+        child: const CircularProgressIndicator(color: AppColors.orderViolet),
       ),
       error: (_, __) => Container(
         height: 82.h,
@@ -334,8 +328,8 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
       ),
       child: SwitchListTile.adaptive(
         value: _hideSensitiveItems,
-        activeThumbColor: AppColors.primaryGreen,
-        activeTrackColor: AppColors.primaryGreenLight,
+        activeThumbColor: AppColors.orderViolet,
+        activeTrackColor: AppColors.orderVioletSurface,
         contentPadding: EdgeInsets.symmetric(horizontal: 16.w, vertical: 2.h),
         title: Text(
           'Hide sensitive items',
@@ -532,5 +526,30 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
       return;
     }
     setState(() => _appVersion = info.version);
+  }
+}
+
+class _WalletPill extends StatelessWidget {
+  const _WalletPill({required this.label});
+
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: EdgeInsets.symmetric(horizontal: 10.w, vertical: 4.h),
+      decoration: BoxDecoration(
+        color: AppColors.orderVioletSurface,
+        borderRadius: BorderRadius.circular(100.r),
+      ),
+      child: Text(
+        label,
+        style: AppTextStyles.labelLarge.copyWith(
+          color: AppColors.orderViolet,
+          fontWeight: FontWeight.w700,
+          fontSize: 12.5.sp,
+        ),
+      ),
+    );
   }
 }

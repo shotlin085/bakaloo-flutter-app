@@ -244,16 +244,17 @@ class _SearchScreenState extends ConsumerState<SearchScreen>
               child: Column(
                 children: <Widget>[
                   Padding(
-                    padding: EdgeInsets.fromLTRB(12.w, 12.h, 12.w, 8.h),
+                    padding: EdgeInsets.fromLTRB(16.w, 12.h, 16.w, 8.h),
                     child: Row(
                       children: <Widget>[
-                        IconButton(
-                          onPressed: _dismiss,
-                          icon: PhosphorIcon(
-                            PhosphorIcons.arrowLeft(),
-                            color: AppColors.textPrimary,
+                        _CircleIconButton(
+                          icon: PhosphorIcons.arrowLeft(
+                            PhosphorIconsStyle.bold,
                           ),
+                          semanticLabel: 'Back',
+                          onTap: _dismiss,
                         ),
+                        Gap(12.w),
                         Expanded(
                           child: _SearchInput(
                             controller: _searchController,
@@ -262,31 +263,34 @@ class _SearchScreenState extends ConsumerState<SearchScreen>
                             onChanged: _onQueryChanged,
                           ),
                         ),
-                        SizedBox(
-                          width: 48.w,
-                          child: IconButton(
-                            onPressed: _searchController.text.trim().isEmpty
-                                ? () {
-                                    ScaffoldMessenger.of(context).showSnackBar(
-                                      const SnackBar(
-                                        content: Text(
-                                          'Voice search is coming soon.',
-                                        ),
+                        Gap(12.w),
+                        _CircleIconButton(
+                          icon: _searchController.text.trim().isEmpty
+                              ? PhosphorIcons.microphone(
+                                  PhosphorIconsStyle.bold,
+                                )
+                              : PhosphorIcons.x(PhosphorIconsStyle.bold),
+                          iconColor: _searchController.text.trim().isEmpty
+                              ? AppColors.orderViolet
+                              : AppColors.textSecondary,
+                          semanticLabel: _searchController.text.trim().isEmpty
+                              ? 'Voice search'
+                              : 'Clear search',
+                          onTap: _searchController.text.trim().isEmpty
+                              ? () {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    const SnackBar(
+                                      content: Text(
+                                        'Voice search is coming soon.',
                                       ),
-                                    );
-                                  }
-                                : () {
-                                    _searchController.clear();
-                                    _focusNode.requestFocus();
-                                    _onQueryChanged('');
-                                  },
-                            icon: PhosphorIcon(
-                              _searchController.text.trim().isEmpty
-                                  ? PhosphorIcons.microphone()
-                                  : PhosphorIcons.xCircle(),
-                              color: AppColors.textSecondary,
-                            ),
-                          ),
+                                    ),
+                                  );
+                                }
+                              : () {
+                                  _searchController.clear();
+                                  _focusNode.requestFocus();
+                                  _onQueryChanged('');
+                                },
                         ),
                       ],
                     ),
@@ -315,6 +319,14 @@ class _SearchScreenState extends ConsumerState<SearchScreen>
                               categories: categoriesAsync.asData?.value ??
                                   const <CategoryEntity>[],
                               onChipTap: _fillQuery,
+                              onCategoryTap: (category) {
+                                context.push(
+                                  '/categories/${category.id}/products',
+                                );
+                              },
+                              onViewAllProducts: () {
+                                context.push(RouteNames.categories);
+                              },
                               onRemoveHistory: (query) {
                                 ref
                                     .read(searchHistoryProvider.notifier)
@@ -351,12 +363,61 @@ class _SearchScreenState extends ConsumerState<SearchScreen>
                                 return _SearchResultsState(
                                   key: const ValueKey<String>('results'),
                                   pagingController: _pagingController,
+                                  resultCount: result.total > 0
+                                      ? result.total
+                                      : (result.pagination.total > 0
+                                          ? result.pagination.total
+                                          : result.products.length),
                                 );
                               },
                             ),
                     ),
                   ),
                 ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _CircleIconButton extends StatelessWidget {
+  const _CircleIconButton({
+    required this.icon,
+    required this.semanticLabel,
+    required this.onTap,
+    this.iconColor,
+  });
+
+  final IconData icon;
+  final String semanticLabel;
+  final VoidCallback onTap;
+  final Color? iconColor;
+
+  @override
+  Widget build(BuildContext context) {
+    return Semantics(
+      label: semanticLabel,
+      button: true,
+      child: Material(
+        color: AppColors.bgCard,
+        shape: const CircleBorder(
+          side: BorderSide(color: AppColors.borderLight),
+        ),
+        clipBehavior: Clip.antiAlias,
+        child: InkWell(
+          onTap: onTap,
+          customBorder: const CircleBorder(),
+          child: SizedBox(
+            width: 44.w,
+            height: 44.w,
+            child: Center(
+              child: PhosphorIcon(
+                icon,
+                size: 20.sp,
+                color: iconColor ?? AppColors.textPrimary,
               ),
             ),
           ),
@@ -382,10 +443,11 @@ class _SearchInput extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      height: AppDimensions.searchBarHeight.h,
+      height: 50.h,
       decoration: BoxDecoration(
         color: AppColors.bgCard,
         borderRadius: BorderRadius.circular(AppDimensions.radiusFull),
+        border: Border.all(color: AppColors.borderLight),
         boxShadow: const <BoxShadow>[AppShadows.cardShadow],
       ),
       child: Stack(
@@ -395,22 +457,30 @@ class _SearchInput extends StatelessWidget {
             focusNode: focusNode,
             autofocus: true,
             onChanged: onChanged,
-            cursorColor: AppColors.primaryGreen,
+            textInputAction: TextInputAction.search,
+            cursorColor: AppColors.orderViolet,
             style: AppTextStyles.bodyLarge.copyWith(
               color: AppColors.textPrimary,
             ),
             decoration: InputDecoration(
               border: InputBorder.none,
-              prefixIcon: PhosphorIcon(
-                PhosphorIcons.magnifyingGlass(),
-                color: AppColors.textSecondary,
+              isCollapsed: true,
+              prefixIcon: Padding(
+                padding: EdgeInsets.only(left: 16.w, right: 10.w),
+                child: PhosphorIcon(
+                  PhosphorIcons.magnifyingGlass(PhosphorIconsStyle.bold),
+                  size: 20.sp,
+                  color: AppColors.textSecondary,
+                ),
               ),
-              contentPadding: EdgeInsets.symmetric(vertical: 14.h),
+              prefixIconConstraints:
+                  const BoxConstraints(minWidth: 0, minHeight: 0),
+              contentPadding: EdgeInsets.symmetric(vertical: 15.h),
             ),
           ),
           if (controller.text.isEmpty)
             Positioned(
-              left: 52.w,
+              left: 46.w,
               right: 16.w,
               top: 0,
               bottom: 0,
@@ -438,11 +508,27 @@ class _SearchInput extends StatelessWidget {
   }
 }
 
+class _CategoryCardPalette {
+  const _CategoryCardPalette({
+    required this.background,
+    required this.iconBackground,
+    required this.iconColor,
+    required this.icon,
+  });
+
+  final Color background;
+  final Color iconBackground;
+  final Color iconColor;
+  final IconData icon;
+}
+
 class _EmptySearchState extends StatelessWidget {
   const _EmptySearchState({
     required this.history,
     required this.categories,
     required this.onChipTap,
+    required this.onCategoryTap,
+    required this.onViewAllProducts,
     required this.onRemoveHistory,
     required this.onClearHistory,
     super.key,
@@ -451,8 +537,43 @@ class _EmptySearchState extends StatelessWidget {
   final List<String> history;
   final List<CategoryEntity> categories;
   final ValueChanged<String> onChipTap;
+  final ValueChanged<CategoryEntity> onCategoryTap;
+  final VoidCallback onViewAllProducts;
   final ValueChanged<String> onRemoveHistory;
   final VoidCallback onClearHistory;
+
+  static const List<_CategoryCardPalette> _palettes = <_CategoryCardPalette>[
+    _CategoryCardPalette(
+      background: Color(0xFFEAF6EC),
+      iconBackground: Color(0xFFD6EDDA),
+      iconColor: Color(0xFF0C831F),
+      icon: Icons.eco_rounded,
+    ),
+    _CategoryCardPalette(
+      background: Color(0xFFEDEFFB),
+      iconBackground: Color(0xFFDDE2F7),
+      iconColor: Color(0xFF3949AB),
+      icon: Icons.egg_alt_rounded,
+    ),
+    _CategoryCardPalette(
+      background: Color(0xFFFFF1E6),
+      iconBackground: Color(0xFFFCE0CC),
+      iconColor: Color(0xFFEE8F00),
+      icon: Icons.fastfood_rounded,
+    ),
+    _CategoryCardPalette(
+      background: Color(0xFFFFF7E0),
+      iconBackground: Color(0xFFFBEBC0),
+      iconColor: Color(0xFFD9A400),
+      icon: Icons.grass_rounded,
+    ),
+    _CategoryCardPalette(
+      background: Color(0xFFFCE9EF),
+      iconBackground: Color(0xFFF7D4E0),
+      iconColor: Color(0xFFD81B60),
+      icon: Icons.local_fire_department_rounded,
+    ),
+  ];
 
   @override
   Widget build(BuildContext context) {
@@ -473,23 +594,25 @@ class _EmptySearchState extends StatelessWidget {
                   style: AppTextStyles.h3,
                 ),
               ),
-              TextButton(
-                onPressed: onClearHistory,
+              GestureDetector(
+                onTap: onClearHistory,
+                behavior: HitTestBehavior.opaque,
                 child: Text(
                   'Clear all',
                   style: AppTextStyles.buttonSmall.copyWith(
-                    color: AppColors.primaryGreen,
+                    color: AppColors.orderViolet,
                   ),
                 ),
               ),
             ],
           ),
+          const Gap(AppDimensions.spacing12),
           SizedBox(
-            height: 42.h,
+            height: 38.h,
             child: ListView.separated(
               scrollDirection: Axis.horizontal,
               itemCount: history.length,
-              separatorBuilder: (_, __) => Gap(8.w),
+              separatorBuilder: (_, __) => Gap(10.w),
               itemBuilder: (context, index) {
                 final query = history[index];
                 return _RecentSearchChip(
@@ -506,25 +629,27 @@ class _EmptySearchState extends StatelessWidget {
           'Popular categories',
           style: AppTextStyles.h3,
         ),
-        const Gap(AppDimensions.spacing12),
-        GridView.builder(
-          physics: const NeverScrollableScrollPhysics(),
-          shrinkWrap: true,
-          itemCount: popularCategories.length,
-          gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-            crossAxisCount: 2,
-            crossAxisSpacing: 12.w,
-            mainAxisSpacing: 12.h,
-            childAspectRatio: 1.18,
-          ),
-          itemBuilder: (context, index) {
-            final category = popularCategories[index];
-            return _PopularCategoryTile(
+        const Gap(AppDimensions.spacing16),
+        ...List<Widget>.generate(popularCategories.length, (index) {
+          final category = popularCategories[index];
+          final palette = _palettes[index % _palettes.length];
+          return Padding(
+            padding: EdgeInsets.only(bottom: 12.h),
+            child: _PopularCategoryCard(
               category: category,
-              onTap: () => onChipTap(category.name),
-            );
-          },
-        ),
+              palette: palette,
+              onTap: () => onCategoryTap(category),
+            )
+                .animate()
+                .fadeIn(
+                  delay: (40 * index).ms,
+                  duration: 280.ms,
+                )
+                .slideY(begin: 0.08, end: 0, curve: Curves.easeOutCubic),
+          );
+        }),
+        const Gap(AppDimensions.spacing8),
+        _ViewAllProductsCard(onTap: onViewAllProducts),
       ],
     );
   }
@@ -547,15 +672,21 @@ class _RecentSearchChip extends StatelessWidget {
       onTap: onTap,
       borderRadius: BorderRadius.circular(AppDimensions.radiusFull),
       child: Container(
-        padding: EdgeInsets.symmetric(horizontal: 12.w, vertical: 10.h),
+        padding: EdgeInsets.symmetric(horizontal: 12.w, vertical: 8.h),
         decoration: BoxDecoration(
-          color: AppColors.bgCard,
+          color: AppColors.orderVioletSurface,
           borderRadius: BorderRadius.circular(AppDimensions.radiusFull),
-          border: Border.all(color: AppColors.borderLight),
+          border: Border.all(color: AppColors.orderVioletBorder),
         ),
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: <Widget>[
+            PhosphorIcon(
+              PhosphorIcons.clockCounterClockwise(),
+              size: 15.sp,
+              color: AppColors.orderViolet,
+            ),
+            Gap(7.w),
             Text(
               query,
               style: AppTextStyles.chip.copyWith(
@@ -565,6 +696,7 @@ class _RecentSearchChip extends StatelessWidget {
             Gap(8.w),
             GestureDetector(
               onTap: onRemove,
+              behavior: HitTestBehavior.opaque,
               child: PhosphorIcon(
                 PhosphorIcons.x(),
                 size: 14,
@@ -578,74 +710,176 @@ class _RecentSearchChip extends StatelessWidget {
   }
 }
 
-class _PopularCategoryTile extends StatelessWidget {
-  const _PopularCategoryTile({
+class _PopularCategoryCard extends StatelessWidget {
+  const _PopularCategoryCard({
     required this.category,
+    required this.palette,
     required this.onTap,
   });
 
   final CategoryEntity category;
+  final _CategoryCardPalette palette;
   final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        padding: EdgeInsets.all(14.w),
-        decoration: BoxDecoration(
-          color: AppColors.bgCard,
-          borderRadius: BorderRadius.circular(AppDimensions.radiusLg),
-          boxShadow: const <BoxShadow>[AppShadows.cardShadow],
+    final imageUrl = category.imageUrl ?? '';
+
+    return Material(
+      color: palette.background,
+      borderRadius: BorderRadius.circular(AppDimensions.radiusLg),
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: onTap,
+        child: SizedBox(
+          height: 92.h,
+          child: Row(
+            children: <Widget>[
+              Gap(16.w),
+              Container(
+                width: 48.w,
+                height: 48.w,
+                decoration: BoxDecoration(
+                  color: palette.iconBackground,
+                  borderRadius: BorderRadius.circular(AppDimensions.radiusMd),
+                ),
+                child: Icon(
+                  palette.icon,
+                  size: 26.sp,
+                  color: palette.iconColor,
+                ),
+              ),
+              Gap(14.w),
+              Expanded(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: <Widget>[
+                    Text(
+                      category.name,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: AppTextStyles.h3.copyWith(
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    const Gap(AppDimensions.spacing4),
+                    Text(
+                      '${category.productCount} items',
+                      style: AppTextStyles.bodySmall.copyWith(
+                        color: AppColors.textSecondary,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              if (imageUrl.isNotEmpty) ...<Widget>[
+                SizedBox(
+                  width: 88.w,
+                  height: 92.h,
+                  child: CachedNetworkImage(
+                    imageUrl: imageUrl,
+                    memCacheWidth: 300,
+                    fit: BoxFit.cover,
+                    errorWidget: (_, __, ___) => const SizedBox.shrink(),
+                  ),
+                ),
+                Gap(8.w),
+              ],
+              Container(
+                width: 36.w,
+                height: 36.w,
+                margin: EdgeInsets.only(right: 14.w),
+                decoration: const BoxDecoration(
+                  color: AppColors.bgCard,
+                  shape: BoxShape.circle,
+                  boxShadow: <BoxShadow>[AppShadows.cardShadow],
+                ),
+                child: Center(
+                  child: PhosphorIcon(
+                    PhosphorIcons.caretRight(PhosphorIconsStyle.bold),
+                    size: 16.sp,
+                    color: AppColors.textPrimary,
+                  ),
+                ),
+              ),
+            ],
+          ),
         ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: <Widget>[
-            Expanded(
-              child: ClipRRect(
-                borderRadius: BorderRadius.circular(AppDimensions.radiusMd),
-                child: Container(
-                  color: AppColors.primaryGreenLight,
-                  width: double.infinity,
-                  child: (category.imageUrl ?? '').isEmpty
-                      ? Center(
-                          child: PhosphorIcon(
-                            PhosphorIcons.gridFour(),
-                            color: AppColors.primaryGreen,
-                            size: 28,
-                          ),
-                        )
-                      : CachedNetworkImage(
-                          imageUrl: category.imageUrl!,
-                          memCacheWidth: 300,
-                          fit: BoxFit.cover,
-                          errorWidget: (_, __, ___) => Center(
-                            child: PhosphorIcon(
-                              PhosphorIcons.imageBroken(),
-                              color: AppColors.textDisabled,
-                              size: 24,
-                            ),
-                          ),
-                        ),
+      ),
+    );
+  }
+}
+
+class _ViewAllProductsCard extends StatelessWidget {
+  const _ViewAllProductsCard({required this.onTap});
+
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: EdgeInsets.symmetric(horizontal: 14.w, vertical: 14.h),
+      decoration: BoxDecoration(
+        color: AppColors.bgCard,
+        borderRadius: BorderRadius.circular(AppDimensions.radiusLg),
+        border: Border.all(color: AppColors.borderLight),
+      ),
+      child: Row(
+        children: <Widget>[
+          Container(
+            width: 40.w,
+            height: 40.w,
+            decoration: const BoxDecoration(
+              color: AppColors.orderVioletSurface,
+              shape: BoxShape.circle,
+            ),
+            child: Center(
+              child: PhosphorIcon(
+                PhosphorIcons.sparkle(PhosphorIconsStyle.fill),
+                size: 20.sp,
+                color: AppColors.orderViolet,
+              ),
+            ),
+          ),
+          Gap(12.w),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: <Widget>[
+                Text(
+                  "Can't find what you're looking for?",
+                  style: AppTextStyles.labelLarge.copyWith(
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                const Gap(AppDimensions.spacing2),
+                Text(
+                  'Search from 10,000+ products',
+                  style: AppTextStyles.bodySmall,
+                ),
+              ],
+            ),
+          ),
+          Gap(8.w),
+          GestureDetector(
+            onTap: onTap,
+            behavior: HitTestBehavior.opaque,
+            child: Container(
+              padding: EdgeInsets.symmetric(horizontal: 14.w, vertical: 9.h),
+              decoration: BoxDecoration(
+                color: AppColors.orderVioletSurface,
+                borderRadius: BorderRadius.circular(AppDimensions.radiusFull),
+              ),
+              child: Text(
+                'View all products',
+                style: AppTextStyles.buttonSmall.copyWith(
+                  color: AppColors.orderViolet,
                 ),
               ),
             ),
-            const Gap(AppDimensions.spacing12),
-            Text(
-              category.name,
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
-              style: AppTextStyles.labelLarge.copyWith(
-                fontWeight: FontWeight.w700,
-              ),
-            ),
-            const Gap(AppDimensions.spacing4),
-            Text(
-              '${category.productCount} items',
-              style: AppTextStyles.bodySmall,
-            ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }
@@ -689,36 +923,127 @@ class _DebouncingState extends StatelessWidget {
 class _SearchResultsState extends StatelessWidget {
   const _SearchResultsState({
     required this.pagingController,
+    required this.resultCount,
     super.key,
   });
 
   final PagingController<int, ProductEntity> pagingController;
+  final int resultCount;
 
   @override
   Widget build(BuildContext context) {
-    return PagedListView<int, ProductEntity>.separated(
-      pagingController: pagingController,
-      padding: EdgeInsets.fromLTRB(16.w, 12.h, 16.w, 24.h),
-      separatorBuilder: (_, __) => Gap(12.h),
-      builderDelegate: PagedChildBuilderDelegate<ProductEntity>(
-        itemBuilder: (context, product, index) {
-          return _SearchResultTile(product: product);
-        },
-        firstPageProgressIndicatorBuilder: (_) => const SizedBox.shrink(),
-        newPageProgressIndicatorBuilder: (_) => const Padding(
-          padding: EdgeInsets.symmetric(vertical: 16),
-          child: Center(
-            child: CircularProgressIndicator(color: AppColors.primaryGreen),
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: <Widget>[
+        Padding(
+          padding: EdgeInsets.fromLTRB(16.w, 12.h, 16.w, 12.h),
+          child: Row(
+            children: <Widget>[
+              Expanded(
+                child: Text(
+                  resultCount == 1 ? '1 result' : '$resultCount results',
+                  style: AppTextStyles.bodyMedium.copyWith(
+                    color: AppColors.textSecondary,
+                  ),
+                ),
+              ),
+              _SortFilterPill(
+                icon: PhosphorIcons.caretDown(PhosphorIconsStyle.bold),
+                label: 'Relevance',
+                onTap: () {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('Sorting options are coming soon.'),
+                    ),
+                  );
+                },
+              ),
+              Gap(14.w),
+              _SortFilterPill(
+                icon: PhosphorIcons.slidersHorizontal(
+                  PhosphorIconsStyle.bold,
+                ),
+                onTap: () {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('Filters are coming soon.'),
+                    ),
+                  );
+                },
+              ),
+            ],
           ),
         ),
-        firstPageErrorIndicatorBuilder: (_) => const SizedBox.shrink(),
-        newPageErrorIndicatorBuilder: (_) => Center(
-          child: Text(
-            'Unable to load more results.',
-            style: AppTextStyles.bodySmall,
+        const Divider(height: 1, thickness: 1, color: AppColors.divider),
+        Expanded(
+          child: PagedListView<int, ProductEntity>.separated(
+            pagingController: pagingController,
+            padding: EdgeInsets.fromLTRB(16.w, 12.h, 16.w, 24.h),
+            separatorBuilder: (_, __) => Gap(12.h),
+            builderDelegate: PagedChildBuilderDelegate<ProductEntity>(
+              itemBuilder: (context, product, index) {
+                return _SearchResultTile(product: product);
+              },
+              firstPageProgressIndicatorBuilder: (_) =>
+                  const SizedBox.shrink(),
+              newPageProgressIndicatorBuilder: (_) => const Padding(
+                padding: EdgeInsets.symmetric(vertical: 16),
+                child: Center(
+                  child: CircularProgressIndicator(
+                    color: AppColors.primaryGreen,
+                  ),
+                ),
+              ),
+              firstPageErrorIndicatorBuilder: (_) => const SizedBox.shrink(),
+              newPageErrorIndicatorBuilder: (_) => Center(
+                child: Text(
+                  'Unable to load more results.',
+                  style: AppTextStyles.bodySmall,
+                ),
+              ),
+              noItemsFoundIndicatorBuilder: (_) => const SizedBox.shrink(),
+            ),
           ),
         ),
-        noItemsFoundIndicatorBuilder: (_) => const SizedBox.shrink(),
+      ],
+    );
+  }
+}
+
+class _SortFilterPill extends StatelessWidget {
+  const _SortFilterPill({
+    required this.icon,
+    required this.onTap,
+    this.label,
+  });
+
+  final IconData icon;
+  final String? label;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      behavior: HitTestBehavior.opaque,
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: <Widget>[
+          if (label != null) ...<Widget>[
+            Text(
+              label!,
+              style: AppTextStyles.labelLarge.copyWith(
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+            Gap(4.w),
+          ],
+          PhosphorIcon(
+            icon,
+            size: 16.sp,
+            color: AppColors.textPrimary,
+          ),
+        ],
       ),
     );
   }
@@ -737,12 +1062,12 @@ class _SearchResultTile extends ConsumerWidget {
 
     return InkWell(
       onTap: () => context.push('/product/${product.id}'),
-      borderRadius: BorderRadius.circular(AppDimensions.radiusMd),
+      borderRadius: BorderRadius.circular(AppDimensions.radiusLg),
       child: Container(
         padding: EdgeInsets.all(12.w),
         decoration: BoxDecoration(
           color: AppColors.bgCard,
-          borderRadius: BorderRadius.circular(AppDimensions.radiusMd),
+          borderRadius: BorderRadius.circular(AppDimensions.radiusLg),
           boxShadow: const <BoxShadow>[AppShadows.cardShadow],
         ),
         child: Row(
@@ -750,8 +1075,8 @@ class _SearchResultTile extends ConsumerWidget {
             ClipRRect(
               borderRadius: BorderRadius.circular(AppDimensions.radiusMd),
               child: Container(
-                width: 64.w,
-                height: 64.w,
+                width: 72.w,
+                height: 72.w,
                 color: AppColors.bgSection,
                 child: imageUrl == null || imageUrl.isEmpty
                     ? Center(
@@ -773,7 +1098,7 @@ class _SearchResultTile extends ConsumerWidget {
                       ),
               ),
             ),
-            Gap(12.w),
+            Gap(14.w),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -783,6 +1108,7 @@ class _SearchResultTile extends ConsumerWidget {
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
                     style: AppTextStyles.labelLarge.copyWith(
+                      fontSize: 14.sp,
                       fontWeight: FontWeight.w700,
                     ),
                   ),
@@ -814,9 +1140,11 @@ class _SearchResultTile extends ConsumerWidget {
                 ],
               ),
             ),
+            Gap(12.w),
             QuantityControl(
               quantity: quantity,
-              width: 80,
+              width: 84,
+              height: 38,
               onAdd: product.inStock
                   ? () async {
                       final authGate = ref.read(authGateControllerProvider);
