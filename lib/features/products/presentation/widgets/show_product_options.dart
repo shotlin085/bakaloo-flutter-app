@@ -5,11 +5,21 @@ import 'package:phosphor_flutter/phosphor_flutter.dart';
 import 'package:bakaloo_flutter_app/features/products/domain/entities/product_entity.dart';
 import 'package:bakaloo_flutter_app/features/products/presentation/widgets/product_option_bottom_sheet.dart';
 
+/// Lightweight notifier tracking whether the product option bottom sheet is
+/// currently open. The floating cart pill watches this to hide itself while
+/// the sheet is visible.
+final productOptionSheetVisible = ValueNotifier<bool>(false);
+
 /// Opens the variant option sheet for [product].
 ///
 /// Matches the reference workflow: a dark dimmed overlay, a floating circular
 /// close (X) button centred above the rounded-top sheet, then the option list.
+///
+/// Automatically hides the floating cart pill while the sheet is open.
 void showProductOptionsSheet(BuildContext context, ProductEntity product) {
+  // Hide floating cart pill while sheet is open.
+  productOptionSheetVisible.value = true;
+
   showModalBottomSheet<void>(
     context: context,
     isScrollControlled: true,
@@ -43,5 +53,8 @@ void showProductOptionsSheet(BuildContext context, ProductEntity product) {
         ProductOptionBottomSheet(product: product),
       ],
     ),
-  );
+  ).whenComplete(() {
+    // Restore floating cart pill when sheet closes.
+    productOptionSheetVisible.value = false;
+  });
 }

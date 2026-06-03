@@ -27,7 +27,7 @@ class AnimatedBannerSection extends StatelessWidget {
   final BannerAnimationTheme? bannerTheme;
   final FeeStripTheme? feeStripTheme;
   static const String _feeStripPath =
-      'assets/images/summer_zero_fees_strip.png';
+      'assets/images/summer_zero_fees_strip.png'; // Legacy — only used if no remote feeStrip imageUrl configured
 
   @override
   Widget build(BuildContext context) {
@@ -165,6 +165,8 @@ class _BannerAnimation extends StatelessWidget {
 
     final url = lottieUrl?.trim();
     if (url == null || url.isEmpty) {
+      // If no remote asset AND no local fallback, show nothing.
+      if (assetPath.isEmpty) return const SizedBox.expand();
       return _AssetDotLottieAnimation(assetPath: assetPath);
     }
 
@@ -199,7 +201,9 @@ class _NetworkBannerImage extends StatelessWidget {
         fit: BoxFit.cover,
         filterQuality: FilterQuality.high,
         placeholder: const SizedBox.expand(),
-        errorWidget: _AssetDotLottieAnimation(assetPath: fallbackAssetPath),
+        errorWidget: fallbackAssetPath.isNotEmpty
+            ? _AssetDotLottieAnimation(assetPath: fallbackAssetPath)
+            : const SizedBox.expand(),
       ),
     );
   }
@@ -231,11 +235,13 @@ class _NetworkUploadedAnimation extends StatelessWidget {
             );
             return true;
           }());
+          if (fallbackAssetPath.isEmpty) return const SizedBox.expand();
           return _AssetDotLottieAnimation(assetPath: fallbackAssetPath);
         }
 
         final LoadedRemoteAnimation? loaded = snapshot.data;
         if (loaded == null) {
+          if (fallbackAssetPath.isEmpty) return const SizedBox.expand();
           return _AssetDotLottieAnimation(assetPath: fallbackAssetPath);
         }
 
@@ -248,6 +254,7 @@ class _NetworkUploadedAnimation extends StatelessWidget {
           loaded.dotLottie,
         );
         if (animationBytes == null) {
+          if (fallbackAssetPath.isEmpty) return const SizedBox.expand();
           return _AssetDotLottieAnimation(assetPath: fallbackAssetPath);
         }
 
@@ -290,6 +297,9 @@ class _AssetDotLottieAnimation extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // If no asset path is provided, show nothing — old campaign assets should
+    // never render as fallback in production.
+    if (assetPath.isEmpty) return const SizedBox.expand();
     final shouldAnimate = TickerMode.valuesOf(context).enabled;
     return Lottie.asset(
       assetPath,

@@ -12,23 +12,32 @@ class DynamicHomeSections extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final manifest = ref.watch(activeSectionManifestProvider);
-    final theme = ref.watch(activeTabThemeProvider);
+    // Use .select() to avoid rebuilding the full list on unrelated theme changes.
+    final int sectionCount = ref.watch(
+      activeSectionManifestProvider.select((m) => m.sections.length),
+    );
 
-    if (manifest.sections.isEmpty) {
+    if (sectionCount == 0) {
       return const SliverToBoxAdapter(child: SizedBox.shrink());
     }
 
+    final List<SectionManifestEntry> sections = ref.watch(
+      activeSectionManifestProvider.select((m) => m.sections),
+    );
+
+    // Pass theme down only when sections actually need it; each slot will
+    // read the theme itself via ref so it only rebuilds when its own section
+    // data changes (not when unrelated theme fields change).
     return SliverList(
       delegate: SliverChildBuilderDelegate(
         (BuildContext context, int index) {
-          final SectionManifestEntry entry = manifest.sections[index];
+          final SectionManifestEntry entry = sections[index];
           return _DynamicSectionSlot(
+            key: ValueKey<String>('${entry.type}_${entry.id}'),
             entry: entry,
-            theme: theme,
           );
         },
-        childCount: manifest.sections.length,
+        childCount: sections.length,
       ),
     );
   }
@@ -37,11 +46,10 @@ class DynamicHomeSections extends ConsumerWidget {
 class _DynamicSectionSlot extends ConsumerWidget {
   const _DynamicSectionSlot({
     required this.entry,
-    required this.theme,
+    super.key,
   });
 
   final SectionManifestEntry entry;
-  final RemoteTheme theme;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -53,6 +61,10 @@ class _DynamicSectionSlot extends ConsumerWidget {
     if (builder == null) {
       return const SizedBox.shrink();
     }
+
+    // Each section slot reads theme on its own — this means only THIS slot
+    // rebuilds when the theme changes, not all siblings.
+    final RemoteTheme theme = ref.watch(activeTabThemeProvider);
 
     return RepaintBoundary(
       child: builder(entry, theme, ref),

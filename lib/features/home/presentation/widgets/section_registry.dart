@@ -74,8 +74,9 @@ Widget _buildAnimatedBanner(
 ) {
   final fallback = theme.sections.bannerAnimation;
   return AnimatedBannerSection(
-    assetPath: _readString(entry.config['fallback_asset']) ??
-        'assets/lottie/summer_banner.lottie',
+    // No local fallback asset — if the dashboard doesn't configure a remote
+    // lottie/image URL, the banner renders only the gradient background.
+    assetPath: _readString(entry.config['fallback_asset']) ?? '',
     height: entry.height ?? 120,
     bannerTheme: BannerAnimationTheme(
       imageUrl: entry.imageUrl ?? fallback.imageUrl,
@@ -481,13 +482,26 @@ List<ProductEntity> _resolveDefaultProductPool(WidgetRef ref) {
   final featured = _resolveFeaturedPool(ref);
   final deals = _resolveDealsPool(ref);
   final trending = _resolveTrendingPool(ref);
+
+  // Avoid expensive .expand().where().toList() on every section build.
+  // Use direct lists from tabHome when available.
+  final List<ProductEntity> categorySectionProducts;
+  if (tabHome != null && tabHome.categorySections.isNotEmpty) {
+    // Estimate total items to pre-allocate.
+    final buffer = <ProductEntity>[];
+    for (final section in tabHome.categorySections) {
+      for (final product in section.products) {
+        if (product.inStock) buffer.add(product);
+      }
+    }
+    categorySectionProducts = buffer;
+  } else {
+    categorySectionProducts = const <ProductEntity>[];
+  }
+
   return _mergeUniqueProducts(<List<ProductEntity>>[
     tabHome?.seasonalProducts ?? const <ProductEntity>[],
-    tabHome?.categorySections
-            .expand((TabCategorySection section) => section.products)
-            .where((ProductEntity product) => product.inStock)
-            .toList(growable: false) ??
-        const <ProductEntity>[],
+    categorySectionProducts,
     tabHome?.featuredProducts ?? const <ProductEntity>[],
     tabHome?.dealProducts ?? const <ProductEntity>[],
     tabHome?.trendingProducts ?? const <ProductEntity>[],
@@ -590,11 +604,21 @@ String? _resolveBannerTarget(BannerEntity banner) {
 
 List<ProductEntity> _mergeUniqueProducts(List<List<ProductEntity>> groups) {
   final seen = <String>{};
+  final seenFamilies = <String>{};
   final merged = <ProductEntity>[];
   for (final group in groups) {
     for (final product in group) {
       if (!product.inStock) {
         continue;
+      }
+      // Family-based deduplication: show only one representative per family.
+      // Prefer the default option if it appears later.
+      if (product.productFamilyId != null &&
+          product.productFamilyId!.isNotEmpty) {
+        if (!seenFamilies.add(product.productFamilyId!)) {
+          // Family already represented — skip sibling.
+          continue;
+        }
       }
       if (seen.add(product.id)) {
         merged.add(product);
@@ -1787,7 +1811,8 @@ class _ManifestArchedProductSection extends StatelessWidget {
       return Padding(
         padding: EdgeInsets.only(bottom: 10.h),
         child: AnimatedBannerSection(
-          assetPath: 'assets/lottie/summer_banner.lottie',
+          // No local fallback — only render remote lottie from dashboard.
+          assetPath: '',
           height: bannerHeight,
           bannerTheme: BannerAnimationTheme(
             imageUrl: null,

@@ -28,10 +28,13 @@ class CategoryTabsRow extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final store = ref.watch(selectedStoreProvider);
     final selectedId = ref.watch(selectedCategoryIdProvider);
-    final categoryTabsTheme =
-        ref.watch(activeTabThemeProvider).sections.categoryTabs;
-    final tabThemesAsync = ref.watch(tabThemesProvider);
-    final List<TabThemeEntry>? asyncTabs = tabThemesAsync.asData?.value.tabs;
+    // PERF: Only watch the categoryTabs sub-field, not the entire RemoteTheme.
+    final categoryTabsTheme = ref.watch(
+      activeTabThemeProvider.select((t) => t.sections.categoryTabs),
+    );
+    // PERF: Only watch the tabs list, not the full async response.
+    final List<TabThemeEntry>? asyncTabs = ref
+        .watch(tabThemesProvider.select((a) => a.asData?.value.tabs));
     final List<TabThemeEntry>? snapshotTabs =
         ref.watch(tabThemesSnapshotProvider)?.tabs;
     final List<TabThemeEntry>? remoteTabs =

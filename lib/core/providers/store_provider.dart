@@ -13,7 +13,11 @@ class _SelectedCategoryNotifier extends Notifier<String> {
   @override
   String build() => 'all';
 
-  void select(String id) => state = id;
+  void select(String id) {
+    // Guard against re-selecting the same tab so providers don't re-fire.
+    if (state == id) return;
+    state = id;
+  }
 }
 
 final selectedStoreProvider =

@@ -18,6 +18,7 @@ import 'package:bakaloo_flutter_app/features/orders/presentation/providers/order
 import 'package:bakaloo_flutter_app/features/tracking/presentation/providers/order_status_stream_provider.dart';
 import 'package:bakaloo_flutter_app/routing/route_access.dart';
 import 'package:bakaloo_flutter_app/routing/route_names.dart';
+import 'package:bakaloo_flutter_app/features/products/presentation/widgets/show_product_options.dart';
 import 'package:bakaloo_flutter_app/shared/widgets/app_route_loading_gate.dart';
 
 class AppShell extends ConsumerStatefulWidget {
@@ -218,9 +219,9 @@ class _AppShellState extends ConsumerState<AppShell>
               child: Container(
                 padding: EdgeInsets.fromLTRB(
                   12.w,
-                  10.h,
+                  4.h,
                   12.w,
-                  bottomInset > 0 ? 4.h : 10.h,
+                  bottomInset > 0 ? 2.h : 4.h,
                 ),
                 child: Row(
                   children: List<Widget>.generate(_tabs.length, (index) {
@@ -283,7 +284,10 @@ class _CartPillHost extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final cartCount = ref.watch(cartCountProvider);
-    final showCartPill = cartCount > 0;
+    return ValueListenableBuilder<bool>(
+      valueListenable: productOptionSheetVisible,
+      builder: (context, isSheetOpen, _) {
+        final showCartPill = cartCount > 0 && !isSheetOpen;
     // Pill sits just above the bottom nav (≈12dp gap), centred horizontally,
     // and spans ~60% of the screen width — never full-width, never mid-screen.
     final screenWidth = MediaQuery.sizeOf(context).width;
@@ -328,6 +332,8 @@ class _CartPillHost extends ConsumerWidget {
           ),
         ),
       ),
+    );
+      },
     );
   }
 }
@@ -449,13 +455,13 @@ class _NavTabButton extends StatelessWidget {
         onTap: onTap,
         borderRadius: BorderRadius.circular(22.r),
         child: Padding(
-          padding: EdgeInsets.symmetric(vertical: 10.h, horizontal: 6.w),
+          padding: EdgeInsets.symmetric(vertical: 4.h, horizontal: 6.w),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: <Widget>[
               SizedBox(
                 width: 48.w,
-                height: 36.h,
+                height: 30.h,
                 child: Center(
                   child: AnimatedScale(
                     scale: selected ? 1.05 : 1.0,
@@ -464,8 +470,8 @@ class _NavTabButton extends StatelessWidget {
                     child: selected
                         ? Image.asset(
                             iconAsset,
-                            width: 34.w,
-                            height: 34.h,
+                            width: 28.w,
+                            height: 28.h,
                             fit: BoxFit.contain,
                             filterQuality: FilterQuality.medium,
                           )
@@ -476,8 +482,8 @@ class _NavTabButton extends StatelessWidget {
                             ),
                             child: Image.asset(
                               iconAsset,
-                              width: 34.w,
-                              height: 34.h,
+                              width: 28.w,
+                              height: 28.h,
                               fit: BoxFit.contain,
                               filterQuality: FilterQuality.medium,
                             ),
@@ -485,7 +491,7 @@ class _NavTabButton extends StatelessWidget {
                   ),
                 ),
               ),
-              Gap(6.h),
+              Gap(3.h),
               AnimatedDefaultTextStyle(
                 duration: const Duration(milliseconds: 220),
                 style: AppTextStyles.labelSmall.copyWith(
@@ -494,17 +500,6 @@ class _NavTabButton extends StatelessWidget {
                   fontSize: 12.sp,
                 ),
                 child: Text(tab.label),
-              ),
-              Gap(6.h),
-              AnimatedContainer(
-                duration: const Duration(milliseconds: 220),
-                curve: Curves.easeOutCubic,
-                height: 3.h,
-                width: selected ? 22.w : 0,
-                decoration: BoxDecoration(
-                  color: activeColor,
-                  borderRadius: BorderRadius.circular(2.r),
-                ),
               ),
             ],
           ),

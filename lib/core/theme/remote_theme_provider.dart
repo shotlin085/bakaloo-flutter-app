@@ -7,6 +7,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:bakaloo_flutter_app/core/constants/api_constants.dart';
 import 'package:bakaloo_flutter_app/core/constants/storage_keys.dart';
+import 'package:bakaloo_flutter_app/core/network/app_availability_provider.dart';
 import 'package:bakaloo_flutter_app/core/providers/store_provider.dart';
 import 'package:bakaloo_flutter_app/core/socket/socket_service.dart';
 import 'package:bakaloo_flutter_app/core/storage/hive_service.dart';
@@ -399,6 +400,9 @@ Future<void> _runFetchAndCacheTabThemes(Ref ref, String storeKey) async {
     );
 
     if (response.statusCode == 304) {
+      // Backend healthy — tell availability provider so it can clear any
+      // prior service-unavailable state.
+      _reportHealthyIfPossible(ref);
       return;
     }
 
@@ -438,11 +442,56 @@ Future<void> _runFetchAndCacheTabThemes(Ref ref, String storeKey) async {
     _themeMemoryCache[storeKey] = parsed;
     _scheduleThemeWarmAndPrefetch(ref, storeKey, parsed);
 
+    // Successful fetch — clear any service-unavailable flag.
+    _reportHealthyIfPossible(ref);
+
     if (cachedEncoded != encodedData) {
       ref.read(_tabThemesEpochProvider.notifier).bump();
     }
   } catch (error) {
     debugPrint('[TabThemes][$storeKey] API fetch failed (using cache): $error');
+
+    // PHASE 6: If we have no valid cache AND the backend is down, surface the
+    // proper offline/error screen instead of silently returning an empty
+    // default theme which can render a blank or broken UI.
+    final bool hasCachedData = _themeMemoryCache.containsKey(storeKey) ||
+        _hasHiveCacheForStore(storeKey);
+    if (!hasCachedData) {
+      _reportServiceUnavailableIfPossible(ref);
+    }
+  }
+}
+
+/// Whether there is any Hive-cached theme payload for [storeKey].
+bool _hasHiveCacheForStore(String storeKey) {
+  try {
+    final dynamic cached =
+        HiveService.remoteThemeBox.get(_manifestCacheKey(storeKey));
+    if (cached != null) return true;
+    // Also check legacy zepto keys.
+    if (storeKey == 'zepto') {
+      return HiveService.remoteThemeBox.get('tab_themes_data') != null ||
+          HiveService.remoteThemeBox.get('data') != null;
+    }
+    return false;
+  } catch (_) {
+    return false;
+  }
+}
+
+void _reportHealthyIfPossible(Ref ref) {
+  try {
+    ref.read(appAvailabilityProvider.notifier).reportHealthy();
+  } catch (_) {
+    // Provider may not be available in all contexts (e.g. during prefetch).
+  }
+}
+
+void _reportServiceUnavailableIfPossible(Ref ref) {
+  try {
+    ref.read(appAvailabilityProvider.notifier).reportServiceUnavailable();
+  } catch (_) {
+    // Provider may not be available in all contexts.
   }
 }
 

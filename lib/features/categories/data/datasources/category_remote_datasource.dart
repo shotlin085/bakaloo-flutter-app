@@ -34,11 +34,13 @@ class CategoryRemoteDataSource {
     required String categoryId,
     required int page,
     required int limit,
+    bool groupOptions = true,
   }) async {
     final response = await _apiClient.getCategoryProducts(
       categoryId,
       page,
       limit,
+      groupOptions: groupOptions ? true : null,
     );
 
     final payload = Map<String, dynamic>.from(response.data as Map);

@@ -9,6 +9,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:bakaloo_flutter_app/app.dart';
 import 'package:bakaloo_flutter_app/core/constants/app_constants.dart';
 import 'package:bakaloo_flutter_app/core/storage/hive_service.dart';
+import 'package:bakaloo_flutter_app/core/storage/remote_layout_cache_manager.dart';
 import 'package:bakaloo_flutter_app/firebase_options.dart';
 
 @pragma('vm:entry-point')
@@ -50,6 +51,11 @@ Future<void> main() async {
 
   await HiveService.init();
   debugPrint('Hive initialized');
+
+  // Wipe stale remote layout caches whenever the schema version changes.
+  // This prevents old summer/campaign UI from bleeding in after a deployment.
+  await RemoteLayoutCacheManager.ensureCurrentVersion();
+  debugPrint('Remote layout cache version verified');
 
   PaintingBinding.instance.imageCache.maximumSizeBytes =
       AppConstants.imageCacheSizeMB * 1024 * 1024;

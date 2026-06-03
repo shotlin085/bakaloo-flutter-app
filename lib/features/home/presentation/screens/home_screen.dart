@@ -27,9 +27,7 @@ import 'package:bakaloo_flutter_app/features/home/domain/entities/banner_entity.
 import 'package:bakaloo_flutter_app/features/home/presentation/providers/banner_provider.dart';
 import 'package:bakaloo_flutter_app/features/home/presentation/providers/home_provider.dart';
 import 'package:bakaloo_flutter_app/features/home/presentation/utils/home_product_palettes.dart';
-import 'package:bakaloo_flutter_app/features/home/presentation/widgets/animated_banner_section.dart';
 import 'package:bakaloo_flutter_app/features/home/presentation/widgets/dynamic_home_sections.dart';
-import 'package:bakaloo_flutter_app/features/home/presentation/widgets/seasonal_deal_mosaic.dart';
 import 'package:bakaloo_flutter_app/features/products/domain/entities/product_entity.dart';
 import 'package:bakaloo_flutter_app/routing/app_router.dart';
 import 'package:bakaloo_flutter_app/routing/route_names.dart';
@@ -88,6 +86,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
   late final ProviderSubscription<AsyncValue<HomeScreenData>> _homeDataSub;
   late final ProviderSubscription<AsyncValue<TabHomeContentResponse?>>
       _tabHomeContentSub;
+  // PHASE 4: Track active tab key so we can reset scroll/stage state on switch.
+  late final ProviderSubscription<String> _tabKeySub;
+  String _activeTabKey = 'all';
   final GlobalKey _topSearchZoneKey = GlobalKey();
   double? _stickyHeaderTriggerOffset;
   final ValueNotifier<double> _stickyHeaderProgress = ValueNotifier<double>(0);
@@ -96,8 +97,11 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
   final ValueNotifier<bool> _isTopChromeMotionEnabled =
       ValueNotifier<bool>(true);
   bool _isThemeLayoutRefreshInFlight = false;
+  // ignore: unused_field — populated by _recomputeHomeData for _buildStagedSlivers
   List<CategoryEntity> _sortedCategories = const <CategoryEntity>[];
+  // ignore: unused_field
   List<CategoryEntity> _parentCategories = const <CategoryEntity>[];
+  // ignore: unused_field
   List<CategoryEntity> _showcaseCategories = const <CategoryEntity>[];
   List<CategoryEntity> _stagedCategories = const <CategoryEntity>[];
   List<CategoryEntity> _priorityCategories = const <CategoryEntity>[];
@@ -105,11 +109,15 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
   List<BannerEntity> _banners = const <BannerEntity>[];
   List<ProductEntity> _homeFeaturedProducts = const <ProductEntity>[];
   List<_HomePromoData> _bannerCarouselCards = const <_HomePromoData>[];
+  // ignore: unused_field
   List<ProductEntity> _managedSeasonalProducts = const <ProductEntity>[];
   List<ProductEntity> _managedFeaturedProducts = const <ProductEntity>[];
+  // ignore: unused_field
   List<ProductEntity> _managedTrendingProducts = const <ProductEntity>[];
+  // ignore: unused_field
   List<TabCategorySection> _managedCategorySections =
       const <TabCategorySection>[];
+  // ignore: unused_field
   List<ProductEntity> _featuredPool = const <ProductEntity>[];
   final ValueNotifier<List<Widget>> _cachedStagedSlivers =
       ValueNotifier<List<Widget>>(const <Widget>[]);
@@ -144,6 +152,17 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
       (_, __) {},
     );
     _deferredSectionStage.addListener(_rebuildStagedSlivers);
+    // PHASE 4: Listen for tab changes and immediately reset scroll position
+    // and deferred-section state so stale previous-tab content never bleeds
+    // into the newly selected tab.
+    _tabKeySub = ref.listenManual(
+      selectedCategoryIdProvider,
+      (previous, next) {
+        if (previous == next || next == _activeTabKey) return;
+        _activeTabKey = next;
+        _onTabChanged();
+      },
+    );
     _homeDataSub = ref.listenManual(
       homeProvider,
       (previous, next) {
@@ -257,6 +276,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
     _themeRefreshTimerSub.close();
     _homeDataSub.close();
     _tabHomeContentSub.close();
+    _tabKeySub.close();
     _deferredSectionStage
       ..removeListener(_rebuildStagedSlivers)
       ..dispose();
@@ -317,6 +337,47 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
 
   void _openSearch() {
     context.go(RouteNames.search);
+  }
+
+  /// Called immediately when the selected category/tab changes.
+  /// Resets all per-tab state so no stale Fresh/Dairy content can remain
+  /// visible when the user switches to a different tab (including All).
+  void _onTabChanged() {
+    // Scroll back to top so the header is visible for the new tab.
+    if (_homeScrollController.hasClients) {
+      _homeScrollController.jumpTo(0);
+    }
+
+    // Reset deferred section stage so old-tab sections aren't shown.
+    if (_deferredSectionStage.value != 0) {
+      _deferredSectionStage.value = 0;
+    }
+    _lastRenderedStage = -1;
+    _cachedStagedSlivers.value = const <Widget>[];
+
+    // Reset sticky header so it recalculates for the new tab layout.
+    _stickyHeaderTriggerOffset = null;
+    if (_stickyHeaderProgress.value != 0) {
+      _stickyHeaderProgress.value = 0;
+    }
+    if (_isStickyHeaderActive.value) {
+      _isStickyHeaderActive.value = false;
+    }
+    if (!_isTopChromeMotionEnabled.value) {
+      _isTopChromeMotionEnabled.value = true;
+    }
+
+    // Clear managed tab content immediately — new content will arrive via
+    // _tabHomeContentSub once the new tab's provider resolves.
+    _clearTabContentCache();
+
+    // Recalculate the sticky trigger offset after the new tab layout renders.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        _updateStickyHeaderTriggerOffset();
+        _handleHomeScroll();
+      }
+    });
   }
 
   void _recomputeHomeData(HomeScreenData data) {
@@ -565,7 +626,10 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
         (manifest) => manifest.sections.isEmpty,
       ),
     );
-    final showLegacySections = manifestIsEmpty && manifestIsLoading;
+    // Show skeleton sections ONLY while the manifest is actively loading and
+    // we have no cached content yet.  Never render old summer/campaign
+    // hardcoded widgets as a loading fallback.
+    final showSkeletonSections = manifestIsEmpty && manifestIsLoading;
     final showCategoryTabs = ref.watch(
       activeTabThemeProvider.select(
         (theme) => theme.sections.categoryTabs.visible,
@@ -602,14 +666,6 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
           loading: () => const _HomeLoadingView(),
           error: (error, stackTrace) => _HomeErrorView(onRetry: _refresh),
           data: (_) {
-            final sortedCategories = _sortedCategories;
-            final parentCategories = _parentCategories;
-            final showcaseCategories = _showcaseCategories;
-            final managedSeasonalProducts = _managedSeasonalProducts;
-            final managedFeaturedProducts = _managedFeaturedProducts;
-            final managedTrendingProducts = _managedTrendingProducts;
-            final managedCategorySections = _managedCategorySections;
-            final featuredProducts = _featuredPool;
             if (_stickyHeaderTriggerOffset == null) {
               WidgetsBinding.instance.addPostFrameCallback((_) {
                 if (mounted) {
@@ -739,351 +795,20 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
                               },
                             ),
                           ),
-                          if (showLegacySections) ...<Widget>[
-                            SliverToBoxAdapter(
-                              child: ValueListenableBuilder<bool>(
-                                valueListenable: _isTopChromeMotionEnabled,
-                                child: Consumer(
-                                  builder: (context, ref, _) {
-                                    final remoteTheme = ref.watch(
-                                      activeTabThemeProvider,
-                                    );
-                                    return RepaintBoundary(
-                                      child: AnimatedBannerSection(
-                                        assetPath:
-                                            'assets/lottie/summer_banner.lottie',
-                                        bannerTheme: remoteTheme
-                                            .sections.bannerAnimation,
-                                        feeStripTheme:
-                                            remoteTheme.sections.feeStrip,
-                                      ),
-                                    );
-                                  },
-                                ),
-                                builder: (
-                                  context,
-                                  isTopChromeMotionEnabled,
-                                  child,
-                                ) {
-                                  return TickerMode(
-                                    enabled: isTopChromeMotionEnabled,
-                                    child: child!,
-                                  );
-                                },
-                              ),
+                          // PHASE 1 FIX: Never render old summer/campaign
+                          // hardcoded widgets as a loading fallback.
+                          // Show skeleton while manifest loads; show
+                          // DynamicHomeSections once manifest arrives (even if
+                          // empty — an empty manifest means the dashboard
+                          // intentionally has no sections).
+                          if (showSkeletonSections)
+                            const SliverToBoxAdapter(
+                              child: _HomeSectionsSkeleton(),
+                            )
+                          else
+                            DynamicHomeSections(
+                              key: ValueKey<String>(activeTabKey),
                             ),
-                            SliverToBoxAdapter(
-                              child: managedSeasonalProducts.isNotEmpty
-                                  ? Padding(
-                                      padding: EdgeInsets.only(top: 0.h),
-                                      child: Consumer(
-                                        builder: (context, ref, _) {
-                                          final seasonalMosaicTheme = ref
-                                              .watch(activeTabThemeProvider)
-                                              .sections
-                                              .seasonalMosaic;
-                                          return RepaintBoundary(
-                                            child: SeasonalDealMosaic(
-                                              products: managedSeasonalProducts,
-                                              heroCandidates:
-                                                  _mergeUniqueProducts(
-                                                <List<ProductEntity>>[
-                                                  if (managedTrendingProducts
-                                                      .isNotEmpty)
-                                                    managedTrendingProducts,
-                                                  if (managedFeaturedProducts
-                                                      .isNotEmpty)
-                                                    managedFeaturedProducts,
-                                                  managedSeasonalProducts,
-                                                ],
-                                              ),
-                                              mosaicTheme: seasonalMosaicTheme,
-                                            ),
-                                          );
-                                        },
-                                      ),
-                                    )
-                                  : Consumer(
-                                      builder: (context, ref, _) {
-                                        final seasonalMosaicTheme = ref
-                                            .watch(activeTabThemeProvider)
-                                            .sections
-                                            .seasonalMosaic;
-                                        final dealsAsync =
-                                            ref.watch(homeDealsProvider);
-                                        final trendingAsync = ref.watch(
-                                          homeTrendingProductsProvider,
-                                        );
-                                        final dealsPool =
-                                            dealsAsync.asData?.value
-                                                    .where(
-                                                      (product) =>
-                                                          product.inStock,
-                                                    )
-                                                    .toList() ??
-                                                const <ProductEntity>[];
-                                        final trendingPool =
-                                            trendingAsync.asData?.value
-                                                    .where(
-                                                      (product) =>
-                                                          product.inStock,
-                                                    )
-                                                    .toList() ??
-                                                const <ProductEntity>[];
-                                        final seasonalProducts =
-                                            _mergeUniqueProducts(
-                                          <List<ProductEntity>>[
-                                            if (dealsPool.isNotEmpty) dealsPool,
-                                            featuredProducts,
-                                            if (trendingPool.isNotEmpty)
-                                              trendingPool,
-                                          ],
-                                        );
-
-                                        return Padding(
-                                          padding: EdgeInsets.only(top: 0.h),
-                                          child: RepaintBoundary(
-                                            child: SeasonalDealMosaic(
-                                              products: seasonalProducts,
-                                              heroCandidates:
-                                                  _mergeUniqueProducts(
-                                                <List<ProductEntity>>[
-                                                  if (trendingPool.isNotEmpty)
-                                                    trendingPool,
-                                                  if (featuredProducts
-                                                      .isNotEmpty)
-                                                    featuredProducts,
-                                                  seasonalProducts,
-                                                ],
-                                              ),
-                                              mosaicTheme: seasonalMosaicTheme,
-                                            ),
-                                          ),
-                                        );
-                                      },
-                                    ),
-                            ),
-                            if (showcaseCategories.isNotEmpty)
-                              SliverToBoxAdapter(
-                                child: Padding(
-                                  padding:
-                                      EdgeInsets.fromLTRB(22.w, 8.h, 22.w, 0),
-                                  child: RepaintBoundary(
-                                    child: _RoundCategoryShowcase(
-                                      categories: showcaseCategories,
-                                    ),
-                                  ),
-                                ),
-                              ),
-                            if (managedCategorySections.isNotEmpty)
-                              SliverToBoxAdapter(
-                                child: () {
-                                  final primarySection =
-                                      managedCategorySections.first;
-                                  final CategoryEntity? primaryCategory =
-                                      _findCategoryById(
-                                    sortedCategories,
-                                    primarySection.categoryId,
-                                  );
-                                  final subCats = primaryCategory == null
-                                      ? const <CategoryEntity>[]
-                                      : sortedCategories
-                                          .where(
-                                            (c) =>
-                                                c.parentId ==
-                                                    primaryCategory.id &&
-                                                c.isActive,
-                                          )
-                                          .take(5)
-                                          .toList();
-
-                                  if (primaryCategory != null) {
-                                    return Column(
-                                      mainAxisSize: MainAxisSize.min,
-                                      children: <Widget>[
-                                        const RepaintBoundary(
-                                          child: _FreshBankOfferStrip(),
-                                        ),
-                                        Padding(
-                                          padding: EdgeInsets.only(top: 4.h),
-                                          child: RepaintBoundary(
-                                            child: _FreshCategorySection(
-                                              category: primaryCategory,
-                                              subCategories: subCats,
-                                              products: primarySection.products
-                                                  .take(8)
-                                                  .toList(),
-                                            ),
-                                          ),
-                                        ),
-                                      ],
-                                    );
-                                  }
-
-                                  return Padding(
-                                    padding: EdgeInsets.only(top: 6.h),
-                                    child: RepaintBoundary(
-                                      child: _CategoryProductSection(
-                                        title: primarySection.title,
-                                        categoryId: primarySection.categoryId,
-                                        products: primarySection.products
-                                            .take(6)
-                                            .toList(),
-                                      ),
-                                    ),
-                                  );
-                                }(),
-                              )
-                            else if (parentCategories.isNotEmpty)
-                              SliverToBoxAdapter(
-                                child: Consumer(
-                                  builder: (context, ref, _) {
-                                    final freshCat = parentCategories.first;
-                                    final freshAsync = ref.watch(
-                                      homeCategoryProductsProvider(freshCat.id),
-                                    );
-                                    final freshProducts = freshAsync
-                                        .asData?.value
-                                        .where((p) => p.inStock)
-                                        .toList();
-                                    if (freshProducts == null ||
-                                        freshProducts.isEmpty) {
-                                      return const SizedBox.shrink();
-                                    }
-
-                                    final subCats = sortedCategories
-                                        .where(
-                                          (c) =>
-                                              c.parentId == freshCat.id &&
-                                              c.isActive,
-                                        )
-                                        .take(5)
-                                        .toList();
-
-                                    return Column(
-                                      mainAxisSize: MainAxisSize.min,
-                                      children: <Widget>[
-                                        const RepaintBoundary(
-                                          child: _FreshBankOfferStrip(),
-                                        ),
-                                        Padding(
-                                          padding: EdgeInsets.only(top: 4.h),
-                                          child: RepaintBoundary(
-                                            child: _FreshCategorySection(
-                                              category: freshCat,
-                                              subCategories: subCats,
-                                              products: freshProducts
-                                                  .take(8)
-                                                  .toList(),
-                                            ),
-                                          ),
-                                        ),
-                                      ],
-                                    );
-                                  },
-                                ),
-                              ),
-                            ValueListenableBuilder<int>(
-                              valueListenable: _deferredSectionStage,
-                              builder: (context, deferredSectionStage, _) {
-                                if (deferredSectionStage < 1) {
-                                  return const SliverToBoxAdapter(
-                                    child: SizedBox.shrink(),
-                                  );
-                                }
-
-                                return SliverToBoxAdapter(
-                                  child: managedTrendingProducts.isNotEmpty
-                                      ? Padding(
-                                          padding: EdgeInsets.only(top: 6.h),
-                                          child: RepaintBoundary(
-                                            child: _TrendingNearYouSection(
-                                              products: managedTrendingProducts
-                                                  .take(6)
-                                                  .toList(),
-                                            ),
-                                          ),
-                                        )
-                                      : Consumer(
-                                          builder: (context, ref, _) {
-                                            final trendingAsync = ref.watch(
-                                              homeTrendingProductsProvider,
-                                            );
-                                            final trendingProducts =
-                                                trendingAsync.asData?.value
-                                                        .where((p) => p.inStock)
-                                                        .toList() ??
-                                                    const <ProductEntity>[];
-                                            if (trendingProducts.isEmpty) {
-                                              return const SizedBox.shrink();
-                                            }
-
-                                            return Padding(
-                                              padding:
-                                                  EdgeInsets.only(top: 6.h),
-                                              child: RepaintBoundary(
-                                                child: _TrendingNearYouSection(
-                                                  products: trendingProducts
-                                                      .take(6)
-                                                      .toList(),
-                                                ),
-                                              ),
-                                            );
-                                          },
-                                        ),
-                                );
-                              },
-                            ),
-                            ...() {
-                              if (managedCategorySections.length > 1) {
-                                final remaining = managedCategorySections
-                                    .skip(1)
-                                    .toList(growable: false);
-                                return <Widget>[
-                                  SliverList(
-                                    delegate: SliverChildBuilderDelegate(
-                                      (context, index) {
-                                        final section = remaining[index];
-                                        return Padding(
-                                          padding: EdgeInsets.only(top: 6.h),
-                                          child: RepaintBoundary(
-                                            child: _CategoryProductSection(
-                                              title: section.title,
-                                              categoryId: section.categoryId,
-                                              products: section.products
-                                                  .take(6)
-                                                  .toList(),
-                                            ),
-                                          ),
-                                        );
-                                      },
-                                      childCount: remaining.length,
-                                    ),
-                                  ),
-                                ];
-                              }
-
-                              return <Widget>[
-                                ValueListenableBuilder<List<Widget>>(
-                                  valueListenable: _cachedStagedSlivers,
-                                  builder: (context, slivers, _) {
-                                    if (slivers.isEmpty) {
-                                      return const SliverToBoxAdapter(
-                                        child: SizedBox.shrink(),
-                                      );
-                                    }
-                                    return SliverList(
-                                      delegate: SliverChildBuilderDelegate(
-                                        (context, index) => slivers[index],
-                                        childCount: slivers.length,
-                                      ),
-                                    );
-                                  },
-                                ),
-                              ];
-                            }(),
-                          ] else
-                            const DynamicHomeSections(),
                           SliverToBoxAdapter(child: Gap(0)),
                         ],
                       ),
@@ -3281,85 +3006,106 @@ class _HomeLoadingView extends StatelessWidget {
   Widget build(BuildContext context) {
     return SafeArea(
       bottom: false,
-      child: ListView(
-        physics: const NeverScrollableScrollPhysics(),
-        padding: EdgeInsets.fromLTRB(22.w, 12.h, 22.w, 124.h),
-        children: <Widget>[
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: <Widget>[
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: <Widget>[
-                    SkeletonLoader(width: 190.w, height: 24.h, radius: 12),
-                    Gap(8.h),
-                    SkeletonLoader(width: 168.w, height: 24.h, radius: 12),
-                    Gap(12.h),
-                    SkeletonLoader(width: 220.w, height: 14.h, radius: 10),
-                  ],
+      // PERF: Single Shimmer animation controller for all skeleton boxes.
+      child: SkeletonShimmerGroup(
+        child: ListView(
+          physics: const NeverScrollableScrollPhysics(),
+          padding: EdgeInsets.fromLTRB(22.w, 12.h, 22.w, 124.h),
+          children: <Widget>[
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: <Widget>[
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: <Widget>[
+                      SkeletonLoader(
+                          width: 190.w, height: 24.h, radius: 12,
+                          useOwnShimmer: false),
+                      Gap(8.h),
+                      SkeletonLoader(
+                          width: 168.w, height: 24.h, radius: 12,
+                          useOwnShimmer: false),
+                      Gap(12.h),
+                      SkeletonLoader(
+                          width: 220.w, height: 14.h, radius: 10,
+                          useOwnShimmer: false),
+                    ],
+                  ),
+                ),
+                Gap(14.w),
+                const SkeletonLoader.circular(size: 56, useOwnShimmer: false),
+                Gap(10.w),
+                const SkeletonLoader.circular(size: 56, useOwnShimmer: false),
+              ],
+            ),
+            Gap(24.h),
+            SkeletonLoader(
+                width: double.infinity, height: 192.h, radius: 30,
+                useOwnShimmer: false),
+            Gap(12.h),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: <Widget>[
+                SkeletonLoader(
+                    width: 24.w, height: 8.h, radius: 99,
+                    useOwnShimmer: false),
+                Gap(6.w),
+                SkeletonLoader(
+                    width: 8.w, height: 8.h, radius: 99,
+                    useOwnShimmer: false),
+                Gap(6.w),
+                SkeletonLoader(
+                    width: 8.w, height: 8.h, radius: 99,
+                    useOwnShimmer: false),
+              ],
+            ),
+            Gap(18.h),
+            SizedBox(
+              height: 56.h,
+              child: ListView.builder(
+                scrollDirection: Axis.horizontal,
+                itemCount: 4,
+                itemExtentBuilder: (index, _) => _horizontalRailExtent(
+                  index,
+                  4,
+                  124.w,
+                  12.w,
+                ),
+                itemBuilder: (_, __) => SkeletonLoader(
+                  width: 124.w,
+                  height: 56.h,
+                  radius: 18,
+                  useOwnShimmer: false,
                 ),
               ),
-              Gap(14.w),
-              const SkeletonLoader.circular(size: 56),
-              Gap(10.w),
-              const SkeletonLoader.circular(size: 56),
-            ],
-          ),
-          Gap(24.h),
-          SkeletonLoader(width: double.infinity, height: 192.h, radius: 30),
-          Gap(12.h),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: <Widget>[
-              SkeletonLoader(width: 24.w, height: 8.h, radius: 99),
-              Gap(6.w),
-              SkeletonLoader(width: 8.w, height: 8.h, radius: 99),
-              Gap(6.w),
-              SkeletonLoader(width: 8.w, height: 8.h, radius: 99),
-            ],
-          ),
-          Gap(18.h),
-          SizedBox(
-            height: 56.h,
-            child: ListView.builder(
-              scrollDirection: Axis.horizontal,
-              itemCount: 4,
-              itemExtentBuilder: (index, _) => _horizontalRailExtent(
-                index,
-                4,
-                124.w,
-                12.w,
-              ),
-              itemBuilder: (_, __) => SkeletonLoader(
-                width: 124.w,
-                height: 56.h,
-                radius: 18,
+            ),
+            Gap(28.h),
+            SkeletonLoader(
+                width: 180.w, height: 18.h, radius: 12,
+                useOwnShimmer: false),
+            Gap(14.h),
+            SizedBox(
+              height: 306.h,
+              child: ListView.builder(
+                scrollDirection: Axis.horizontal,
+                itemCount: 2,
+                itemExtentBuilder: (index, _) => _horizontalRailExtent(
+                  index,
+                  2,
+                  248.w,
+                  16.w,
+                ),
+                itemBuilder: (_, __) => SkeletonLoader(
+                  width: 248.w,
+                  height: 306.h,
+                  radius: 30,
+                  useOwnShimmer: false,
+                ),
               ),
             ),
-          ),
-          Gap(28.h),
-          SkeletonLoader(width: 180.w, height: 18.h, radius: 12),
-          Gap(14.h),
-          SizedBox(
-            height: 306.h,
-            child: ListView.builder(
-              scrollDirection: Axis.horizontal,
-              itemCount: 2,
-              itemExtentBuilder: (index, _) => _horizontalRailExtent(
-                index,
-                2,
-                248.w,
-                16.w,
-              ),
-              itemBuilder: (_, __) => SkeletonLoader(
-                width: 248.w,
-                height: 306.h,
-                radius: 30,
-              ),
-            ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
@@ -3376,6 +3122,84 @@ class _HomeErrorView extends StatelessWidget {
       title: 'Home feed unavailable',
       message: 'We could not load the storefront right now. Try again.',
       onRetry: () => unawaited(onRetry()),
+    );
+  }
+}
+
+/// Skeleton shown inside the scroll view while the section manifest is loading.
+/// Replaces old hardcoded summer/campaign fallback widgets so nothing from a
+/// previous deployment ever flashes on startup.
+class _HomeSectionsSkeleton extends StatelessWidget {
+  const _HomeSectionsSkeleton();
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: EdgeInsets.fromLTRB(22.w, 8.h, 22.w, 40.h),
+      // PERF: Single Shimmer controller for the section skeleton group.
+      child: SkeletonShimmerGroup(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: <Widget>[
+            // Banner skeleton
+            SkeletonLoader(
+                width: double.infinity, height: 160.h, radius: 24,
+                useOwnShimmer: false),
+            Gap(16.h),
+            // Section header skeleton
+            SkeletonLoader(
+                width: 160.w, height: 18.h, radius: 10,
+                useOwnShimmer: false),
+            Gap(12.h),
+            // Horizontal product rail skeleton
+            SizedBox(
+              height: 200.h,
+              child: ListView.builder(
+                scrollDirection: Axis.horizontal,
+                physics: const NeverScrollableScrollPhysics(),
+                itemCount: 3,
+                itemExtentBuilder: (index, _) => _horizontalRailExtent(
+                  index,
+                  3,
+                  148.w,
+                  12.w,
+                ),
+                itemBuilder: (_, __) => SkeletonLoader(
+                  width: 148.w,
+                  height: 200.h,
+                  radius: 20,
+                  useOwnShimmer: false,
+                ),
+              ),
+            ),
+            Gap(20.h),
+            SkeletonLoader(
+                width: 140.w, height: 18.h, radius: 10,
+                useOwnShimmer: false),
+            Gap(12.h),
+            SizedBox(
+              height: 200.h,
+              child: ListView.builder(
+                scrollDirection: Axis.horizontal,
+                physics: const NeverScrollableScrollPhysics(),
+                itemCount: 3,
+                itemExtentBuilder: (index, _) => _horizontalRailExtent(
+                  index,
+                  3,
+                  148.w,
+                  12.w,
+                ),
+                itemBuilder: (_, __) => SkeletonLoader(
+                  width: 148.w,
+                  height: 200.h,
+                  radius: 20,
+                  useOwnShimmer: false,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }
