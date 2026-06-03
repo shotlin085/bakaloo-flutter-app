@@ -216,18 +216,21 @@ class AuthGateController {
       return true;
     }
 
+    // Capture router before the async gap (sheet open) to avoid stale context
+    final router = GoRouter.of(context);
+
     final shouldLogin = await LoginRequiredSheet.show(
       context,
       title: title,
       message: message,
     );
 
-    if (!shouldLogin || !context.mounted) {
+    if (!shouldLogin) {
       return false;
     }
 
     _ref.read(pendingAuthIntentProvider.notifier).remember(intent);
-    await context.push(RouteNames.phone);
+    router.push(RouteNames.phone);
     return false;
   }
 
