@@ -168,7 +168,8 @@ class CheckoutNotifier extends _$CheckoutNotifier {
 
     return result.fold(
       (failure) {
-        state = state.copyWith(errorMessage: failure.message);
+        final message = _mapCouponError(failure.message);
+        state = state.copyWith(errorMessage: message);
         return false;
       },
       (coupon) {
@@ -194,6 +195,39 @@ class CheckoutNotifier extends _$CheckoutNotifier {
       currentStep: CheckoutStep.coupon,
       errorMessage: null,
     );
+  }
+
+  /// Maps raw backend coupon error messages / codes to user-friendly copy.
+  String _mapCouponError(String raw) {
+    final lower = raw.toLowerCase();
+    if (lower.contains('uuid') || lower.contains('syntax')) {
+      return 'This coupon is not available.';
+    }
+    if (lower.contains('expired')) {
+      return 'This coupon has expired.';
+    }
+    if (lower.contains('minimum') || lower.contains('min_order') || lower.contains('min order')) {
+      return raw; // already includes the ₹ amount — keep as is
+    }
+    if (lower.contains('usage limit') || lower.contains('limit reached')) {
+      return 'This coupon has reached its usage limit.';
+    }
+    if (lower.contains('already used') || lower.contains('user_limit') || lower.contains('maximum number')) {
+      return 'You have already used this coupon.';
+    }
+    if (lower.contains('not found') || lower.contains('invalid coupon') || lower.contains('inactive')) {
+      return 'This coupon is not available.';
+    }
+    if (lower.contains('not yet active') || lower.contains('not started')) {
+      return 'This coupon is not yet active.';
+    }
+    if (lower.contains('multi-shop')) {
+      return 'Coupons are not supported for orders from multiple stores.';
+    }
+    if (lower.contains('validation error')) {
+      return 'Could not apply coupon. Please try again.';
+    }
+    return raw;
   }
 
   void clearError() {

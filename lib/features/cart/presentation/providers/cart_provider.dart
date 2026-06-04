@@ -417,13 +417,39 @@ void showCartSnackBar(
   String message, {
   bool isError = true,
 }) {
+  // Map raw backend/token error messages to user-friendly copy.
+  final displayMessage = _mapCartErrorMessage(message);
   ScaffoldMessenger.of(context)
     ..hideCurrentSnackBar()
     ..showSnackBar(
       SnackBar(
-        content: Text(message),
+        content: Text(displayMessage),
         backgroundColor: isError ? Colors.red.shade700 : Colors.green.shade700,
         behavior: SnackBarBehavior.floating,
       ),
     );
+}
+
+/// Maps technical backend error messages to user-friendly copy.
+/// Prevents raw strings like "Invalid or expired refresh token" reaching users.
+String _mapCartErrorMessage(String raw) {
+  final lower = raw.toLowerCase();
+  if (lower.contains('refresh token') ||
+      lower.contains('expired') && lower.contains('token') ||
+      lower.contains('invalid token') ||
+      lower.contains('unauthorized') ||
+      lower.contains('not authenticated') ||
+      lower.contains('session has expired')) {
+    return 'Your session has expired. Please sign in again.';
+  }
+  if (lower.contains('jwt') || lower.contains('signature')) {
+    return 'Your session has expired. Please sign in again.';
+  }
+  if (lower.contains('uuid') || lower.contains('syntax error')) {
+    return 'Something went wrong. Please try again.';
+  }
+  if (lower.contains('validation error') && lower.length < 20) {
+    return 'Something went wrong. Please try again.';
+  }
+  return raw;
 }

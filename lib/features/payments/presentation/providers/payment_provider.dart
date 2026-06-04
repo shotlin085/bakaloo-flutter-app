@@ -82,7 +82,7 @@ final razorpayServiceProvider = Provider<RazorpayService>((Ref ref) {
   return service;
 });
 
-@riverpod
+@Riverpod(keepAlive: true)
 Future<double> walletBalance(Ref ref) async {
   final result = await ref.read(paymentRepositoryProvider).getWalletBalance();
   return result.fold((failure) {

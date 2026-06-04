@@ -37,11 +37,28 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
   bool _billExpanded = false;
 
   @override
+  void initState() {
+    super.initState();
+    // Eagerly trigger wallet balance fetch so it's ready when the payment
+    // section renders. Without this, the provider only fetches on first watch
+    // which can be mid-render, causing a ₹0 flash.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        // Trigger the provider if not already cached
+        ref.read(walletBalanceProvider.future).ignore();
+      }
+    });
+  }
+
+  @override
   Widget build(BuildContext context) {
     final cartAsync = ref.watch(cartProvider);
     final checkoutState = ref.watch(checkoutProvider);
     final walletBalanceAsync = ref.watch(walletBalanceProvider);
-    final walletBalance = walletBalanceAsync.asData?.value ?? 0.0;
+    // Don't show ₹0 while loading — it misleads users into thinking their
+    // wallet is empty. Show the loading state in the WalletPaymentCard instead.
+    final walletBalance = walletBalanceAsync.asData?.value;
+    final walletLoading = walletBalanceAsync.isLoading;
     final summary = ref.read(checkoutProvider.notifier).summary;
     final isPlacing = checkoutState.isPlacingOrder;
 
@@ -104,8 +121,9 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
           return _buildBody(
             checkoutState: checkoutState,
             summary: summary,
-            walletBalance: walletBalance,
-            walletLoading: walletBalanceAsync.isLoading,
+            walletBalance: walletBalance ?? 0.0,
+            walletLoading: walletLoading,
+            walletError: walletBalanceAsync.hasError,
             itemCount: cart.itemCount,
             items: cart.items,
           );
@@ -151,6 +169,7 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
     required CheckoutSummaryEntity summary,
     required double walletBalance,
     required bool walletLoading,
+    required bool walletError,
     required int itemCount,
     required List<CartItemEntity> items,
   }) {
@@ -206,9 +225,10 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
           balance: walletBalance,
           total: summary.total,
           isLoading: walletLoading,
+          hasError: walletError,
           shortfall: shortfall > 0 ? shortfall : 0,
           selected: selectedMethod == PaymentMethod.wallet,
-          onSelect: () => ref
+          onSelect: walletLoading ? null : () => ref
               .read(checkoutProvider.notifier)
               .selectPaymentMethod(PaymentMethod.wallet),
           onPay: () => _handlePayment(PaymentMethod.wallet),
@@ -972,6 +992,7 @@ class _WalletPaymentCard extends StatelessWidget {
     required this.balance,
     required this.total,
     required this.isLoading,
+    required this.hasError,
     required this.shortfall,
     required this.selected,
     required this.onSelect,
@@ -983,9 +1004,10 @@ class _WalletPaymentCard extends StatelessWidget {
   final double balance;
   final double total;
   final bool isLoading;
+  final bool hasError;
   final double shortfall;
   final bool selected;
-  final VoidCallback onSelect;
+  final VoidCallback? onSelect;
   final VoidCallback onPay;
   final VoidCallback onAddMoney;
   final bool isPlacingOrder;
@@ -996,7 +1018,7 @@ class _WalletPaymentCard extends StatelessWidget {
   Widget build(BuildContext context) {
     return _PaymentCardShell(
       selected: selected,
-      onSelect: onSelect,
+      onSelect: onSelect ?? () {},
       child: Padding(
         padding: EdgeInsets.all(16.w),
         child: Column(
@@ -1021,21 +1043,29 @@ class _WalletPaymentCard extends StatelessWidget {
                         ),
                       ),
                       Gap(2.h),
-                      isLoading
-                          ? Container(
-                              width: 70.w,
-                              height: 11.h,
-                              decoration: BoxDecoration(
-                                color: AppColors.bgSkeleton,
-                                borderRadius: BorderRadius.circular(6),
-                              ),
-                            )
-                          : Text(
-                              'Balance: ${balance.toInrCurrency}',
-                              style: AppTextStyles.bodySmall.copyWith(
-                                color: AppColors.textSecondary,
-                              ),
-                            ),
+                      if (isLoading)
+                        Container(
+                          width: 70.w,
+                          height: 11.h,
+                          decoration: BoxDecoration(
+                            color: AppColors.bgSkeleton,
+                            borderRadius: BorderRadius.circular(6),
+                          ),
+                        )
+                      else if (hasError)
+                        Text(
+                          'Balance unavailable',
+                          style: AppTextStyles.bodySmall.copyWith(
+                            color: AppColors.errorRed,
+                          ),
+                        )
+                      else
+                        Text(
+                          'Balance: ${balance.toInrCurrency}',
+                          style: AppTextStyles.bodySmall.copyWith(
+                            color: AppColors.textSecondary,
+                          ),
+                        ),
                     ],
                   ),
                 ),

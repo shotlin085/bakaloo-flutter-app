@@ -16,6 +16,7 @@ import 'package:bakaloo_flutter_app/core/network/network_activity_provider.dart'
 import 'package:bakaloo_flutter_app/core/security/certificate_pinning.dart';
 import 'package:bakaloo_flutter_app/core/socket/socket_service.dart';
 import 'package:bakaloo_flutter_app/core/storage/secure_storage_service.dart';
+import 'package:bakaloo_flutter_app/features/auth/presentation/providers/auth_notifier.dart';
 
 class DioClient {
   DioClient._();
@@ -49,6 +50,17 @@ class DioClient {
         secureStorageService: secureStorageService,
         onTokenRefreshed: (accessToken) {
           ref.read(socketServiceProvider).reconnect(accessToken);
+        },
+        // When refresh token is also expired, force-logout the user so they
+        // are redirected to the phone login screen instead of seeing a raw
+        // "Invalid or expired refresh token" snackbar.
+        onForceLogout: () {
+          try {
+            ref.read(authNotifierProvider.notifier).logout();
+          } catch (_) {
+            // Logout is best-effort — if the notifier is already disposed,
+            // the user will be redirected on the next navigation attempt.
+          }
         },
       ),
     ]);
