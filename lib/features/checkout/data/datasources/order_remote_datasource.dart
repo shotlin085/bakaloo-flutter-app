@@ -25,7 +25,22 @@ class OrderRemoteDataSource {
       );
     }
 
-    return OrderModel.fromJson(Map<String, dynamic>.from(data));
+    final dataMap = Map<String, dynamic>.from(data);
+
+    // Backend returns { orders: [...], order: {...} }.
+    // Parse the single `order` object (first per-shop order).
+    final orderJson = dataMap['order'] ?? dataMap;
+    if (orderJson is Map) {
+      return OrderModel.fromJson(Map<String, dynamic>.from(orderJson));
+    }
+
+    // Fallback: try parsing from the orders array
+    final ordersArray = dataMap['orders'];
+    if (ordersArray is List && ordersArray.isNotEmpty && ordersArray.first is Map) {
+      return OrderModel.fromJson(Map<String, dynamic>.from(ordersArray.first));
+    }
+
+    return OrderModel.fromJson(dataMap);
   }
 
   Map<String, dynamic> _parsePayload(dynamic raw, String path) {

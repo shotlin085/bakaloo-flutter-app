@@ -180,6 +180,19 @@ class CartNotifier extends _$CartNotifier {
 
     return result.fold(
       (failure) {
+        // If item is no longer in the backend cart (e.g. stale after
+        // validateCart stripped it), refresh from backend so the UI
+        // re-syncs rather than staying in a broken optimistic state.
+        if (failure is NotFoundFailure ||
+            failure.message.contains('not in cart') ||
+            failure.message.contains('CART_ITEM_NOT_FOUND')) {
+          ref.invalidateSelf();
+          return CartActionResult(
+            failure: const NotFoundFailure(
+              message: 'Item no longer in cart. Cart has been refreshed.',
+            ),
+          );
+        }
         state = AsyncData(previous);
         return CartActionResult(failure: failure);
       },
@@ -215,6 +228,14 @@ class CartNotifier extends _$CartNotifier {
 
     return result.fold(
       (failure) {
+        // If item is not found on backend, keep the optimistic removal
+        // (it's already gone from UI) and refresh cart to fully sync.
+        if (failure is NotFoundFailure ||
+            failure.message.contains('not in cart') ||
+            failure.message.contains('CART_ITEM_NOT_FOUND')) {
+          ref.invalidateSelf();
+          return const CartActionResult(); // treat as success — item is gone
+        }
         state = AsyncData(previous);
         return CartActionResult(failure: failure);
       },

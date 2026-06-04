@@ -51,6 +51,16 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
   }
 
   @override
+  void dispose() {
+    // Refresh cart when leaving checkout (back press, payment cancel, etc.)
+    // so that any Redis mutations from validateCart are reflected in the
+    // Flutter cart state. This prevents "Item not in cart" on the next
+    // cart screen interaction.
+    ref.read(cartProvider.notifier).refresh();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
     final cartAsync = ref.watch(cartProvider);
     final checkoutState = ref.watch(checkoutProvider);

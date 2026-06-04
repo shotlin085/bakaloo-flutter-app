@@ -57,9 +57,13 @@ Failure _mapResponseError(Response<dynamic>? response) {
 
   switch (statusCode) {
     case 400:
+      // For validation errors, prefer the first specific field error over
+      // the generic "Validation error" top-level message.
+      final errors = _extractErrors(data);
+      final specificMessage = errors?.isNotEmpty == true ? errors!.first : null;
       return ValidationFailure(
-        message: message,
-        errors: _extractErrors(data),
+        message: specificMessage ?? message,
+        errors: errors,
       );
     case 401:
     case 403:

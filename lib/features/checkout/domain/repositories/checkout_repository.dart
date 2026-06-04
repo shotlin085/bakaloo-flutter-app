@@ -19,9 +19,13 @@ class PlaceOrderParams {
     return <String, dynamic>{
       'addressId': addressId,
       'paymentMethod': paymentMethod,
-      'couponCode': couponCode,
-      'deliveryNotes': deliveryNotes,
-    }..removeWhere((key, value) => value == null);
+      // Only include couponCode when it's a non-empty string.
+      // An empty string fails the backend's minLength:1 schema → "Validation error".
+      if (couponCode != null && couponCode!.trim().isNotEmpty)
+        'couponCode': couponCode!.trim(),
+      if (deliveryNotes != null && deliveryNotes!.trim().isNotEmpty)
+        'deliveryNotes': deliveryNotes!.trim(),
+    };
   }
 }
 
