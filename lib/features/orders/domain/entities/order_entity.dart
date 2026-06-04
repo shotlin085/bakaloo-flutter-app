@@ -30,6 +30,11 @@ abstract class OrderEntity with _$OrderEntity {
     DateTime? estimatedDelivery,
     @Default(<String, dynamic>{}) Map<String, dynamic> tracking,
     @Default(<OrderTimelineEntity>[]) List<OrderTimelineEntity> timeline,
+    // Delivery slot fields
+    @Default('ASAP') String deliveryMode,
+    String? scheduledSlotLabel,
+    DateTime? scheduledSlotStart,
+    DateTime? scheduledSlotEnd,
   }) = _OrderEntity;
 
   List<OrderTimelineEntity> get statusHistory => timeline;

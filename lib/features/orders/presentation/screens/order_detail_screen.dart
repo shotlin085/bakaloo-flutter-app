@@ -297,12 +297,42 @@ class _StatusHero extends StatelessWidget {
                     color: Colors.white.withValues(alpha: 0.95),
                   ),
                 ),
-                if (order.estimatedDelivery != null) ...<Widget>[
+                if (order.estimatedDelivery != null && order.deliveryMode != 'SCHEDULED') ...<Widget>[
                   Gap(8.h),
                   Text(
                     'ETA: ${order.estimatedDelivery!.toIndianDateTime}',
                     style: AppTextStyles.labelSmall.copyWith(
                       color: Colors.white,
+                    ),
+                  ),
+                ],
+                if (order.deliveryMode == 'SCHEDULED' &&
+                    order.scheduledSlotLabel != null) ...<Widget>[
+                  Gap(8.h),
+                  Container(
+                    padding: EdgeInsets.symmetric(
+                        horizontal: 8.w, vertical: 4.h),
+                    decoration: BoxDecoration(
+                      color: Colors.white.withValues(alpha: 0.18),
+                      borderRadius: BorderRadius.circular(6.r),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(
+                          Icons.calendar_month_outlined,
+                          size: 12.sp,
+                          color: Colors.white,
+                        ),
+                        Gap(4.w),
+                        Text(
+                          order.scheduledSlotLabel!,
+                          style: AppTextStyles.labelSmall.copyWith(
+                            color: Colors.white,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ],
                     ),
                   ),
                 ],

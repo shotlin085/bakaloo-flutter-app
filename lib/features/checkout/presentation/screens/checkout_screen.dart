@@ -17,6 +17,7 @@ import 'package:bakaloo_flutter_app/features/addresses/presentation/providers/ad
 import 'package:bakaloo_flutter_app/features/cart/domain/entities/cart_item_entity.dart';
 import 'package:bakaloo_flutter_app/features/cart/presentation/providers/cart_provider.dart';
 import 'package:bakaloo_flutter_app/features/checkout/domain/entities/checkout_summary_entity.dart';
+import 'package:bakaloo_flutter_app/features/checkout/domain/entities/delivery_slot_entity.dart';
 import 'package:bakaloo_flutter_app/features/checkout/presentation/providers/checkout_provider.dart';
 import 'package:bakaloo_flutter_app/features/payments/presentation/providers/payment_provider.dart';
 import 'package:bakaloo_flutter_app/routing/route_names.dart';
@@ -209,6 +210,7 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
           _DeliveryInfoCard(
             address: address,
             itemCount: itemCount,
+            selectedSlot: checkoutState.selectedDeliverySlot,
             onChangeAddress: () => _changeAddress(context),
           )
         else
@@ -731,14 +733,19 @@ class _DeliveryInfoCard extends StatelessWidget {
     required this.address,
     required this.itemCount,
     required this.onChangeAddress,
+    this.selectedSlot,
   });
 
   final AddressEntity address;
   final int itemCount;
   final VoidCallback onChangeAddress;
+  final SelectedDeliverySlot? selectedSlot;
 
   @override
   Widget build(BuildContext context) {
+    final slot = selectedSlot ?? const SelectedDeliverySlot.asap();
+    final isScheduled = slot.isScheduled;
+
     return Container(
       padding: EdgeInsets.all(14.w),
       decoration: BoxDecoration(
@@ -747,87 +754,124 @@ class _DeliveryInfoCard extends StatelessWidget {
         border: Border.all(color: AppColors.borderLight),
         boxShadow: const <BoxShadow>[AppShadows.cardShadow],
       ),
-      child: Row(
+      child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
-        children: <Widget>[
-          Container(
-            width: 40.w,
-            height: 40.w,
-            decoration: const BoxDecoration(
-              color: AppColors.primaryGreenLight,
-              shape: BoxShape.circle,
-            ),
-            child: Icon(
-              Icons.location_on_rounded,
-              color: AppColors.primaryGreen,
-              size: 20.sp,
-            ),
-          ),
-          Gap(12.w),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: <Widget>[
-                Row(
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: <Widget>[
+              Container(
+                width: 40.w,
+                height: 40.w,
+                decoration: const BoxDecoration(
+                  color: AppColors.primaryGreenLight,
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(
+                  Icons.location_on_rounded,
+                  color: AppColors.primaryGreen,
+                  size: 20.sp,
+                ),
+              ),
+              Gap(12.w),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: <Widget>[
-                    Text(
-                      address.label,
-                      style: AppTextStyles.labelLarge.copyWith(
-                        fontWeight: FontWeight.w700,
-                        fontSize: 14.sp,
-                      ),
-                    ),
-                    Gap(8.w),
-                    Container(
-                      padding:
-                          EdgeInsets.symmetric(horizontal: 8.w, vertical: 2.h),
-                      decoration: BoxDecoration(
-                        color: AppColors.orderVioletSurface,
-                        borderRadius:
-                            BorderRadius.circular(AppDimensions.radiusFull),
-                      ),
-                      child: Text(
-                        '$itemCount item${itemCount == 1 ? '' : 's'}',
-                        style: AppTextStyles.bodySmall.copyWith(
-                          color: AppColors.orderViolet,
-                          fontSize: 10.sp,
-                          fontWeight: FontWeight.w700,
+                    Row(
+                      children: <Widget>[
+                        Text(
+                          address.label,
+                          style: AppTextStyles.labelLarge.copyWith(
+                            fontWeight: FontWeight.w700,
+                            fontSize: 14.sp,
+                          ),
                         ),
+                        Gap(8.w),
+                        Container(
+                          padding: EdgeInsets.symmetric(
+                              horizontal: 8.w, vertical: 2.h),
+                          decoration: BoxDecoration(
+                            color: AppColors.orderVioletSurface,
+                            borderRadius:
+                                BorderRadius.circular(AppDimensions.radiusFull),
+                          ),
+                          child: Text(
+                            '$itemCount item${itemCount == 1 ? '' : 's'}',
+                            style: AppTextStyles.bodySmall.copyWith(
+                              color: AppColors.orderViolet,
+                              fontSize: 10.sp,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    Gap(4.h),
+                    Text(
+                      _format(address),
+                      style: AppTextStyles.bodySmall.copyWith(
+                        color: AppColors.textSecondary,
+                        height: 1.45,
                       ),
                     ),
                   ],
                 ),
-                Gap(4.h),
-                Text(
-                  _format(address),
-                  style: AppTextStyles.bodySmall.copyWith(
-                    color: AppColors.textSecondary,
-                    height: 1.45,
+              ),
+              Gap(8.w),
+              GestureDetector(
+                onTap: onChangeAddress,
+                behavior: HitTestBehavior.opaque,
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: <Widget>[
+                    Text(
+                      'Change',
+                      style: AppTextStyles.buttonSmall
+                          .copyWith(color: AppColors.primaryGreen),
+                    ),
+                    Icon(
+                      Icons.chevron_right_rounded,
+                      color: AppColors.primaryGreen,
+                      size: 16.sp,
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          // ── Scheduled delivery badge ──────────────────────────────
+          if (isScheduled) ...[
+            Gap(10.h),
+            Container(
+              padding: EdgeInsets.symmetric(horizontal: 10.w, vertical: 7.h),
+              decoration: BoxDecoration(
+                color: const Color(0xFFF5F3FF),
+                borderRadius: BorderRadius.circular(8.r),
+                border: Border.all(color: const Color(0xFFDDD6FE)),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(
+                    Icons.calendar_month_outlined,
+                    size: 14.sp,
+                    color: const Color(0xFF7C3AED),
                   ),
-                ),
-              ],
+                  Gap(6.w),
+                  Text(
+                    slot.slotLabel,
+                    style: TextStyle(
+                      fontSize: 12.sp,
+                      fontWeight: FontWeight.w600,
+                      color: const Color(0xFF7C3AED),
+                      fontFamily: 'Inter',
+                    ),
+                  ),
+                ],
+              ),
             ),
-          ),
-          Gap(8.w),
-          GestureDetector(
-            onTap: onChangeAddress,
-            behavior: HitTestBehavior.opaque,
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: <Widget>[
-                Text(
-                  'Change',
-                  style: AppTextStyles.buttonSmall
-                      .copyWith(color: AppColors.primaryGreen),
-                ),
-                Icon(
-                  Icons.chevron_right_rounded,
-                  color: AppColors.primaryGreen,
-                  size: 16.sp,
-                ),
-              ],
-            ),
-          ),
+          ],
         ],
       ),
     );

@@ -25,10 +25,11 @@ import 'package:bakaloo_flutter_app/features/cart/presentation/widgets/cart_prod
 import 'package:bakaloo_flutter_app/features/cart/presentation/widgets/cart_savings_banner.dart';
 import 'package:bakaloo_flutter_app/features/cart/presentation/widgets/cart_savings_breakdown.dart';
 import 'package:bakaloo_flutter_app/features/cart/presentation/widgets/cart_tip_section.dart';
-import 'package:bakaloo_flutter_app/features/cart/presentation/widgets/cart_wishlist_cta.dart';
 import 'package:bakaloo_flutter_app/features/checkout/domain/entities/checkout_summary_entity.dart';
+import 'package:bakaloo_flutter_app/features/checkout/domain/entities/delivery_slot_entity.dart';
 import 'package:bakaloo_flutter_app/features/checkout/presentation/providers/checkout_provider.dart';
 import 'package:bakaloo_flutter_app/features/checkout/presentation/screens/coupons_screen.dart';
+import 'package:bakaloo_flutter_app/features/cart/presentation/widgets/schedule_delivery_sheet.dart';
 import 'package:bakaloo_flutter_app/routing/route_names.dart';
 import 'package:bakaloo_flutter_app/shared/widgets/confirmation_dialog.dart';
 import 'package:bakaloo_flutter_app/shared/widgets/empty_state.dart';
@@ -217,16 +218,10 @@ class _CartScreenState extends ConsumerState<CartScreen> {
 
     widgets.add(
       RepaintBoundary(
-        child: CartDeliveryHeader(
+        child: _buildDeliveryHeader(
+          context: context,
           estimateMinutes: estimateMinutes,
           itemCount: cart.itemCount,
-          onScheduleTap: () {
-            showCartSnackBar(
-              context,
-              'Scheduling will be available soon.',
-              isError: false,
-            );
-          },
         ),
       ),
     );
@@ -371,6 +366,33 @@ class _CartScreenState extends ConsumerState<CartScreen> {
     );
   }
 
+  Widget _buildDeliveryHeader({
+    required BuildContext context,
+    required int estimateMinutes,
+    required int itemCount,
+  }) {
+    final selectedSlot = ref.watch(
+      checkoutProvider.select((s) => s.selectedDeliverySlot),
+    );
+    final effectiveSlot = selectedSlot ?? const SelectedDeliverySlot.asap();
+
+    return CartDeliveryHeader(
+      estimateMinutes: estimateMinutes,
+      itemCount: itemCount,
+      selectedSlot: effectiveSlot,
+      onScheduleTap: () => _openScheduleSheet(context),
+    );
+  }
+
+  Future<void> _openScheduleSheet(BuildContext context) async {
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) => const ScheduleDeliverySheet(),
+    );
+  }
+
   Future<void> _clearCart(BuildContext context) async {
     final confirmed = await ConfirmationDialog.show(
       context,
@@ -386,6 +408,9 @@ class _CartScreenState extends ConsumerState<CartScreen> {
     final result = await ref.read(cartProvider.notifier).clearCart();
     if (!result.isSuccess && context.mounted) {
       showCartSnackBar(context, result.failure!.message);
+    } else if (result.isSuccess) {
+      // Reset delivery slot to ASAP when cart is cleared
+      ref.read(checkoutProvider.notifier).clearDeliverySlot();
     }
   }
 

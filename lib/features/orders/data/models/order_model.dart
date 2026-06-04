@@ -27,6 +27,10 @@ class OrderModel {
     this.cancelledAt,
     this.estimatedDelivery,
     this.timeline = const <OrderTimelineModel>[],
+    this.deliveryMode = 'ASAP',
+    this.scheduledSlotLabel,
+    this.scheduledSlotStart,
+    this.scheduledSlotEnd,
   });
 
   final String id;
@@ -49,6 +53,10 @@ class OrderModel {
   final DateTime? cancelledAt;
   final DateTime? estimatedDelivery;
   final List<OrderTimelineModel> timeline;
+  final String deliveryMode;
+  final String? scheduledSlotLabel;
+  final DateTime? scheduledSlotStart;
+  final DateTime? scheduledSlotEnd;
 
   factory OrderModel.fromJson(Map<String, dynamic> json) {
     final createdAt = _readDateTime(
@@ -132,6 +140,14 @@ class OrderModel {
         <String>['estimatedDelivery', 'estimated_delivery'],
       ),
       timeline: normalizedTimeline,
+      deliveryMode: _readString(
+        json, <String>['deliveryMode', 'delivery_mode'], fallback: 'ASAP',),
+      scheduledSlotLabel: _readNullableString(
+        json, <String>['scheduledSlotLabel', 'scheduled_slot_label'],),
+      scheduledSlotStart: _readDateTime(
+        json, <String>['scheduledSlotStart', 'scheduled_slot_start'],),
+      scheduledSlotEnd: _readDateTime(
+        json, <String>['scheduledSlotEnd', 'scheduled_slot_end'],),
     );
   }
 
@@ -157,6 +173,10 @@ class OrderModel {
       cancelledAt: cancelledAt,
       estimatedDelivery: estimatedDelivery,
       timeline: timeline.map((item) => item.toEntity()).toList(growable: false),
+      deliveryMode: deliveryMode,
+      scheduledSlotLabel: scheduledSlotLabel,
+      scheduledSlotStart: scheduledSlotStart,
+      scheduledSlotEnd: scheduledSlotEnd,
     );
   }
 

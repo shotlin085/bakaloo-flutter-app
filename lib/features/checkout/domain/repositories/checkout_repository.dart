@@ -8,12 +8,22 @@ class PlaceOrderParams {
     required this.paymentMethod,
     this.couponCode,
     this.deliveryNotes,
+    this.deliveryMode = 'ASAP',
+    this.scheduledDeliveryAt,
+    this.scheduledSlotStart,
+    this.scheduledSlotEnd,
+    this.scheduledSlotLabel,
   });
 
   final String addressId;
   final String paymentMethod;
   final String? couponCode;
   final String? deliveryNotes;
+  final String deliveryMode;
+  final String? scheduledDeliveryAt;
+  final String? scheduledSlotStart;
+  final String? scheduledSlotEnd;
+  final String? scheduledSlotLabel;
 
   Map<String, dynamic> toJson() {
     return <String, dynamic>{
@@ -25,6 +35,13 @@ class PlaceOrderParams {
         'couponCode': couponCode!.trim(),
       if (deliveryNotes != null && deliveryNotes!.trim().isNotEmpty)
         'deliveryNotes': deliveryNotes!.trim(),
+      'deliveryMode': deliveryMode,
+      if (deliveryMode == 'SCHEDULED') ...{
+        if (scheduledDeliveryAt != null) 'scheduledDeliveryAt': scheduledDeliveryAt,
+        if (scheduledSlotStart != null) 'scheduledSlotStart': scheduledSlotStart,
+        if (scheduledSlotEnd != null) 'scheduledSlotEnd': scheduledSlotEnd,
+        if (scheduledSlotLabel != null) 'scheduledSlotLabel': scheduledSlotLabel,
+      },
     };
   }
 }

@@ -17,6 +17,7 @@ import 'package:bakaloo_flutter_app/features/checkout/data/datasources/order_rem
 import 'package:bakaloo_flutter_app/features/checkout/data/repositories/checkout_repository_impl.dart';
 import 'package:bakaloo_flutter_app/features/checkout/domain/entities/checkout_summary_entity.dart';
 import 'package:bakaloo_flutter_app/features/checkout/domain/entities/coupon_entity.dart';
+import 'package:bakaloo_flutter_app/features/checkout/domain/entities/delivery_slot_entity.dart';
 import 'package:bakaloo_flutter_app/features/checkout/domain/repositories/checkout_repository.dart';
 import 'package:bakaloo_flutter_app/features/checkout/domain/usecases/place_order.dart';
 import 'package:bakaloo_flutter_app/features/checkout/presentation/providers/coupon_provider.dart';
@@ -64,6 +65,8 @@ abstract class CheckoutState with _$CheckoutState {
     @Default(CheckoutStep.address) CheckoutStep currentStep,
     @Default(false) bool isPlacingOrder,
     String? errorMessage,
+    // Delivery slot — null means ASAP (default)
+    SelectedDeliverySlot? selectedDeliverySlot,
   }) = _CheckoutState;
 }
 
@@ -197,6 +200,16 @@ class CheckoutNotifier extends _$CheckoutNotifier {
     );
   }
 
+  /// Save the user's delivery slot selection (ASAP or a specific time window).
+  void selectDeliverySlot(SelectedDeliverySlot slot) {
+    state = state.copyWith(selectedDeliverySlot: slot, errorMessage: null);
+  }
+
+  /// Reset delivery slot to ASAP (called when cart is cleared or order succeeds).
+  void clearDeliverySlot() {
+    state = state.copyWith(selectedDeliverySlot: null);
+  }
+
   /// Maps raw backend coupon error messages / codes to user-friendly copy.
   String _mapCouponError(String raw) {
     final lower = raw.toLowerCase();
@@ -280,6 +293,11 @@ class CheckoutNotifier extends _$CheckoutNotifier {
             addressId: state.selectedAddress!.id,
             paymentMethod: selectedPaymentMethod.apiValue,
             couponCode: state.appliedCoupon?.code,
+            deliveryMode: _resolvedDeliveryMode,
+            scheduledDeliveryAt: _scheduledDeliveryAt,
+            scheduledSlotStart: _scheduledSlotStart,
+            scheduledSlotEnd: _scheduledSlotEnd,
+            scheduledSlotLabel: _scheduledSlotLabel,
           ),
         );
 
@@ -487,5 +505,41 @@ class CheckoutNotifier extends _$CheckoutNotifier {
       }
     }
     return addresses.first;
+  }
+
+  // ── Delivery Slot Helpers ─────────────────────────────────────────────
+  SelectedDeliverySlot get effectiveDeliverySlot =>
+      state.selectedDeliverySlot ?? const SelectedDeliverySlot.asap();
+
+  String get _resolvedDeliveryMode => effectiveDeliverySlot.mode;
+
+  String? get _scheduledDeliveryAt {
+    final slot = effectiveDeliverySlot;
+    if (slot.isScheduled && slot.slot != null) {
+      return slot.slot!.start.toUtc().toIso8601String();
+    }
+    return null;
+  }
+
+  String? get _scheduledSlotStart {
+    final slot = effectiveDeliverySlot;
+    if (slot.isScheduled && slot.slot != null) {
+      return slot.slot!.start.toUtc().toIso8601String();
+    }
+    return null;
+  }
+
+  String? get _scheduledSlotEnd {
+    final slot = effectiveDeliverySlot;
+    if (slot.isScheduled && slot.slot != null) {
+      return slot.slot!.end.toUtc().toIso8601String();
+    }
+    return null;
+  }
+
+  String? get _scheduledSlotLabel {
+    final slot = effectiveDeliverySlot;
+    if (slot.isScheduled) return slot.slotLabel;
+    return null;
   }
 }
