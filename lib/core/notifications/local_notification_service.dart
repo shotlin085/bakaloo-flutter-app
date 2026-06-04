@@ -75,26 +75,62 @@ class LocalNotificationService {
     final idSeed = DateTime.now().millisecondsSinceEpoch ~/ 1000;
     final notificationId = idSeed.remainder(2147483647);
 
-    await _plugin.show(
-      notificationId,
-      title,
-      body,
-      const NotificationDetails(
-        android: AndroidNotificationDetails(
+    // Check for image URL in data payload or notification
+    final imageUrl = _stringValue(message.data['imageUrl']) ??
+        _stringValue(message.data['image_url']) ??
+        message.notification?.android?.imageUrl;
+
+    AndroidNotificationDetails androidDetails;
+    if (imageUrl != null && imageUrl.startsWith('https://')) {
+      // Big picture style for image notifications
+      try {
+        final styleInfo = BigPictureStyleInformation(
+          FilePathAndroidBitmap(imageUrl),
+          hideExpandedLargeIcon: true,
+          contentTitle: title,
+          summaryText: body,
+        );
+        androidDetails = AndroidNotificationDetails(
           _androidChannelId,
           _androidChannelName,
           channelDescription: _androidChannelDescription,
           importance: Importance.max,
           priority: Priority.high,
           playSound: true,
-        ),
-        iOS: DarwinNotificationDetails(
+          styleInformation: styleInfo,
+        );
+      } catch (_) {
+        // Fall back to normal if image fails
+        androidDetails = _defaultAndroidDetails();
+      }
+    } else {
+      androidDetails = _defaultAndroidDetails();
+    }
+
+    await _plugin.show(
+      notificationId,
+      title,
+      body,
+      NotificationDetails(
+        android: androidDetails,
+        iOS: const DarwinNotificationDetails(
           presentAlert: true,
           presentBadge: true,
           presentSound: true,
         ),
       ),
       payload: jsonEncode(message.data),
+    );
+  }
+
+  AndroidNotificationDetails _defaultAndroidDetails() {
+    return const AndroidNotificationDetails(
+      _androidChannelId,
+      _androidChannelName,
+      channelDescription: _androidChannelDescription,
+      importance: Importance.max,
+      priority: Priority.high,
+      playSound: true,
     );
   }
 

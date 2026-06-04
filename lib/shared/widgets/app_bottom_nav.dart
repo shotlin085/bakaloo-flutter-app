@@ -237,16 +237,12 @@ class _AppShellState extends ConsumerState<AppShell>
                           if (RouteAccess.isProtectedTab(nextPath) &&
                               !authGate.isAuthenticated &&
                               context.mounted) {
-                            await authGate.protectRoute(
-                              context,
-                              route: nextPath,
-                              title: nextPath == RouteNames.orders
-                                  ? 'Log in to view your orders'
-                                  : 'Log in to open your profile',
-                              message: nextPath == RouteNames.orders
-                                  ? 'Please log in first to track and manage your orders.'
-                                  : 'Please log in first to access your profile, orders, saved addresses, and notifications.',
-                            );
+                            // Remember the intent then go directly to phone screen
+                            // (avoids stale context issue after bottom sheet closes)
+                            authGate.rememberRouteIntent(nextPath);
+                            if (context.mounted) {
+                              context.push(RouteNames.phone);
+                            }
                             return;
                           }
                           // Reveal the footer whenever the user switches tabs.

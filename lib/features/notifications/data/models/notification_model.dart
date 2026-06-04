@@ -11,6 +11,8 @@ class NotificationModel {
     required this.createdAt,
     this.isRead = false,
     this.readAt,
+    this.imageUrl,
+    this.deepLink,
     this.data = const <String, dynamic>{},
   });
 
@@ -21,6 +23,8 @@ class NotificationModel {
   final DateTime createdAt;
   final bool isRead;
   final DateTime? readAt;
+  final String? imageUrl;
+  final String? deepLink;
   final Map<String, dynamic> data;
 
   factory NotificationModel.fromJson(Map<String, dynamic> json) {
@@ -52,6 +56,8 @@ class NotificationModel {
         json,
         const <String>['readAt', 'read_at'],
       ),
+      imageUrl: _readStringOrNull(json, const ['image_url', 'imageUrl']),
+      deepLink: _readStringOrNull(json, const ['deep_link', 'deepLink']),
       data: _readMap(json, const <String>['data', 'payload']),
     );
   }
@@ -65,6 +71,8 @@ class NotificationModel {
       createdAt: createdAt,
       isRead: isRead,
       readAt: readAt,
+      imageUrl: _readStringOrNull(data, const ['imageUrl', 'image_url']),
+      deepLink: _readStringOrNull(data, const ['deepLink', 'deep_link']),
       data: data,
     );
   }
@@ -81,6 +89,19 @@ class NotificationModel {
       }
     }
     return fallback;
+  }
+
+  static String? _readStringOrNull(
+    Map<String, dynamic> json,
+    List<String> keys,
+  ) {
+    for (final key in keys) {
+      final value = json[key];
+      if (value is String && value.trim().isNotEmpty) {
+        return value.trim();
+      }
+    }
+    return null;
   }
 
   static DateTime? _readDateTime(

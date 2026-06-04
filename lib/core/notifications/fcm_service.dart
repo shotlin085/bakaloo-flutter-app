@@ -78,6 +78,11 @@ class FCMService {
         FirebaseMessaging.onMessageOpenedApp.listen((message) {
           _handleNotificationTap(message.data);
         }),
+      )
+      ..add(
+        _messaging.onTokenRefresh.listen((newToken) {
+          unawaited(_onTokenRefresh(newToken));
+        }),
       );
 
     final initialMessage = await _messaging.getInitialMessage();
@@ -114,5 +119,25 @@ class FCMService {
       return;
     }
     _router.go(path);
+  }
+
+  Future<void> _onTokenRefresh(String newToken) async {
+    // Token refreshed — re-register with backend
+    // We use a delayed registration via a callback if set, otherwise log
+    _pendingRefreshToken = newToken;
+    _tokenRefreshCallback?.call(newToken);
+  }
+
+  String? _pendingRefreshToken;
+  void Function(String token)? _tokenRefreshCallback;
+
+  /// Called by the notification notifier after login to register the token.
+  void setTokenRefreshCallback(void Function(String token) callback) {
+    _tokenRefreshCallback = callback;
+    // If a token refresh happened before callback was set, fire it now
+    if (_pendingRefreshToken != null) {
+      callback(_pendingRefreshToken!);
+      _pendingRefreshToken = null;
+    }
   }
 }

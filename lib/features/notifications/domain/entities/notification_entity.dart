@@ -14,6 +14,8 @@ abstract class NotificationEntity with _$NotificationEntity {
     required DateTime createdAt,
     @Default(false) bool isRead,
     DateTime? readAt,
+    String? imageUrl,
+    String? deepLink,
     @Default(<String, dynamic>{}) Map<String, dynamic> data,
   }) = _NotificationEntity;
 
