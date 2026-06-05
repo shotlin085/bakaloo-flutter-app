@@ -582,6 +582,82 @@ class _ProductCardState extends State<ProductCard> {
     required bool compactGrid,
     bool showImageBorder = false,
   }) {
+    // PHASE 4E: Delegate to _ProductCardImageArea StatelessWidget.
+    // Being a separate StatelessWidget means Flutter's element reconciliation
+    // can keep the subtree alive when only the cart quantity changes (which
+    // is isolated to _IsolatedCartButton). The image, badges, and food marker
+    // are unaffected by cart state and will not be re-laid-out.
+    return _ProductCardImageArea(
+      product: product,
+      imageUrl: imageUrl,
+      optimizedImage: optimizedImage,
+      imageHeight: imageHeight,
+      isGridStyle: isGridStyle,
+      tightGrid: tightGrid,
+      unitFontSize: unitFontSize,
+      style: style,
+      compactGrid: compactGrid,
+      showImageBorder: showImageBorder,
+      showWishlist: widget.showWishlist,
+      onAdd: widget.onAdd,
+      onOptionsTap: widget.onOptionsTap,
+    );
+  }
+
+  ProductCardStyle _inferStyle(BuildContext context) {
+    final axisDirection = Scrollable.maybeOf(context)?.widget.axisDirection;
+    if (axisDirection == AxisDirection.left ||
+        axisDirection == AxisDirection.right) {
+      return ProductCardStyle.scroll;
+    }
+    return ProductCardStyle.grid;
+  }
+}
+
+// ── PHASE 4E: Product card image area extracted as StatelessWidget ──────────
+//
+// Previously _buildImageArea was an inline method on _ProductCardState.
+// Any rebuild of _ProductCardState (e.g. press animation via _isPressed) would
+// re-execute the entire image-area build. As a StatelessWidget with a stable
+// set of inputs (all derived from ProductEntity + widget config), Flutter's
+// element tree can skip rebuilding it when only the state fields change.
+//
+// The cart and wishlist interactions stay isolated in _IsolatedCartButton and
+// _IsolatedWishlistButton respectively — those are the only sub-widgets that
+// rebuild on user actions.
+class _ProductCardImageArea extends StatelessWidget {
+  const _ProductCardImageArea({
+    required this.product,
+    required this.imageUrl,
+    required this.optimizedImage,
+    required this.imageHeight,
+    required this.isGridStyle,
+    required this.tightGrid,
+    required this.unitFontSize,
+    required this.style,
+    required this.compactGrid,
+    required this.showWishlist,
+    this.showImageBorder = false,
+    this.onAdd,
+    this.onOptionsTap,
+  });
+
+  final ProductEntity product;
+  final String? imageUrl;
+  final OptimizedMediaAsset optimizedImage;
+  final double imageHeight;
+  final bool isGridStyle;
+  final bool tightGrid;
+  final double unitFontSize;
+  final ProductCardStyle style;
+  final bool compactGrid;
+  final bool showWishlist;
+  final bool showImageBorder;
+  final VoidCallback? onAdd;
+  final VoidCallback? onOptionsTap;
+
+  @override
+  Widget build(BuildContext context) {
     final imageCount = product.images.length;
     return SizedBox(
       height: imageHeight,
@@ -602,7 +678,7 @@ class _ProductCardState extends State<ProductCard> {
                     ? BorderRadius.circular(AppDimensions.radiusMd)
                     : null,
               ),
-              child: imageUrl == null || imageUrl.isEmpty
+              child: imageUrl == null || imageUrl!.isEmpty
                   ? const Center(
                       child: Icon(
                         Icons.image_outlined,
@@ -613,7 +689,7 @@ class _ProductCardState extends State<ProductCard> {
                   : Padding(
                       padding: EdgeInsets.all(isGridStyle ? 8.w : 4.w),
                       child: AppImage(
-                        imageUrl: optimizedImage.url ?? imageUrl,
+                        imageUrl: optimizedImage.url ?? imageUrl!,
                         memCacheWidth: optimizedImage.memCacheWidth,
                         memCacheHeight: optimizedImage.memCacheHeight,
                         fit: isGridStyle ? BoxFit.contain : BoxFit.cover,
@@ -636,13 +712,13 @@ class _ProductCardState extends State<ProductCard> {
                     ),
             ),
           ),
-          if (widget.showWishlist)
+          if (showWishlist)
             Positioned(
               top: 8.h,
               right: 8.w,
               child: _IsolatedWishlistButton(
                 product: product,
-                showWishlist: widget.showWishlist,
+                showWishlist: showWishlist,
               ),
             ),
           // Origin badge (top-left)
@@ -696,8 +772,8 @@ class _ProductCardState extends State<ProductCard> {
                 compact: compactGrid,
                 tight: tightGrid,
                 product: product,
-                onAdd: widget.onAdd,
-                onOptionsTap: widget.onOptionsTap,
+                onAdd: onAdd,
+                onOptionsTap: onOptionsTap,
               ),
             ),
             if (product.displayUnit.trim().isNotEmpty)
@@ -712,13 +788,11 @@ class _ProductCardState extends State<ProductCard> {
                   decoration: BoxDecoration(
                     color: Colors.white,
                     borderRadius: BorderRadius.circular(6.r),
-                    boxShadow: <BoxShadow>[
-                      BoxShadow(
-                        color: Colors.black.withValues(alpha: 0.08),
-                        blurRadius: 4,
-                        offset: const Offset(0, 1),
-                      ),
-                    ],
+                    // PHASE 3D: Replace blurred shadow with a simple border.
+                    border: Border.all(
+                      color: const Color(0xFFE0E0E0),
+                      width: 0.8,
+                    ),
                   ),
                   child: Text(
                     product.displayUnit,
@@ -737,15 +811,6 @@ class _ProductCardState extends State<ProductCard> {
         ],
       ),
     );
-  }
-
-  ProductCardStyle _inferStyle(BuildContext context) {
-    final axisDirection = Scrollable.maybeOf(context)?.widget.axisDirection;
-    if (axisDirection == AxisDirection.left ||
-        axisDirection == AxisDirection.right) {
-      return ProductCardStyle.scroll;
-    }
-    return ProductCardStyle.grid;
   }
 }
 
@@ -1006,11 +1071,14 @@ class _ZeptoAddQtyButton extends ConsumerWidget {
         decoration: BoxDecoration(
           color: greenBorder,
           borderRadius: BorderRadius.circular(8.r),
+          // PHASE 3D: Reduced blur 6→2 on active cart button.
+          // The green background already makes it visually prominent;
+          // a tight offset shadow is sufficient.
           boxShadow: <BoxShadow>[
             BoxShadow(
-              color: Colors.black.withValues(alpha: 0.18),
-              blurRadius: 6,
-              offset: const Offset(0, 2),
+              color: Colors.black.withValues(alpha: 0.14),
+              blurRadius: 2,
+              offset: const Offset(0, 1),
             ),
           ],
         ),
@@ -1089,11 +1157,13 @@ class _ZeptoAddQtyButton extends ConsumerWidget {
     return Container(
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(8.r),
+        // PHASE 3D: Reduced blur 5→2 on ADD button. The Material InkWell
+        // provides sufficient visual feedback; a deep shadow is unnecessary.
         boxShadow: <BoxShadow>[
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.12),
-            blurRadius: 5,
-            offset: const Offset(0, 2),
+            color: Colors.black.withValues(alpha: 0.09),
+            blurRadius: 2,
+            offset: const Offset(0, 1),
           ),
         ],
       ),

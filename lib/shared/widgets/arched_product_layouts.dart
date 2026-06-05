@@ -63,15 +63,20 @@ class _ArchedHorizontalScroll extends StatelessWidget {
         separatorBuilder: (_, __) => Gap(12.w),
         itemBuilder: (BuildContext context, int index) {
           final product = params.products[index];
-          return ArchedProductCard(
-            product: product,
-            backgroundColor: params.backgroundColor,
-            cardShape: params.cardShape,
-            archHeight: params.archHeight,
-            cornerRadius: params.cornerRadius,
-            boxGradientColors: params.boxGradientColors,
-            width: params.cardWidth,
-            onTap: () => context.push('/product/${product.id}'),
+          // PHASE 3E: RepaintBoundary isolates each arched card's raster
+          // layer. When the cart changes, only the card whose quantity
+          // changed repaints; the others stay in the GPU texture cache.
+          return RepaintBoundary(
+            child: ArchedProductCard(
+              product: product,
+              backgroundColor: params.backgroundColor,
+              cardShape: params.cardShape,
+              archHeight: params.archHeight,
+              cornerRadius: params.cornerRadius,
+              boxGradientColors: params.boxGradientColors,
+              width: params.cardWidth,
+              onTap: () => context.push('/product/${product.id}'),
+            ),
           );
         },
       ),
@@ -238,14 +243,17 @@ class _ArchedStackedCards extends StatelessWidget {
           padding: EdgeInsets.only(bottom: 12.h),
           child: SizedBox(
             width: double.infinity,
-            child: ArchedProductCard(
-              product: product,
-              backgroundColor: params.backgroundColor,
-              cardShape: params.cardShape,
-              archHeight: params.archHeight,
-              cornerRadius: params.cornerRadius,
-              boxGradientColors: params.boxGradientColors,
-              onTap: () => context.push('/product/${product.id}'),
+            // PHASE 3E: RepaintBoundary per stacked card.
+            child: RepaintBoundary(
+              child: ArchedProductCard(
+                product: product,
+                backgroundColor: params.backgroundColor,
+                cardShape: params.cardShape,
+                archHeight: params.archHeight,
+                cornerRadius: params.cornerRadius,
+                boxGradientColors: params.boxGradientColors,
+                onTap: () => context.push('/product/${product.id}'),
+              ),
             ),
           ),
         );

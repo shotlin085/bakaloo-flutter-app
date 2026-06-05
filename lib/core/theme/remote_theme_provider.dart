@@ -29,6 +29,14 @@ final Set<String> _sectionManifestPrefetchInFlight = <String>{};
 
 const int _tabHomePrefetchLimit = 3;
 
+// PHASE 4A: Scroll-idle signalling.
+// Updated by _HomeScreenState on every scroll event. Module-level so the
+// themeRefreshTimerProvider closure can read it without coupling to the widget.
+// Epoch milliseconds of the last scroll event; 0 = no scroll yet.
+int homeScrollLastEventMs = 0;
+// A scroll is considered "active" for 800ms after the last event.
+const int _scrollIdleThresholdMs = 800;
+
 class _TabThemesEpochNotifier extends Notifier<int> {
   @override
   int build() => 0;
@@ -213,7 +221,24 @@ final selectedTabHomeContentProvider =
 });
 
 final themeRefreshTimerProvider = Provider<Timer>((Ref ref) {
-  final Timer timer = Timer.periodic(const Duration(minutes: 5), (_) {
+  // PHASE 4A: Scroll-idle-aware theme refresh.
+  //
+  // The timer still fires every 5 minutes, but if the home scroll is active
+  // we defer the provider invalidation until the user stops scrolling.
+  // Only one pending refresh is queued at a time — subsequent timer ticks
+  // while a deferred refresh is already pending are no-ops.
+  //
+  // Mechanism:
+  //   • _homeScrollLastEventMs is updated by _HomeScreenState on every scroll
+  //     tick (set to DateTime.now().millisecondsSinceEpoch).
+  //   • A scroll is considered "active" if a scroll event occurred within the
+  //     last 800ms.
+  //   • When the timer fires during active scroll, a 500ms polling loop checks
+  //     every 500ms until the scroll has been idle for 800ms, then runs the
+  //     refresh. The loop is bounded to 2 minutes max to prevent infinite deferral.
+  Timer? _deferTimer;
+
+  void doRefresh() {
     _themeMemoryCache.clear();
     _tabHomeMemoryCache.clear();
     _tabThemesFetchInFlight.clear();
@@ -223,9 +248,44 @@ final themeRefreshTimerProvider = Provider<Timer>((Ref ref) {
     ref
       ..invalidate(tabThemesProvider)
       ..invalidate(selectedTabHomeContentProvider);
+  }
+
+  void scheduleWhenIdle() {
+    _deferTimer?.cancel();
+    final int startMs = DateTime.now().millisecondsSinceEpoch;
+    _deferTimer = Timer.periodic(const Duration(milliseconds: 500), (t) {
+      final int now = DateTime.now().millisecondsSinceEpoch;
+      final bool isScrollActive =
+          (now - homeScrollLastEventMs) < _scrollIdleThresholdMs;
+      final bool timedOut = (now - startMs) > 120000; // 2-min safety cap
+
+      if (!isScrollActive || timedOut) {
+        t.cancel();
+        _deferTimer = null;
+        doRefresh();
+      }
+    });
+  }
+
+  final Timer timer = Timer.periodic(const Duration(minutes: 5), (_) {
+    final int now = DateTime.now().millisecondsSinceEpoch;
+    final bool isScrollActive =
+        (now - homeScrollLastEventMs) < _scrollIdleThresholdMs;
+
+    if (isScrollActive) {
+      // Only queue one deferred refresh — if one is already pending, skip.
+      if (_deferTimer == null || !_deferTimer!.isActive) {
+        scheduleWhenIdle();
+      }
+    } else {
+      doRefresh();
+    }
   });
 
-  ref.onDispose(timer.cancel);
+  ref.onDispose(() {
+    timer.cancel();
+    _deferTimer?.cancel();
+  });
   return timer;
 });
 

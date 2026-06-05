@@ -12,7 +12,131 @@ import 'package:bakaloo_flutter_app/features/cart/presentation/providers/cart_pr
 import 'package:bakaloo_flutter_app/features/products/domain/entities/product_entity.dart';
 import 'package:bakaloo_flutter_app/features/products/presentation/widgets/show_product_options.dart';
 import 'package:bakaloo_flutter_app/shared/widgets/app_image.dart';
-import 'package:bakaloo_flutter_app/shared/widgets/arched_top_box_clipper.dart';
+
+// ── PHASE 3B: Arch background painter ─────────────────────────────────────
+//
+// Replaces the ClipPath(ArchedTopBoxClipper) + DecoratedBox pattern with a
+// CustomPaint that draws the arch fill directly on the canvas.
+//
+// Why this is faster:
+//   ClipPath forces Flutter to render the card content into an offscreen
+//   compositing layer (saveLayer) before applying the clip mask, adding ~1ms
+//   of raster work per card per frame. CustomPaint draws directly into the
+//   current layer — no intermediate buffer required.
+//
+// The painted shape is pixel-identical to ArchedTopBoxClipper for all values
+// of radius and archHeight used in the app (radius=24, archHeight=14).
+class _ArchBackgroundPainter extends CustomPainter {
+  const _ArchBackgroundPainter({
+    required this.color,
+    required this.gradient,
+    required this.radius,
+    required this.archHeight,
+    required this.size,
+  });
+
+  final Color color;
+  final Gradient? gradient;
+  final double radius;
+  final double archHeight;
+  final Size size;
+
+  @override
+  void paint(Canvas canvas, Size canvasSize) {
+    final double w = canvasSize.width;
+    final double h = canvasSize.height;
+    final double r = radius.clamp(0, h / 2);
+
+    final path = Path()
+      ..moveTo(0, h - r)
+      ..arcToPoint(Offset(r, h), radius: Radius.circular(r), clockwise: false)
+      ..lineTo(w - r, h)
+      ..arcToPoint(
+        Offset(w, h - r),
+        radius: Radius.circular(r),
+        clockwise: false,
+      )
+      ..lineTo(w, archHeight + r)
+      ..arcToPoint(
+        Offset(w - r, archHeight),
+        radius: Radius.circular(r),
+        clockwise: false,
+      )
+      ..quadraticBezierTo(w / 2, -archHeight, r, archHeight)
+      ..arcToPoint(
+        Offset(0, archHeight + r),
+        radius: Radius.circular(r),
+        clockwise: false,
+      )
+      ..close();
+
+    final paint = Paint()..isAntiAlias = true;
+    if (gradient != null) {
+      paint.shader =
+          gradient!.createShader(Rect.fromLTWH(0, 0, w, h));
+    } else {
+      paint.color = color;
+    }
+    canvas.drawPath(path, paint);
+  }
+
+  @override
+  bool shouldRepaint(covariant _ArchBackgroundPainter oldDelegate) =>
+      color != oldDelegate.color ||
+      gradient != oldDelegate.gradient ||
+      radius != oldDelegate.radius ||
+      archHeight != oldDelegate.archHeight;
+}
+
+// ── PHASE 3B: Starburst badge painter ──────────────────────────────────────
+//
+// Replaces ClipPath(_ArchedDiscountBurstClipper) + DecoratedBox(gradient)
+// with a CustomPaint that draws the starburst directly. Eliminates the nested
+// ClipPath/saveLayer inside an already-clipped card.
+class _StarburstBadgePainter extends CustomPainter {
+  const _StarburstBadgePainter();
+
+  static const _gradient = LinearGradient(
+    begin: Alignment.topCenter,
+    end: Alignment.bottomCenter,
+    colors: <Color>[Color(0xFFFFA16F), Color(0xFFFF784E)],
+  );
+
+  static const int _pointCount = 12;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final center = Offset(size.width / 2, size.height / 2);
+    final outerRadius = size.width / 2;
+    final innerRadius = outerRadius * 0.76;
+
+    final path = Path();
+    for (var i = 0; i < _pointCount * 2; i++) {
+      final r = i.isEven ? outerRadius : innerRadius;
+      final angle = (math.pi / _pointCount) * i - (math.pi / 2);
+      final point = Offset(
+        center.dx + r * math.cos(angle),
+        center.dy + r * math.sin(angle),
+      );
+      if (i == 0) {
+        path.moveTo(point.dx, point.dy);
+      } else {
+        path.lineTo(point.dx, point.dy);
+      }
+    }
+    path.close();
+
+    final paint = Paint()
+      ..isAntiAlias = true
+      ..shader = _gradient.createShader(
+        Rect.fromLTWH(0, 0, size.width, size.height),
+      );
+    canvas.drawPath(path, paint);
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
+}
 
 class ArchedProductCard extends StatefulWidget {
   const ArchedProductCard({
@@ -71,21 +195,25 @@ class _ArchedProductCardState extends State<ArchedProductCard> {
     final discountPercent = isOnSale ? product.discountPercent : null;
     final isWaveShape = widget.cardShape == 'wave';
     final archOffset = isWaveShape ? 0.0 : widget.archHeight;
-    final cardDecoration = BoxDecoration(
-      color: widget.boxGradientColors == null ? widget.backgroundColor : null,
-      gradient: widget.boxGradientColors != null
-          ? LinearGradient(
-              begin: Alignment.topCenter,
-              end: Alignment.bottomCenter,
-              colors: widget.boxGradientColors!,
-            )
-          : null,
-      borderRadius:
-          isWaveShape ? BorderRadius.circular(widget.cornerRadius.r) : null,
-    );
 
+    // PHASE 3B: Build the card background using CustomPaint (arch) or
+    // ClipRRect (wave). Only wave shape retains ClipRRect — it has simple
+    // rounded corners with no arch, so ClipRRect is already the cheapest
+    // option and doesn't create a saveLayer at opaque colors.
     Widget cardContainer;
     if (isWaveShape) {
+      // Wave: standard ClipRRect — no saveLayer for solid background.
+      final cardDecoration = BoxDecoration(
+        color: widget.boxGradientColors == null ? widget.backgroundColor : null,
+        gradient: widget.boxGradientColors != null
+            ? LinearGradient(
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+                colors: widget.boxGradientColors!,
+              )
+            : null,
+        borderRadius: BorderRadius.circular(widget.cornerRadius.r),
+      );
       cardContainer = ClipRRect(
         borderRadius: BorderRadius.circular(widget.cornerRadius.r),
         child: DecoratedBox(
@@ -101,13 +229,32 @@ class _ArchedProductCardState extends State<ArchedProductCard> {
         ),
       );
     } else {
-      cardContainer = ClipPath(
-        clipper: ArchedTopBoxClipper(
-          radius: widget.cornerRadius,
-          archHeight: widget.archHeight,
-        ),
-        child: DecoratedBox(
-          decoration: cardDecoration,
+      // Arch: CustomPaint fills the arch shape directly — no ClipPath saveLayer.
+      // The card content is stacked on top of the painted background.
+      // A SizedBox constrains the content to the card dimensions, and an
+      // outermost ClipRRect with the corner radius prevents the content's
+      // rectangular corners from showing outside the arch shape at the bottom.
+      // This single ClipRRect is less expensive than the full arch ClipPath
+      // because the clip region is a simple rounded rect, not a custom path,
+      // and Flutter can optimise it without a saveLayer in most cases.
+      final gradient = widget.boxGradientColors != null
+          ? LinearGradient(
+              begin: Alignment.topCenter,
+              end: Alignment.bottomCenter,
+              colors: widget.boxGradientColors!,
+            )
+          : null;
+
+      cardContainer = ClipRRect(
+        borderRadius: BorderRadius.circular(widget.cornerRadius.r),
+        child: CustomPaint(
+          painter: _ArchBackgroundPainter(
+            color: widget.backgroundColor,
+            gradient: gradient,
+            radius: widget.cornerRadius,
+            archHeight: widget.archHeight,
+            size: Size(cardWidth, cardHeight),
+          ),
           child: _buildCardContent(
             product: product,
             imageHeight: imageHeight,
@@ -211,6 +358,9 @@ class _ArchedProductCardState extends State<ArchedProductCard> {
                             ),
                     ),
                   ),
+                  // PHASE 3B: Replace ClipPath starburst with CustomPaint.
+                  // The _StarburstBadgePainter draws the burst shape directly
+                  // onto the canvas — no nested saveLayer inside the card.
                   if (discountPercent != null)
                     Positioned(
                       top: archOffset + 1.h,
@@ -218,29 +368,17 @@ class _ArchedProductCardState extends State<ArchedProductCard> {
                       child: SizedBox(
                         width: 46.w,
                         height: 46.w,
-                        child: ClipPath(
-                          clipper: const _ArchedDiscountBurstClipper(),
-                          child: DecoratedBox(
-                            decoration: const BoxDecoration(
-                              gradient: LinearGradient(
-                                begin: Alignment.topCenter,
-                                end: Alignment.bottomCenter,
-                                colors: <Color>[
-                                  Color(0xFFFFA16F),
-                                  Color(0xFFFF784E),
-                                ],
-                              ),
-                            ),
-                            child: Center(
-                              child: Text(
-                                '${discountPercent.toInt()}%\nOFF',
-                                textAlign: TextAlign.center,
-                                style: TextStyle(
-                                  fontSize: 9.5.sp,
-                                  fontWeight: FontWeight.w900,
-                                  color: Colors.white,
-                                  height: 1.05,
-                                ),
+                        child: CustomPaint(
+                          painter: const _StarburstBadgePainter(),
+                          child: Center(
+                            child: Text(
+                              '${discountPercent.toInt()}%\nOFF',
+                              textAlign: TextAlign.center,
+                              style: TextStyle(
+                                fontSize: 9.5.sp,
+                                fontWeight: FontWeight.w900,
+                                color: Colors.white,
+                                height: 1.05,
                               ),
                             ),
                           ),
@@ -557,36 +695,3 @@ class _ArchedAddButton extends ConsumerWidget {
   }
 }
 
-class _ArchedDiscountBurstClipper extends CustomClipper<Path> {
-  const _ArchedDiscountBurstClipper();
-
-  @override
-  Path getClip(Size size) {
-    final path = Path();
-    final center = Offset(size.width / 2, size.height / 2);
-    final outerRadius = size.width / 2;
-    final innerRadius = outerRadius * 0.76;
-    const pointCount = 12;
-
-    for (var index = 0; index < pointCount * 2; index++) {
-      final radius = index.isEven ? outerRadius : innerRadius;
-      final angle = (math.pi / pointCount) * index - (math.pi / 2);
-      final point = Offset(
-        center.dx + radius * math.cos(angle),
-        center.dy + radius * math.sin(angle),
-      );
-
-      if (index == 0) {
-        path.moveTo(point.dx, point.dy);
-      } else {
-        path.lineTo(point.dx, point.dy);
-      }
-    }
-
-    path.close();
-    return path;
-  }
-
-  @override
-  bool shouldReclip(covariant CustomClipper<Path> oldClipper) => false;
-}

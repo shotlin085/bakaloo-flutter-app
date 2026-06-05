@@ -55,17 +55,18 @@ Future<List<ProductEntity>> homeDeals(Ref ref) async {
 
 @riverpod
 Future<List<ProductEntity>> homeTrendingProducts(Ref ref) async {
+  // PHASE 4C: Reduced limit 20 → 12. Sections cap trending at 8–12 items;
+  // fetching 20 was wasted JSON decode work.
+  // The redundant Dart re-sort is also removed: the backend query orders by
+  // total_sold DESC already (confirmed in products.repository.js). Sorting
+  // an already-sorted list is O(n log n) work on the UI thread for no gain.
   final result = await ref.read(getProductsUseCaseProvider).call(
         page: 1,
-        limit: 20,
+        limit: 12,
       );
   return result.fold(
     (_) => const <ProductEntity>[],
-    (pageResult) {
-      final sorted = List<ProductEntity>.from(pageResult.items)
-        ..sort((a, b) => b.totalSold.compareTo(a.totalSold));
-      return sorted;
-    },
+    (pageResult) => pageResult.items,
   );
 }
 
@@ -74,10 +75,15 @@ Future<List<ProductEntity>> homeCategoryProducts(
   Ref ref,
   String categoryId,
 ) async {
+  // PHASE 5C: Limit reduced 10 → 6.
+  // The home category preview grid renders at most 6 products (2 rows × 3
+  // columns). Fetching 10 was wasted network/decode work; the backend already
+  // returns them sorted by featured+total_sold so the best products appear
+  // first within the 6.
   final result = await ref.read(getCategoryProductsUseCaseProvider).call(
         categoryId: categoryId,
         page: 1,
-        limit: 10,
+        limit: 6,
       );
   return result.fold(
     (_) => const <ProductEntity>[],

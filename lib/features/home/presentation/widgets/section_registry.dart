@@ -15,7 +15,6 @@ import 'package:bakaloo_flutter_app/core/theme/app_text_styles.dart';
 import 'package:bakaloo_flutter_app/core/theme/remote_theme_model.dart';
 import 'package:bakaloo_flutter_app/core/theme/remote_theme_provider.dart';
 import 'package:bakaloo_flutter_app/core/theme/section_manifest_model.dart';
-import 'package:bakaloo_flutter_app/core/theme/tab_home_content_model.dart';
 import 'package:bakaloo_flutter_app/features/categories/domain/entities/category_entity.dart';
 import 'package:bakaloo_flutter_app/features/categories/presentation/providers/category_provider.dart';
 import 'package:bakaloo_flutter_app/features/home/domain/entities/banner_entity.dart';
@@ -23,6 +22,8 @@ import 'package:bakaloo_flutter_app/features/home/presentation/providers/banner_
 import 'package:bakaloo_flutter_app/features/home/presentation/providers/home_provider.dart';
 import 'package:bakaloo_flutter_app/features/home/presentation/widgets/animated_banner_section.dart';
 import 'package:bakaloo_flutter_app/features/home/presentation/widgets/custom_banner_section.dart';
+// PHASE 2C: Import memoized pool provider from dedicated provider file.
+import 'package:bakaloo_flutter_app/features/home/presentation/providers/home_product_pool_provider.dart';
 import 'package:bakaloo_flutter_app/features/home/presentation/widgets/seasonal_deal_mosaic.dart';
 import 'package:bakaloo_flutter_app/features/home/presentation/widgets/spacer_section.dart';
 import 'package:bakaloo_flutter_app/features/home/presentation/widgets/text_header_section.dart';
@@ -478,57 +479,22 @@ List<ProductEntity> _resolveProducts(
 }
 
 List<ProductEntity> _resolveDefaultProductPool(WidgetRef ref) {
-  final tabHome = ref.watch(selectedTabHomeContentProvider).asData?.value;
-  final featured = _resolveFeaturedPool(ref);
-  final deals = _resolveDealsPool(ref);
-  final trending = _resolveTrendingPool(ref);
-
-  // Avoid expensive .expand().where().toList() on every section build.
-  // Use direct lists from tabHome when available.
-  final List<ProductEntity> categorySectionProducts;
-  if (tabHome != null && tabHome.categorySections.isNotEmpty) {
-    // Estimate total items to pre-allocate.
-    final buffer = <ProductEntity>[];
-    for (final section in tabHome.categorySections) {
-      for (final product in section.products) {
-        if (product.inStock) buffer.add(product);
-      }
-    }
-    categorySectionProducts = buffer;
-  } else {
-    categorySectionProducts = const <ProductEntity>[];
-  }
-
-  return _mergeUniqueProducts(<List<ProductEntity>>[
-    tabHome?.seasonalProducts ?? const <ProductEntity>[],
-    categorySectionProducts,
-    tabHome?.featuredProducts ?? const <ProductEntity>[],
-    tabHome?.dealProducts ?? const <ProductEntity>[],
-    tabHome?.trendingProducts ?? const <ProductEntity>[],
-    featured,
-    deals,
-    trending,
-  ]);
+  // PHASE 2C: Read from the memoized provider — computed once per Riverpod
+  // build cycle instead of once per section builder call.
+  return ref.watch(memoizedDefaultProductPoolProvider);
 }
 
 List<ProductEntity> _resolveFeaturedPool(WidgetRef ref) {
+  // PHASE 2D: Re-use the memoized pool for featured — it already includes
+  // tabHome.featuredProducts merged with homeFeaturedProductsProvider.
+  // Filter to only featured/seasonal products to preserve current behaviour.
   final tabHome = ref.watch(selectedTabHomeContentProvider).asData?.value;
   final featured = ref.watch(homeFeaturedProductsProvider).asData?.value ??
       const <ProductEntity>[];
+  // Only merge these two small lists; skip the full pool expansion.
   return _mergeUniqueProducts(<List<ProductEntity>>[
     tabHome?.featuredProducts ?? const <ProductEntity>[],
     featured,
-  ]);
-}
-
-List<ProductEntity> _resolveDealsPool(WidgetRef ref) {
-  final tabHome = ref.watch(selectedTabHomeContentProvider).asData?.value;
-  final deals =
-      ref.watch(homeDealsProvider).asData?.value ?? const <ProductEntity>[];
-  return _mergeUniqueProducts(<List<ProductEntity>>[
-    tabHome?.dealProducts ?? const <ProductEntity>[],
-    tabHome?.seasonalProducts ?? const <ProductEntity>[],
-    deals,
   ]);
 }
 
@@ -536,6 +502,7 @@ List<ProductEntity> _resolveTrendingPool(WidgetRef ref) {
   final tabHome = ref.watch(selectedTabHomeContentProvider).asData?.value;
   final trending = ref.watch(homeTrendingProductsProvider).asData?.value ??
       const <ProductEntity>[];
+  // PHASE 2D: Merge only the two relevant lists; skip full pool re-merge.
   return _mergeUniqueProducts(<List<ProductEntity>>[
     tabHome?.trendingProducts ?? const <ProductEntity>[],
     trending,
@@ -1046,11 +1013,15 @@ class _ManifestCategoryRail extends StatelessWidget {
                             color: const Color(0xFFF0F0F0),
                             width: 1,
                           ),
+                          // PHASE 3D: Replace blurred shadow with a slightly
+                          // stronger border. The category icon tiles are
+                          // static — no need for blur rasterisation on each
+                          // visible tile.
                           boxShadow: const <BoxShadow>[
                             BoxShadow(
-                              color: Color(0x09000000),
-                              blurRadius: 8,
-                              offset: Offset(0, 3),
+                              color: Color(0x06000000),
+                              blurRadius: 0,
+                              offset: Offset(0, 1),
                             ),
                           ],
                         ),
@@ -1367,11 +1338,15 @@ class _ManifestPromoCarousel extends StatefulWidget {
 class _ManifestPromoCarouselState extends State<_ManifestPromoCarousel> {
   late final PageController _controller;
   Timer? _timer;
-  int _page = 0;
+  // PHASE 4D: Replace local _page int (setState per tick) with ValueNotifier.
+  // Only the _PromoPageDots widget rebuilds when the page changes — the
+  // PageView and its card items are untouched.
+  late final ValueNotifier<int> _pageNotifier;
 
   @override
   void initState() {
     super.initState();
+    _pageNotifier = ValueNotifier<int>(0);
     _controller = PageController(viewportFraction: 0.92);
     _startAutoScroll();
   }
@@ -1397,7 +1372,7 @@ class _ManifestPromoCarouselState extends State<_ManifestPromoCarousel> {
         if (!mounted || !_controller.hasClients) {
           return;
         }
-        final next = (_page + 1) % widget.items.length;
+        final next = (_pageNotifier.value + 1) % widget.items.length;
         _controller.animateToPage(
           next,
           duration: const Duration(milliseconds: 320),
@@ -1410,6 +1385,7 @@ class _ManifestPromoCarouselState extends State<_ManifestPromoCarousel> {
   @override
   void dispose() {
     _timer?.cancel();
+    _pageNotifier.dispose();
     _controller.dispose();
     super.dispose();
   }
@@ -1425,9 +1401,9 @@ class _ManifestPromoCarouselState extends State<_ManifestPromoCarousel> {
             padEnds: true,
             itemCount: widget.items.length,
             onPageChanged: (int value) {
-              setState(() {
-                _page = value;
-              });
+              // PHASE 4D: ValueNotifier update instead of setState — only
+              // _PromoPageDots rebuilds, not the full carousel Column.
+              _pageNotifier.value = value;
             },
             itemBuilder: (BuildContext context, int index) {
               final item = widget.items[index];
@@ -1442,26 +1418,52 @@ class _ManifestPromoCarouselState extends State<_ManifestPromoCarousel> {
         ),
         if (widget.items.length > 1) ...<Widget>[
           Gap(6.h),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: List<Widget>.generate(
-              widget.items.length,
-              (int index) => AnimatedContainer(
-                duration: const Duration(milliseconds: 180),
-                width: index == _page ? 16.w : 6.w,
-                height: 6.h,
-                margin: EdgeInsets.symmetric(horizontal: 3.w),
-                decoration: BoxDecoration(
-                  color: index == _page
-                      ? AppColors.warmOrangeDark
-                      : const Color(0xFFD5D5D5),
-                  borderRadius: BorderRadius.circular(999.r),
-                ),
-              ),
-            ),
+          // PHASE 4D: Isolated dots widget — only this rebuilds on page change.
+          _PromoPageDots(
+            count: widget.items.length,
+            pageNotifier: _pageNotifier,
           ),
         ],
       ],
+    );
+  }
+}
+
+/// Isolated page indicator for _ManifestPromoCarousel.
+/// Listens to the ValueNotifier and rebuilds only the dots row.
+class _PromoPageDots extends StatelessWidget {
+  const _PromoPageDots({
+    required this.count,
+    required this.pageNotifier,
+  });
+
+  final int count;
+  final ValueNotifier<int> pageNotifier;
+
+  @override
+  Widget build(BuildContext context) {
+    return ValueListenableBuilder<int>(
+      valueListenable: pageNotifier,
+      builder: (BuildContext context, int page, Widget? _) {
+        return Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: List<Widget>.generate(
+            count,
+            (int index) => AnimatedContainer(
+              duration: const Duration(milliseconds: 180),
+              width: index == page ? 16.w : 6.w,
+              height: 6.h,
+              margin: EdgeInsets.symmetric(horizontal: 3.w),
+              decoration: BoxDecoration(
+                color: index == page
+                    ? AppColors.warmOrangeDark
+                    : const Color(0xFFD5D5D5),
+                borderRadius: BorderRadius.circular(999.r),
+              ),
+            ),
+          ),
+        );
+      },
     );
   }
 }

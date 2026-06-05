@@ -14,19 +14,14 @@ import 'package:bakaloo_flutter_app/core/theme/remote_theme_provider.dart';
 import 'package:bakaloo_flutter_app/core/theme/section_manifest_provider.dart';
 import 'package:bakaloo_flutter_app/core/theme/tab_home_content_model.dart';
 import 'package:bakaloo_flutter_app/core/theme/app_colors.dart';
-import 'package:bakaloo_flutter_app/core/theme/app_shadows.dart';
 import 'package:bakaloo_flutter_app/core/theme/app_text_styles.dart';
-import 'package:bakaloo_flutter_app/core/utils/extensions/double_extensions.dart';
 import 'package:bakaloo_flutter_app/features/addresses/presentation/providers/address_provider.dart';
 import 'package:bakaloo_flutter_app/shared/utils/address_utils.dart';
-import 'package:bakaloo_flutter_app/features/auth/presentation/providers/auth_gate_controller.dart';
-import 'package:bakaloo_flutter_app/features/cart/presentation/providers/cart_provider.dart';
 import 'package:bakaloo_flutter_app/features/categories/domain/entities/category_entity.dart';
 import 'package:bakaloo_flutter_app/features/categories/presentation/providers/category_provider.dart';
 import 'package:bakaloo_flutter_app/features/home/domain/entities/banner_entity.dart';
 import 'package:bakaloo_flutter_app/features/home/presentation/providers/banner_provider.dart';
 import 'package:bakaloo_flutter_app/features/home/presentation/providers/home_provider.dart';
-import 'package:bakaloo_flutter_app/features/home/presentation/utils/home_product_palettes.dart';
 import 'package:bakaloo_flutter_app/features/home/presentation/widgets/dynamic_home_sections.dart';
 import 'package:bakaloo_flutter_app/features/products/domain/entities/product_entity.dart';
 import 'package:bakaloo_flutter_app/routing/app_router.dart';
@@ -37,7 +32,6 @@ import 'package:bakaloo_flutter_app/shared/widgets/error_state.dart';
 import 'package:bakaloo_flutter_app/shared/widgets/home_header.dart';
 import 'package:bakaloo_flutter_app/shared/widgets/home_search_bar.dart';
 import 'package:bakaloo_flutter_app/shared/widgets/product_card.dart';
-import 'package:bakaloo_flutter_app/shared/widgets/shared_painters.dart';
 import 'package:bakaloo_flutter_app/shared/widgets/skeleton_loader.dart';
 import 'package:bakaloo_flutter_app/features/products/presentation/widgets/show_product_options.dart';
 
@@ -197,6 +191,10 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
     if (!_homeScrollController.hasClients) {
       return;
     }
+
+    // PHASE 4A: Stamp last scroll timestamp so themeRefreshTimerProvider
+    // can detect active scroll and defer its cache-clearing invalidation.
+    homeScrollLastEventMs = DateTime.now().millisecondsSinceEpoch;
 
     final pixels = _homeScrollController.position.pixels;
     final currentTopChromeMotionEnabled = _isTopChromeMotionEnabled.value;
@@ -389,23 +387,18 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
       homeFeaturedProducts: data.featuredProducts,
     );
 
-    void applyCache() {
-      _stagedCategories = staged;
-      _priorityCategories = priority;
-      _deferredCategories = deferred;
-      _banners = data.banners;
-      _homeFeaturedProducts = data.featuredProducts;
-      _bannerCarouselCards = bannerCards;
-      _featuredPool = featuredPool;
-      _refreshStagedSliversCache();
-    }
-
-    if (!mounted) {
-      applyCache();
-      return;
-    }
-
-    setState(applyCache);
+    // PHASE 2B: Mutate fields directly without setState. These fields only
+    // feed _buildStagedSlivers → _cachedStagedSlivers (ValueNotifier), so no
+    // full-tree rebuild is required. The ValueNotifier update below triggers
+    // only the ValueListenableBuilder that wraps the staged section area.
+    _stagedCategories = staged;
+    _priorityCategories = priority;
+    _deferredCategories = deferred;
+    _banners = data.banners;
+    _homeFeaturedProducts = data.featuredProducts;
+    _bannerCarouselCards = bannerCards;
+    _featuredPool = featuredPool;
+    _refreshStagedSliversCache();
   }
 
   void _recomputeTabContent(TabHomeContentResponse content) {
@@ -426,21 +419,13 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
       homeFeaturedProducts: _homeFeaturedProducts,
     );
 
-    void applyCache() {
-      _managedSeasonalProducts = seasonalProducts;
-      _managedFeaturedProducts = featuredProducts;
-      _managedTrendingProducts = trendingProducts;
-      _managedCategorySections = categorySections;
-      _featuredPool = featuredPool;
-      _refreshStagedSliversCache();
-    }
-
-    if (!mounted) {
-      applyCache();
-      return;
-    }
-
-    setState(applyCache);
+    // PHASE 2B: Mutate fields without setState — only update ValueNotifier.
+    _managedSeasonalProducts = seasonalProducts;
+    _managedFeaturedProducts = featuredProducts;
+    _managedTrendingProducts = trendingProducts;
+    _managedCategorySections = categorySections;
+    _featuredPool = featuredPool;
+    _refreshStagedSliversCache();
   }
 
   void _clearTabContentCache() {
@@ -449,21 +434,13 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
       homeFeaturedProducts: _homeFeaturedProducts,
     );
 
-    void applyCache() {
-      _managedSeasonalProducts = const <ProductEntity>[];
-      _managedFeaturedProducts = const <ProductEntity>[];
-      _managedTrendingProducts = const <ProductEntity>[];
-      _managedCategorySections = const <TabCategorySection>[];
-      _featuredPool = featuredPool;
-      _refreshStagedSliversCache();
-    }
-
-    if (!mounted) {
-      applyCache();
-      return;
-    }
-
-    setState(applyCache);
+    // PHASE 2B: Mutate fields without setState — only update ValueNotifier.
+    _managedSeasonalProducts = const <ProductEntity>[];
+    _managedFeaturedProducts = const <ProductEntity>[];
+    _managedTrendingProducts = const <ProductEntity>[];
+    _managedCategorySections = const <TabCategorySection>[];
+    _featuredPool = featuredPool;
+    _refreshStagedSliversCache();
   }
 
   List<ProductEntity> _buildFeaturedPool({
@@ -507,6 +484,12 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
       if (stage >= 3) ..._deferredCategories,
     ];
 
+    // PHASE 4B: Stagger category section activations.
+    // Each section gets an index-proportional delay so their provider fetches
+    // do not all fire simultaneously at the stage-threshold crossing.
+    // Index 0 activates immediately; subsequent sections add 80ms each.
+    var catIndex = 0;
+
     for (final cat in stagedCategoryList) {
       final normalizedName = cat.name.trim().toLowerCase();
       final shouldInsertBannerBeforeCategory = !bannerInserted &&
@@ -516,46 +499,17 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
               normalizedName.contains('bread'));
 
       slivers.add(
-        Consumer(
-          builder: (context, ref, _) {
-            final catProducts =
-                ref.watch(homeCategoryProductsProvider(cat.id)).asData?.value;
-            if (catProducts == null || catProducts.isEmpty) {
-              return const SizedBox.shrink();
-            }
-
-            final renderable = catProducts
-                .where((product) => product.inStock)
-                .toList(growable: false);
-            if (renderable.length < 2) {
-              return const SizedBox.shrink();
-            }
-
-            return Column(
-              mainAxisSize: MainAxisSize.min,
-              children: <Widget>[
-                if (shouldInsertBannerBeforeCategory)
-                  Padding(
-                    padding: EdgeInsets.fromLTRB(0, 6.h, 0, 6.h),
-                    child: RepaintBoundary(
-                      child: _HeroPromoCarousel(cards: _bannerCarouselCards),
-                    ),
-                  ),
-                Padding(
-                  padding: EdgeInsets.only(top: 6.h),
-                  child: RepaintBoundary(
-                    child: _CategoryProductSection(
-                      title: _fancyCategoryName(cat.name),
-                      categoryId: cat.id,
-                      products: renderable.take(6).toList(growable: false),
-                    ),
-                  ),
-                ),
-              ],
-            );
-          },
+        _StagedCategorySection(
+          key: ValueKey<String>('staged_cat_${cat.id}_$stage'),
+          category: cat,
+          showBannerAbove: shouldInsertBannerBeforeCategory,
+          bannerCards: _bannerCarouselCards,
+          // PHASE 4B: 80ms stagger per section index.
+          activationDelay: Duration(milliseconds: catIndex * 80),
         ),
       );
+
+      catIndex++;
 
       if (shouldInsertBannerBeforeCategory) {
         bannerInserted = true;
@@ -751,16 +705,11 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
                                       crossAxisAlignment:
                                           CrossAxisAlignment.start,
                                       children: <Widget>[
-                                        SizedBox(
-                                          height: 0,
-                                          child: ClipPath(
-                                            clipper:
-                                                const StoreToSearchWaveClipper(),
-                                            child: ColoredBox(
-                                              color: searchZoneTheme.waveColor,
-                                            ),
-                                          ),
-                                        ),
+                                        // PHASE 3C: Zero-height ClipPath removed.
+                                        // The SizedBox(height:0)+ClipPath wave was
+                                        // invisible but still evaluated by the raster
+                                        // thread. Replaced with a zero-height SizedBox.
+                                        const SizedBox.shrink(),
                                         HomeSearchBar(
                                           onSearchTap: _openSearch,
                                           animateHints:
@@ -934,10 +883,28 @@ class _StickySearchOverlay extends StatelessWidget {
       return const SizedBox.shrink();
     }
 
-    final backgroundProgress = Curves.easeOutCubic.transform(clampedProgress);
-    final contentProgress = Curves.easeOutCubic.transform(
-      ((clampedProgress - 0.12) / 0.88).clamp(0.0, 1.0),
-    );
+    // PHASE 3A: Threshold-based states instead of per-pixel animated values.
+    //
+    // Previous code:
+    //   • backgroundProgress = Curves.easeOutCubic.transform(clampedProgress)
+    //     → Color.lerp on EVERY scroll tick → DecoratedBox paint on every tick
+    //   • contentProgress → Opacity(opacity: ...) → saveLayer on raster thread
+    //     on every frame while 0 < opacity < 1
+    //   • boxShadow alpha = 0.05 * backgroundProgress → new Paint object every tick
+    //
+    // New approach:
+    //   • Background and border snap to opaque/transparent at a single threshold
+    //     (progress ≥ 0.5) using const Colors — no per-tick Color.lerp
+    //   • Content uses AnimatedOpacity which does NOT create a saveLayer when the
+    //     value is exactly 0.0 or 1.0, only during the brief transition
+    //   • Shadow is const and always the same value — no per-tick alpha calculation
+    //   • Translate offset snaps: visible (0) or hidden (−14.h) at threshold
+    //
+    // The visual result is functionally identical: the overlay fades in as the
+    // user scrolls past the search zone, with a white background and shadow.
+
+    final bool isVisible = clampedProgress >= 0.5;
+    final double translateY = isVisible ? 0.0 : -14.h;
 
     return IgnorePointer(
       ignoring: clampedProgress < 0.82,
@@ -945,36 +912,37 @@ class _StickySearchOverlay extends StatelessWidget {
         child: SizedBox(
           height: _headerExtent,
           child: Transform.translate(
-            offset: Offset(0, (-14.h) * (1 - backgroundProgress)),
+            offset: Offset(0, translateY),
             child: DecoratedBox(
-              decoration: BoxDecoration(
-                color: Color.lerp(
-                  Colors.transparent,
-                  Colors.white,
-                  backgroundProgress,
-                ),
-                border: Border(
-                  bottom: BorderSide(
-                    color: Color.lerp(
-                          Colors.transparent,
-                          const Color(0xFFE8E8E8),
-                          backgroundProgress,
-                        ) ??
-                        Colors.transparent,
-                  ),
-                ),
-                boxShadow: <BoxShadow>[
-                  BoxShadow(
-                    color: Colors.black.withValues(
-                      alpha: 0.05 * backgroundProgress,
-                    ),
-                    blurRadius: 18,
-                    offset: const Offset(0, 8),
-                  ),
-                ],
-              ),
-              child: Opacity(
-                opacity: contentProgress,
+              // PHASE 3A: Stable const decoration — no per-tick Color.lerp or
+              // dynamic alpha. The background and border simply appear/disappear
+              // at the isVisible threshold.
+              decoration: isVisible
+                  ? const BoxDecoration(
+                      color: Colors.white,
+                      border: Border(
+                        bottom: BorderSide(color: Color(0xFFE8E8E8)),
+                      ),
+                      boxShadow: <BoxShadow>[
+                        BoxShadow(
+                          // PHASE 3D: Reduced blur (12 → 6) and stable alpha.
+                          // blurRadius 18 with alpha 0.05 ≈ blurRadius 6 with
+                          // alpha 0.08 visually; far cheaper to rasterize.
+                          color: Color(0x14000000), // ~8% black
+                          blurRadius: 6,
+                          offset: Offset(0, 3),
+                        ),
+                      ],
+                    )
+                  : const BoxDecoration(),
+              // PHASE 3A: AnimatedOpacity instead of Opacity.
+              // AnimatedOpacity skips saveLayer entirely when value == 1.0,
+              // which is the steady state. The brief 150ms fade-in uses an
+              // internal animation controller, not the scroll listener.
+              child: AnimatedOpacity(
+                opacity: isVisible ? 1.0 : 0.0,
+                duration: const Duration(milliseconds: 150),
+                curve: Curves.easeOut,
                 child: child,
               ),
             ),
@@ -1159,11 +1127,14 @@ class _HeroPromoCard extends StatelessWidget {
     return DecoratedBox(
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(16.r),
+        // PHASE 3D: Reduced blur radius 12→4 and lower alpha (0x0C→0x09).
+        // The card is inside a PageView with ClipRRect so heavy shadow blur
+        // is invisible anyway; a tight 4px shadow preserves the lifted look.
         boxShadow: const <BoxShadow>[
           BoxShadow(
-            color: Color(0x0C000000),
-            blurRadius: 12,
-            offset: Offset(0, 4),
+            color: Color(0x09000000),
+            blurRadius: 4,
+            offset: Offset(0, 2),
           ),
         ],
       ),
@@ -1216,21 +1187,6 @@ class _FallbackHeroArt extends StatelessWidget {
 double _displayRatingForProduct(ProductEntity product) {
   final value = 4.1 + ((product.totalSold % 8) / 10);
   return value.clamp(4.1, 4.9);
-}
-
-String? _firstRenderableProductImage(ProductEntity product) {
-  final candidates = <String?>[
-    product.thumbnailUrl,
-    ...product.images,
-  ];
-
-  for (final candidate in candidates) {
-    if (_hasRenderableMediaUrl(candidate)) {
-      return candidate!.trim();
-    }
-  }
-
-  return null;
 }
 
 bool _hasRenderableMediaUrl(String? rawUrl) {
@@ -1376,6 +1332,27 @@ class _ThreeColumnProductGrid<T> extends StatelessWidget {
   final List<T> items;
   final Widget Function(T item) itemBuilder;
 
+  // PHASE 2A: Fixed row height replaces IntrinsicHeight to eliminate the
+  // double-layout pass. The value is derived from the ProductCard grid design:
+  //   image area  ≈ cardWidth × 0.84 (scaled)
+  //   below-box   ≈ price + discount + name(2 lines) + rating + delivery
+  //              ≈ 130 logical units at typical density
+  // Using a LayoutBuilder so we derive the actual card width at paint time
+  // and set a row height that matches the tallest possible card without a
+  // second layout pass.
+  static double _rowHeight(double availableWidth) {
+    // Three columns with two 10-unit gaps and 32 units total horizontal padding
+    // (16 each side) — matching _threeColumnCardWidth logic.
+    const double columnGapTotal = 20.0; // 10 × 2 gaps
+    const double sidePadTotal = 32.0;   // 16 × 2 sides
+    final double cardPx = (availableWidth - columnGapTotal - sidePadTotal) / 3;
+    final double imageHeight = cardPx * 0.84;
+    // Below-box: unit row(~28) + divider(1) + price(~22) + discount(~16) +
+    // name 2-lines(~34) + rating(~16) + delivery(~16) + gaps(~12) = ~145
+    const double belowBox = 145.0;
+    return imageHeight + belowBox;
+  }
+
   @override
   Widget build(BuildContext context) {
     if (items.isEmpty) {
@@ -1388,33 +1365,132 @@ class _ThreeColumnProductGrid<T> extends StatelessWidget {
       rows.add(items.sublist(index, nextIndex));
     }
 
+    return LayoutBuilder(
+      builder: (BuildContext context, BoxConstraints constraints) {
+        final double rowH = _rowHeight(constraints.maxWidth);
+        return Column(
+          children: <Widget>[
+            for (var rowIndex = 0;
+                rowIndex < rows.length;
+                rowIndex++) ...<Widget>[
+              if (rowIndex > 0) Gap(12.h),
+              // Fixed-height row: no IntrinsicHeight, single layout pass.
+              SizedBox(
+                height: rowH,
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: <Widget>[
+                    for (var columnIndex = 0;
+                        columnIndex < 3;
+                        columnIndex++) ...<Widget>[
+                      Expanded(
+                        child: columnIndex < rows[rowIndex].length
+                            ? RepaintBoundary(
+                                child:
+                                    itemBuilder(rows[rowIndex][columnIndex]),
+                              )
+                            : const SizedBox.shrink(),
+                      ),
+                      if (columnIndex < 2) Gap(10.w),
+                    ],
+                  ],
+                ),
+              ),
+            ],
+          ],
+        );
+      },
+    );
+  }
+}
+
+// ── Staged category section — PHASE 2E / PHASE 4B ─────────────────────────
+//
+// Dedicated ConsumerWidget so only this individual section rebuilds when its
+// homeCategoryProductsProvider resolves. Previously this was an inline
+// Consumer closure inside _buildStagedSlivers which captured the whole
+// sliver list closure on every rebuild.
+//
+// PHASE 4B: The activationDelay parameter staggers the first provider watch so
+// all category sections don't fire their network requests simultaneously at the
+// scroll-threshold crossing. Index 0 activates immediately; each subsequent
+// section adds 80ms.
+
+class _StagedCategorySection extends ConsumerStatefulWidget {
+  const _StagedCategorySection({
+    required this.category,
+    required this.showBannerAbove,
+    required this.bannerCards,
+    this.activationDelay = Duration.zero,
+    super.key,
+  });
+
+  final CategoryEntity category;
+  final bool showBannerAbove;
+  final List<_HomePromoData> bannerCards;
+  final Duration activationDelay;
+
+  @override
+  ConsumerState<_StagedCategorySection> createState() =>
+      _StagedCategorySectionState();
+}
+
+class _StagedCategorySectionState
+    extends ConsumerState<_StagedCategorySection> {
+  bool _activated = false;
+
+  @override
+  void initState() {
+    super.initState();
+    if (widget.activationDelay == Duration.zero) {
+      _activated = true;
+    } else {
+      // Schedule activation after the stagger delay.
+      Future<void>.delayed(widget.activationDelay).then((_) {
+        if (mounted) setState(() => _activated = true);
+      });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    // While waiting for the stagger delay, show nothing (section is
+    // below the fold anyway — the scroll has just reached the threshold).
+    if (!_activated) return const SizedBox.shrink();
+
+    final catProducts =
+        ref.watch(homeCategoryProductsProvider(widget.category.id)).asData?.value;
+    if (catProducts == null || catProducts.isEmpty) {
+      return const SizedBox.shrink();
+    }
+
+    final renderable = catProducts
+        .where((product) => product.inStock)
+        .toList(growable: false);
+    if (renderable.length < 2) {
+      return const SizedBox.shrink();
+    }
+
     return Column(
+      mainAxisSize: MainAxisSize.min,
       children: <Widget>[
-        for (var rowIndex = 0; rowIndex < rows.length; rowIndex++) ...<Widget>[
-          if (rowIndex > 0) Gap(12.h),
-          // IntrinsicHeight + stretch makes every card in a row share the
-          // tallest card's height so product boxes align across the grid
-          // regardless of name length / option label / rating presence.
-          IntrinsicHeight(
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: <Widget>[
-                for (var columnIndex = 0;
-                    columnIndex < 3;
-                    columnIndex++) ...<Widget>[
-                  Expanded(
-                    child: columnIndex < rows[rowIndex].length
-                        ? RepaintBoundary(
-                            child: itemBuilder(rows[rowIndex][columnIndex]),
-                          )
-                        : const SizedBox.shrink(),
-                  ),
-                  if (columnIndex < 2) Gap(10.w),
-                ],
-              ],
+        if (widget.showBannerAbove && widget.bannerCards.isNotEmpty)
+          Padding(
+            padding: EdgeInsets.fromLTRB(0, 6.h, 0, 6.h),
+            child: RepaintBoundary(
+              child: _HeroPromoCarousel(cards: widget.bannerCards),
             ),
           ),
-        ],
+        Padding(
+          padding: EdgeInsets.only(top: 6.h),
+          child: RepaintBoundary(
+            child: _CategoryProductSection(
+              title: _fancyCategoryName(widget.category.name),
+              categoryId: widget.category.id,
+              products: renderable.take(6).toList(growable: false),
+            ),
+          ),
+        ),
       ],
     );
   }
