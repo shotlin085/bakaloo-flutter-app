@@ -126,122 +126,92 @@ class _HomeSearchBarState extends State<HomeSearchBar> {
       ),
     );
 
+    // Full-width search bar — Everyday Essentials promo box removed.
     return Padding(
       padding: widget.outerPadding ?? EdgeInsets.fromLTRB(12.w, 7.h, 12.w, 0),
       child: SizedBox(
         height: 50.h,
-        child: Row(
-          children: <Widget>[
-            // Main search box.
-            Expanded(
-              flex: 73,
-              child: GestureDetector(
-                onTap: widget.onSearchTap,
-                child: Container(
-                  height: double.infinity,
+        child: GestureDetector(
+          onTap: widget.onSearchTap,
+          child: Container(
+            width: double.infinity,
+            height: double.infinity,
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: borderRadius,
+              border: Border.all(color: _borderColor),
+              boxShadow: <BoxShadow>[
+                BoxShadow(
+                  color: const Color(0xFF2A1A47).withValues(alpha: 0.06),
+                  blurRadius: 14,
+                  offset: const Offset(0, 4),
+                ),
+              ],
+            ),
+            padding: EdgeInsets.symmetric(horizontal: 14.w),
+            child: Row(
+              children: <Widget>[
+                Image.asset(
+                  _searchIconAsset,
+                  width: 28.w,
+                  height: 28.w,
+                  cacheWidth: 224,
+                  cacheHeight: 224,
+                  fit: BoxFit.contain,
+                  filterQuality: FilterQuality.high,
+                ),
+                Gap(10.w),
+                // Thin purple divider.
+                Container(
+                  width: 1.5,
+                  height: 20.h,
                   decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: borderRadius,
-                    border: Border.all(color: _borderColor),
-                    boxShadow: <BoxShadow>[
-                      BoxShadow(
-                        color: const Color(0xFF2A1A47).withValues(alpha: 0.06),
-                        blurRadius: 14,
-                        offset: const Offset(0, 4),
-                      ),
-                    ],
-                  ),
-                  padding: EdgeInsets.symmetric(horizontal: 14.w),
-                  child: Row(
-                    children: <Widget>[
-                      Image.asset(
-                        _searchIconAsset,
-                        width: 28.w,
-                        height: 28.w,
-                        cacheWidth: 224,
-                        cacheHeight: 224,
-                        fit: BoxFit.contain,
-                        filterQuality: FilterQuality.high,
-                      ),
-                      Gap(10.w),
-                      // Thin purple divider.
-                      Container(
-                        width: 1.5,
-                        height: 20.h,
-                        decoration: BoxDecoration(
-                          color: _purple,
-                          borderRadius: BorderRadius.circular(2.r),
-                        ),
-                      ),
-                      Gap(10.w),
-                      Expanded(
-                        child: widget.animateHints
-                            ? AnimatedSwitcher(
-                                duration: const Duration(milliseconds: 300),
-                                transitionBuilder: (child, animation) =>
-                                    FadeTransition(
-                                  opacity: animation,
-                                  child: child,
-                                ),
-                                layoutBuilder: (
-                                  Widget? currentChild,
-                                  List<Widget> previousChildren,
-                                ) {
-                                  return SizedBox.expand(
-                                    child: Stack(
-                                      alignment: Alignment.centerLeft,
-                                      children: <Widget>[
-                                        ...previousChildren,
-                                        if (currentChild != null) currentChild,
-                                      ],
-                                    ),
-                                  );
-                                },
-                                child: hintLabel,
-                              )
-                            : hintLabel,
-                      ),
-                      Gap(8.w),
-                      // Scan icon.
-                      Image.asset(
-                        _scanIconAsset,
-                        width: 34.w,
-                        height: 34.w,
-                        cacheWidth: 272,
-                        cacheHeight: 272,
-                        fit: BoxFit.contain,
-                        filterQuality: FilterQuality.high,
-                      ),
-                    ],
+                    color: _purple,
+                    borderRadius: BorderRadius.circular(2.r),
                   ),
                 ),
-              ),
-            ),
-            Gap(10.w),
-            // Everyday Essentials promo box.
-            Expanded(
-              flex: 28,
-              child: GestureDetector(
-                onTap: widget.onSearchTap,
-                child: Container(
-                  height: double.infinity,
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: borderRadius,
-                    border: Border.all(color: _borderColor),
-                    boxShadow: <BoxShadow>[
-                      BoxShadow(
-                        color: const Color(0xFF2A1A47).withValues(alpha: 0.06),
-                        blurRadius: 14,
-                        offset: const Offset(0, 4),
-                      ),
-                    ],
-                  ),
-                  child: const _PromoBox(),
+                Gap(10.w),
+                Expanded(
+                  child: widget.animateHints
+                      ? AnimatedSwitcher(
+                          duration: const Duration(milliseconds: 300),
+                          transitionBuilder: (child, animation) =>
+                              FadeTransition(
+                            opacity: animation,
+                            child: child,
+                          ),
+                          layoutBuilder: (
+                            Widget? currentChild,
+                            List<Widget> previousChildren,
+                          ) {
+                            return SizedBox.expand(
+                              child: Stack(
+                                alignment: Alignment.centerLeft,
+                                children: <Widget>[
+                                  ...previousChildren,
+                                  if (currentChild != null) currentChild,
+                                ],
+                              ),
+                            );
+                          },
+                          child: hintLabel,
+                        )
+                      : hintLabel,
                 ),
-              ),
+                Gap(8.w),
+                // Scan icon.
+                Image.asset(
+                  _scanIconAsset,
+                  width: 34.w,
+                  height: 34.w,
+                  cacheWidth: 272,
+                  cacheHeight: 272,
+                  fit: BoxFit.contain,
+                  filterQuality: FilterQuality.high,
+                ),
+              ],
             ),
-          ],
+          ),
         ),
       ),
     );

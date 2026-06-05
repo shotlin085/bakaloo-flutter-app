@@ -94,6 +94,13 @@ class AuthNotifier extends _$AuthNotifier {
         ref.read(socketServiceProvider).connect(authEntity.accessToken);
         await _registerFcmToken();
         state = AuthAuthenticated(user: authEntity.user);
+
+        // FIX: After successful login, trigger allocation auto-assign so that
+        // real users with a saved default address get shop visibility immediately.
+        // This runs in the background — authentication is already complete.
+        // The home/product providers will pick up the new allocation on their
+        // next read since the Redis cache is invalidated by the recompute.
+        unawaited(_triggerAllocationAutoAssign());
       },
     );
   }
@@ -122,6 +129,10 @@ class AuthNotifier extends _$AuthNotifier {
 
     state = AuthAuthenticated(user: user);
     ref.read(socketServiceProvider).connect(accessToken);
+
+    // FIX: Also trigger auto-assign on session restore so that a user
+    // who last opened the app before the fix now gets allocation resolved.
+    unawaited(_triggerAllocationAutoAssign());
   }
 
   Future<void> logout() async {
@@ -197,6 +208,30 @@ class AuthNotifier extends _$AuthNotifier {
       }
     }
     return null;
+  }
+
+  /// FIX: After login or session restore, call POST /allocation/auto-assign
+  /// to ensure the user has a shop allocation if they have a default address.
+  /// This resolves the "Product not found" error for real users who logged in
+  /// but never had allocation triggered.
+  ///
+  /// Fire-and-forget — auth state is already set before this runs.
+  /// If it fails (network error, server error), the product service fallback
+  /// (anonymous unscoped visibility) still allows browsing.
+  Future<void> _triggerAllocationAutoAssign() async {
+    try {
+      await ref.read(dioClientProvider).post<dynamic>(
+        ApiConstants.allocationAutoAssign,
+      );
+    } on DioException catch (e) {
+      // 401 means token expired — ignore; the refresh interceptor will handle it.
+      // Any other error is non-fatal: the anonymous fallback keeps products visible.
+      if (e.response?.statusCode != 401) {
+        // Silent — do not block auth or show error to user.
+      }
+    } catch (_) {
+      // Non-fatal — ignore.
+    }
   }
 
   Future<void> _registerFcmToken() async {

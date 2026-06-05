@@ -20,6 +20,15 @@ android {
         jvmTarget = JavaVersion.VERSION_17.toString()
     }
 
+    signingConfigs {
+        create("release") {
+            keyAlias = "bakaloo"
+            keyPassword = "bakaloo123"
+            storeFile = file("bakaloo-release.jks")
+            storePassword = "bakaloo123"
+        }
+    }
+
     defaultConfig {
         applicationId = "com.bakaloo.bakaloo_flutter_app"
         minSdk = flutter.minSdkVersion
@@ -32,12 +41,10 @@ android {
 
     buildTypes {
         debug {
-            // No applicationIdSuffix — keeps com.bakaloo.bakaloo_flutter_app
-            // so Firebase SHA-1 matches and FCM tokens work correctly
             versionNameSuffix = "-debug"
         }
         release {
-            signingConfig = signingConfigs.getByName("debug")
+            signingConfig = signingConfigs.getByName("release")
             isMinifyEnabled = true
             isShrinkResources = true
             proguardFiles(

@@ -63,7 +63,11 @@ class WishlistRemoteDataSource {
   }
 
   Future<int> moveToCart() async {
-    final response = await _apiClient.moveWishlistToCart();
+    // Pass an empty body so the backend does not reject with
+    // "Body cannot be empty when content-type is application/json"
+    final response = await _apiClient.moveWishlistToCart(
+      const <String, dynamic>{},
+    );
     final payload =
         _parsePayload(response.data, ApiConstants.wishlistMoveToCart);
     final data = payload['data'];

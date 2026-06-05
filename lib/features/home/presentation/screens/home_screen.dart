@@ -718,7 +718,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
                                           outerPadding: EdgeInsets.fromLTRB(
                                             12.w,
                                             0,
-                                            0,
+                                            12.w,
                                             0,
                                           ),
                                         ),
@@ -980,7 +980,7 @@ class _StickySearchOverlayChrome extends StatelessWidget {
           onSearchTap: onSearchTap,
           animateHints: false,
           searchTheme: searchTheme,
-          outerPadding: EdgeInsets.fromLTRB(12.w, _searchTopPadding, 0, 0),
+          outerPadding: EdgeInsets.fromLTRB(12.w, _searchTopPadding, 12.w, 0),
         ),
         if (showCategoryTabs) ...<Widget>[
           Gap(_betweenSections),

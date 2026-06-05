@@ -472,5 +472,15 @@ String _mapCartErrorMessage(String raw) {
   if (lower.contains('validation error') && lower.length < 20) {
     return 'Something went wrong. Please try again.';
   }
+  // FIX: Real users with no allocation get a clear action message.
+  if (lower.contains('shop_allocation_required') ||
+      lower.contains('please set your delivery address') ||
+      lower.contains('allocation_required')) {
+    return 'Please set your delivery address to add items to cart.';
+  }
+  if (lower.contains('not available in any of your shops') ||
+      lower.contains('not available in your delivery area')) {
+    return 'This product is not available at your location.';
+  }
   return raw;
 }

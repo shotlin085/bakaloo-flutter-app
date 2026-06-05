@@ -139,6 +139,11 @@ class ApiConstants {
   static const sectionManifest = '/theme/tabs';
   static const themeAnalytics = '/theme/analytics';
 
+  // Allocation
+  static const allocationMyShops = '/allocation/my-shops';
+  static const allocationAutoAssign = '/allocation/auto-assign';
+  static const allocationRecompute = '/allocation/recompute';
+
   static const uploadImage = '/uploads/image';
 
   static String? proxyMediaUrl(String? rawUrl) {

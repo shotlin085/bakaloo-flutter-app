@@ -251,7 +251,9 @@ abstract class ApiClient {
   );
 
   @POST(ApiConstants.wishlistMoveToCart)
-  Future<HttpResponse<dynamic>> moveWishlistToCart();
+  Future<HttpResponse<dynamic>> moveWishlistToCart(
+    @Body() Map<String, dynamic> body,
+  );
 
   @GET('/reviews/products/{productId}')
   Future<HttpResponse<dynamic>> getProductReviews(
