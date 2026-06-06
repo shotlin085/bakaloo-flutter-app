@@ -269,8 +269,12 @@ Dio _buildDio() {
   return Dio(
     BaseOptions(
       baseUrl: ApiConstants.baseUrl,
-      connectTimeout: const Duration(seconds: 5),
-      receiveTimeout: const Duration(seconds: 5),
+      // Use the same generous timeout as the main DioClient so the emulator's
+      // NAT-based connection to the Cloudflare tunnel doesn't time out before
+      // the section manifest is returned (previously 5s — too aggressive for
+      // mobile-data / tunnel latency).
+      connectTimeout: const Duration(seconds: 25),
+      receiveTimeout: const Duration(seconds: 40),
     ),
   );
 }

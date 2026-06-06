@@ -1184,11 +1184,6 @@ class _FallbackHeroArt extends StatelessWidget {
   }
 }
 
-double _displayRatingForProduct(ProductEntity product) {
-  final value = 4.1 + ((product.totalSold % 8) / 10);
-  return value.clamp(4.1, 4.9);
-}
-
 bool _hasRenderableMediaUrl(String? rawUrl) {
   final value = ApiConstants.resolveMediaUrl(rawUrl)?.trim();
   if (value == null || value.isEmpty || value.toLowerCase() == 'null') {

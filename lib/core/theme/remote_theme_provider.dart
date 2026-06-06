@@ -758,8 +758,10 @@ Dio _buildDio() {
   return Dio(
     BaseOptions(
       baseUrl: ApiConstants.baseUrl,
-      connectTimeout: const Duration(seconds: 5),
-      receiveTimeout: const Duration(seconds: 5),
+      // Match the main DioClient timeout so mobile-data / Cloudflare tunnel
+      // latency doesn't cause theme fetches to silently fail (previously 5s).
+      connectTimeout: const Duration(seconds: 25),
+      receiveTimeout: const Duration(seconds: 40),
     ),
   );
 }

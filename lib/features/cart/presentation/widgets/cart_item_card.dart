@@ -60,14 +60,23 @@ class CartItemCard extends StatelessWidget {
                             memCacheWidth: 128,
                             memCacheHeight: 128,
                             fadeInDuration: const Duration(milliseconds: 150),
+                            errorWidget: (context, url, error) => Container(
+                              color: const Color(0xFFF4F4F4),
+                              alignment: Alignment.center,
+                              child: Icon(
+                                Icons.shopping_basket_outlined,
+                                size: 22.sp,
+                                color: const Color(0xFFCCCCCC),
+                              ),
+                            ),
                           )
                         : Container(
                             color: const Color(0xFFF4F4F4),
                             alignment: Alignment.center,
                             child: Icon(
-                              Icons.image_outlined,
+                              Icons.shopping_basket_outlined,
                               size: 22.sp,
-                              color: const Color(0xFFB5B5B5),
+                              color: const Color(0xFFCCCCCC),
                             ),
                           ),
               ),

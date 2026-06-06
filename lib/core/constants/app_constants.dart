@@ -14,6 +14,10 @@ class AppConstants {
   static const imageCacheMaxCount = 1000;
   static const socketReconnectAttempts = 10;
   static const socketReconnectDelayMs = 2000;
-  static const connectTimeoutSeconds = 15;
-  static const receiveTimeoutSeconds = 30;
+  // PHASE 4 FIX: Mobile data + Cloudflare tunnel needs a more forgiving
+  // connect timeout. 15s was too aggressive — a cold mobile-data connection
+  // through the tunnel routinely exceeded it and tripped the
+  // service-unavailable blocker. 25s connect / 40s receive is safe.
+  static const connectTimeoutSeconds = 25;
+  static const receiveTimeoutSeconds = 40;
 }

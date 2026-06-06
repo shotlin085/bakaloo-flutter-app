@@ -15,7 +15,6 @@ const List<String> _searchHints = <String>[
   'dishwash liquid',
   'Safai Abhiyaan products',
 ];
-const String _promoBasketAsset = 'assets/images/search_bannder.png';
 const String _searchIconAsset = 'assets/icon/bakaloo-search-icon.png';
 const String _scanIconAsset = 'assets/icon/bakaloo-scan-icon.png';
 
@@ -214,68 +213,6 @@ class _HomeSearchBarState extends State<HomeSearchBar> {
           ),
         ),
       ),
-    );
-  }
-}
-
-class _PromoBox extends StatelessWidget {
-  const _PromoBox();
-
-  static const Color _textColor = Color(0xFF141217);
-  static const Color _chevronColor = Color(0xFF6B6770);
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: EdgeInsets.fromLTRB(7.w, 6.h, 6.w, 6.h),
-      child: Row(
-        children: <Widget>[
-          const _PromoBasketImage(),
-          Gap(5.w),
-          Expanded(
-            child: FittedBox(
-              fit: BoxFit.scaleDown,
-              alignment: Alignment.centerLeft,
-              child: Text(
-                'Everyday\nEssentials',
-                maxLines: 2,
-                style: TextStyle(
-                  fontFamily: 'Inter',
-                  fontSize: 12.sp,
-                  height: 1.12,
-                  letterSpacing: -0.2,
-                  fontWeight: FontWeight.w600,
-                  color: _textColor,
-                ),
-              ),
-            ),
-          ),
-          Gap(2.w),
-          Icon(
-            Icons.chevron_right_rounded,
-            size: 16.sp,
-            color: _chevronColor,
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _PromoBasketImage extends StatelessWidget {
-  const _PromoBasketImage();
-
-  @override
-  Widget build(BuildContext context) {
-    final double size = 38.w;
-    return Image.asset(
-      _promoBasketAsset,
-      width: size,
-      height: size,
-      cacheWidth: 304,
-      cacheHeight: 304,
-      fit: BoxFit.contain,
-      filterQuality: FilterQuality.high,
     );
   }
 }

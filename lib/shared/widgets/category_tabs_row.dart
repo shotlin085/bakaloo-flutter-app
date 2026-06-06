@@ -1,12 +1,13 @@
 import 'dart:math' as math;
 
-import 'package:bakaloo_flutter_app/shared/widgets/app_image.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:gap/gap.dart';
 
+import 'package:bakaloo_flutter_app/core/constants/api_constants.dart';
 import 'package:bakaloo_flutter_app/core/models/category_model.dart';
 import 'package:bakaloo_flutter_app/core/providers/store_provider.dart';
 import 'package:bakaloo_flutter_app/core/theme/remote_theme_model.dart';
@@ -244,18 +245,28 @@ class CategoryTabsRow extends ConsumerWidget {
               SizedBox(
                 width: 46.w,
                 height: 46.w,
-                child: AppImage(
-                  imageUrl: entry.tabIconUrl!,
+                // FIX: Use CachedNetworkImage directly instead of AppImage
+                // (which wraps ScrollAwareImageProvider). The sticky tab bar
+                // is NOT inside a scrollable context, so ScrollAwareImageProvider
+                // defers loading indefinitely and the icon never renders.
+                // Also resolve the URL via ApiConstants to sanitize Cloudinary
+                // transform params consistently.
+                child: CachedNetworkImage(
+                  imageUrl: ApiConstants.resolveMediaUrl(entry.tabIconUrl) ??
+                      entry.tabIconUrl!,
+                  width: 46.w,
+                  height: 46.w,
                   memCacheWidth: 160,
                   memCacheHeight: 160,
                   fit: BoxFit.contain,
                   filterQuality: FilterQuality.high,
-                  placeholder: Icon(
+                  fadeInDuration: const Duration(milliseconds: 150),
+                  placeholder: (context, url) => Icon(
                     Icons.category_rounded,
                     size: 30.sp,
                     color: foregroundColor,
                   ),
-                  errorWidget: Icon(
+                  errorWidget: (context, url, error) => Icon(
                     Icons.category_rounded,
                     size: 30.sp,
                     color: foregroundColor,

@@ -22,7 +22,6 @@ import 'package:bakaloo_flutter_app/shared/widgets/home_header.dart';
 import 'package:bakaloo_flutter_app/shared/widgets/home_search_bar.dart';
 import 'package:bakaloo_flutter_app/shared/utils/address_utils.dart';
 import 'package:bakaloo_flutter_app/shared/widgets/shared_painters.dart';
-import 'package:bakaloo_flutter_app/shared/widgets/store_selector_row.dart';
 
 class StoreScreenShell extends ConsumerStatefulWidget {
   const StoreScreenShell({required this.storeIndex, super.key});

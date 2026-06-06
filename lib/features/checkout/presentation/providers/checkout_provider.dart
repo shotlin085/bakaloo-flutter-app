@@ -22,6 +22,7 @@ import 'package:bakaloo_flutter_app/features/checkout/domain/repositories/checko
 import 'package:bakaloo_flutter_app/features/checkout/domain/usecases/place_order.dart';
 import 'package:bakaloo_flutter_app/features/checkout/presentation/providers/coupon_provider.dart';
 import 'package:bakaloo_flutter_app/features/payments/presentation/providers/payment_provider.dart';
+import 'package:bakaloo_flutter_app/features/wallet/presentation/providers/wallet_provider.dart';
 
 part 'checkout_provider.freezed.dart';
 part 'checkout_provider.g.dart';
@@ -372,13 +373,16 @@ class CheckoutNotifier extends _$CheckoutNotifier {
   }
 
   Future<double> get _walletBalance async {
-    final current = ref.read(walletBalanceProvider);
-    final value = current.asData?.value;
+    // FIX: Read from walletProvider (WalletNotifier, keepAlive) so balance
+    // is always available from the already-fetched WalletEntity.
+    final current = ref.read(walletProvider);
+    final value = current.asData?.value.balance;
     if (value != null) {
       return value;
     }
     try {
-      return await ref.read(walletBalanceProvider.future);
+      final wallet = await ref.read(walletProvider.future);
+      return wallet.balance;
     } catch (_) {
       return 0;
     }

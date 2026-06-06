@@ -5,7 +5,7 @@ import 'package:gap/gap.dart';
 
 import 'package:bakaloo_flutter_app/core/providers/store_provider.dart';
 import 'package:bakaloo_flutter_app/core/theme/remote_theme_model.dart';
-import 'package:bakaloo_flutter_app/features/payments/presentation/providers/payment_provider.dart';
+import 'package:bakaloo_flutter_app/features/wallet/presentation/providers/wallet_provider.dart';
 
 /// Premium white-lavender top header.
 class HomeHeader extends ConsumerWidget {
@@ -229,7 +229,10 @@ class _WalletPill extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final balance = ref.watch(walletBalanceProvider).asData?.value;
+    // FIX: Use walletProvider (WalletNotifier, keepAlive) so the pill shows
+    // the same balance already loaded by the wallet screen/profile — no
+    // separate fetch, no independent error state.
+    final balance = ref.watch(walletProvider).asData?.value.balance;
     if (balance == null || balance <= 0) return const SizedBox.shrink();
 
     return Container(

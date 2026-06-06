@@ -19,7 +19,6 @@ import 'package:bakaloo_flutter_app/core/theme/app_shadows.dart';
 import 'package:bakaloo_flutter_app/core/theme/app_text_styles.dart';
 import 'package:bakaloo_flutter_app/core/utils/extensions/double_extensions.dart';
 import 'package:bakaloo_flutter_app/features/checkout/presentation/screens/coupons_screen.dart';
-import 'package:bakaloo_flutter_app/features/payments/presentation/providers/payment_provider.dart';
 import 'package:bakaloo_flutter_app/features/profile/domain/entities/user_stats_entity.dart';
 import 'package:bakaloo_flutter_app/features/profile/presentation/providers/profile_provider.dart';
 import 'package:bakaloo_flutter_app/features/profile/presentation/widgets/appearance_toggle.dart';
@@ -30,6 +29,8 @@ import 'package:bakaloo_flutter_app/features/profile/presentation/widgets/menu_s
 import 'package:bakaloo_flutter_app/features/profile/presentation/widgets/menu_tile.dart';
 import 'package:bakaloo_flutter_app/features/profile/presentation/widgets/profile_header.dart';
 import 'package:bakaloo_flutter_app/features/profile/presentation/widgets/stats_row.dart';
+import 'package:bakaloo_flutter_app/features/wallet/presentation/providers/wallet_provider.dart';
+import 'package:bakaloo_flutter_app/features/wallet/domain/entities/wallet_entity.dart';
 import 'package:bakaloo_flutter_app/routing/app_router.dart';
 import 'package:bakaloo_flutter_app/routing/route_names.dart';
 
@@ -78,7 +79,10 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
 
     final profileAsync = ref.watch(profileProvider);
     final currentUser = ref.watch(currentUserProvider);
-    final walletAsync = ref.watch(walletBalanceProvider);
+    // FIX: Use walletProvider (WalletNotifier, keepAlive) instead of
+    // walletBalanceProvider (auto-dispose) so the balance persists across
+    // rebuilds and always shows the correct fetched value.
+    final walletAsync = ref.watch(walletProvider);
     final statsAsync = ref.watch(userStatsProvider);
     final profileData = profileAsync.asData?.value;
     final user = profileData?.user ?? currentUser;
@@ -512,10 +516,22 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     );
   }
 
-  String _walletLabel(AsyncValue<double> walletAsync) {
+  // FIX: Now receives AsyncValue<WalletEntity> from walletProvider instead of
+  // AsyncValue<double> from the auto-dispose walletBalanceProvider.
+  String _walletLabel(AsyncValue<dynamic> walletAsync) {
     return walletAsync.when(
-      data: (balance) => balance.toInrCurrency,
-      error: (_, __) => '₹0',
+      data: (wallet) {
+        // walletProvider returns WalletEntity with .balance field.
+        if (wallet is WalletEntity) {
+          return wallet.balance.toInrCurrency;
+        }
+        // Fallback: if somehow a double slips through.
+        if (wallet is double) {
+          return wallet.toInrCurrency;
+        }
+        return '...';
+      },
+      error: (_, __) => '--',
       loading: () => '...',
     );
   }

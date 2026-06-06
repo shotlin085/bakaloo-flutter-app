@@ -10,7 +10,9 @@ import 'package:riverpod_annotation/riverpod_annotation.dart';
 import 'package:bakaloo_flutter_app/core/constants/api_constants.dart';
 import 'package:bakaloo_flutter_app/core/constants/storage_keys.dart';
 import 'package:bakaloo_flutter_app/core/di/providers.dart';
+import 'package:bakaloo_flutter_app/core/errors/failure.dart';
 import 'package:bakaloo_flutter_app/core/socket/socket_service.dart';
+import 'package:bakaloo_flutter_app/core/storage/app_cache_manager.dart';
 import 'package:bakaloo_flutter_app/core/storage/hive_service.dart';
 import 'package:bakaloo_flutter_app/features/auth/data/datasources/auth_remote_datasource.dart';
 import 'package:bakaloo_flutter_app/features/auth/data/models/user_model.dart';
@@ -22,6 +24,8 @@ import 'package:bakaloo_flutter_app/features/auth/domain/usecases/refresh_token_
 import 'package:bakaloo_flutter_app/features/auth/domain/usecases/send_otp_usecase.dart';
 import 'package:bakaloo_flutter_app/features/auth/domain/usecases/verify_otp_usecase.dart';
 import 'package:bakaloo_flutter_app/features/auth/presentation/providers/auth_state.dart';
+import 'package:bakaloo_flutter_app/features/cart/presentation/providers/cart_provider.dart';
+import 'package:bakaloo_flutter_app/features/wallet/presentation/providers/wallet_provider.dart';
 
 part 'auth_notifier.g.dart';
 
@@ -93,13 +97,17 @@ class AuthNotifier extends _$AuthNotifier {
       (authEntity) async {
         ref.read(socketServiceProvider).connect(authEntity.accessToken);
         await _registerFcmToken();
+
+        // PHASE 6 FIX: Reconcile per-user cache BEFORE marking authenticated.
+        // If a different user (e.g. demo → real) logged in, their cart/wallet/
+        // order snapshots are wiped so stale data never renders.
+        await AppCacheManager.reconcileUser(authEntity.user.id);
+
+        // Invalidate user-scoped providers so they refetch for THIS user.
+        _invalidateUserScopedProviders();
+
         state = AuthAuthenticated(user: authEntity.user);
 
-        // FIX: After successful login, trigger allocation auto-assign so that
-        // real users with a saved default address get shop visibility immediately.
-        // This runs in the background — authentication is already complete.
-        // The home/product providers will pick up the new allocation on their
-        // next read since the Redis cache is invalidated by the recompute.
         unawaited(_triggerAllocationAutoAssign());
       },
     );
@@ -112,6 +120,32 @@ class AuthNotifier extends _$AuthNotifier {
 
     return result.fold<Future<bool>>(
       (failure) async {
+        // PHASE 5 FIX (mobile-network stale-UI / forced-logout bug):
+        // Only force the user back to login when the refresh genuinely
+        // FAILED authentication (expired/invalid refresh token → AuthFailure).
+        // A NetworkFailure (mobile-data timeout, tunnel hiccup, no route to
+        // host) must NOT log the user out — that was a major cause of the
+        // "I switched to mobile data and got logged out / saw the old login
+        // screen" report. In that case we keep the existing session alive
+        // optimistically using the still-valid cached identity; the next
+        // successful request (or the 401 refresh interceptor) will reconcile.
+        if (failure is NetworkFailure || failure is ServerFailure) {
+          final cachedUser = HiveService.userBox.get('user');
+          final user = _userFromCache(cachedUser);
+          if (user != null) {
+            // Keep the session visible. Do NOT connect the socket here — the
+            // access token is stale; the socket will (re)connect once a fresh
+            // token is obtained by the refresh interceptor on the next call.
+            state = AuthAuthenticated(user: user);
+            return true;
+          }
+          // No cached identity to fall back on — stay unauthenticated but do
+          // NOT clear tokens, so a later retry can still refresh.
+          state = const AuthUnauthenticated();
+          return false;
+        }
+
+        // Genuine auth failure — the refresh token is no longer valid.
         state = const AuthUnauthenticated();
         return false;
       },
@@ -127,6 +161,11 @@ class AuthNotifier extends _$AuthNotifier {
     final user = _userFromCache(cachedUser) ??
         _userFromClaims(JwtDecoder.decode(accessToken));
 
+    // PHASE 6 FIX: Reconcile per-user cache on session restore too, so a
+    // reinstall/update that restored a token for a different user can't show
+    // the previous user's cached data.
+    await AppCacheManager.reconcileUser(user.id);
+
     state = AuthAuthenticated(user: user);
     ref.read(socketServiceProvider).connect(accessToken);
 
@@ -140,8 +179,26 @@ class AuthNotifier extends _$AuthNotifier {
     await ref.read(secureStorageProvider).clearAll();
     await HiveService.userBox.clear();
     await HiveService.settingsBox.delete(StorageKeys.lastFcmToken);
+    // PHASE 6 FIX: Clear the current user's scoped caches on logout so the
+    // next user (or the same user re-logging in) never sees stale cart/wallet.
+    await AppCacheManager.reconcileUser('');
     ref.read(socketServiceProvider).disconnect();
     state = const AuthUnauthenticated();
+  }
+
+  /// PHASE 6 FIX: Invalidate user-scoped Riverpod providers so they refetch
+  /// fresh data for the newly authenticated user instead of serving the
+  /// previous session's in-memory state. Best-effort — wrapped so a missing
+  /// provider never blocks login.
+  void _invalidateUserScopedProviders() {
+    // Imported lazily by name to avoid circular imports; these are the
+    // keepAlive providers that hold per-user state.
+    try {
+      ref.invalidate(cartProvider);
+    } catch (_) {}
+    try {
+      ref.invalidate(walletProvider);
+    } catch (_) {}
   }
 
   UserEntity? _userFromCache(dynamic cachedUser) {

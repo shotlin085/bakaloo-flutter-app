@@ -20,6 +20,7 @@ import 'package:bakaloo_flutter_app/features/checkout/domain/entities/checkout_s
 import 'package:bakaloo_flutter_app/features/checkout/domain/entities/delivery_slot_entity.dart';
 import 'package:bakaloo_flutter_app/features/checkout/presentation/providers/checkout_provider.dart';
 import 'package:bakaloo_flutter_app/features/payments/presentation/providers/payment_provider.dart';
+import 'package:bakaloo_flutter_app/features/wallet/presentation/providers/wallet_provider.dart';
 import 'package:bakaloo_flutter_app/routing/route_names.dart';
 import 'package:bakaloo_flutter_app/shared/widgets/app_image.dart';
 
@@ -40,13 +41,12 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
   @override
   void initState() {
     super.initState();
-    // Eagerly trigger wallet balance fetch so it's ready when the payment
-    // section renders. Without this, the provider only fetches on first watch
-    // which can be mid-render, causing a ₹0 flash.
+    // Eagerly trigger wallet fetch so balance is ready when the payment
+    // section renders. Uses walletProvider (keepAlive WalletNotifier) so
+    // the same fetch is shared with the wallet screen — no duplicate requests.
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) {
-        // Trigger the provider if not already cached
-        ref.read(walletBalanceProvider.future).ignore();
+        ref.read(walletProvider.future).ignore();
       }
     });
   }
@@ -65,11 +65,12 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
   Widget build(BuildContext context) {
     final cartAsync = ref.watch(cartProvider);
     final checkoutState = ref.watch(checkoutProvider);
-    final walletBalanceAsync = ref.watch(walletBalanceProvider);
-    // Don't show ₹0 while loading — it misleads users into thinking their
-    // wallet is empty. Show the loading state in the WalletPaymentCard instead.
-    final walletBalance = walletBalanceAsync.asData?.value;
-    final walletLoading = walletBalanceAsync.isLoading;
+    // FIX: Use walletProvider (WalletNotifier, keepAlive) instead of the
+    // separate walletBalanceProvider so balance is always available from the
+    // already-loaded WalletEntity — prevents "Balance unavailable" error state.
+    final walletAsync = ref.watch(walletProvider);
+    final walletBalance = walletAsync.asData?.value.balance;
+    final walletLoading = walletAsync.isLoading;
     final summary = ref.read(checkoutProvider.notifier).summary;
     final isPlacing = checkoutState.isPlacingOrder;
 
@@ -134,7 +135,7 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
             summary: summary,
             walletBalance: walletBalance ?? 0.0,
             walletLoading: walletLoading,
-            walletError: walletBalanceAsync.hasError,
+            walletError: walletAsync.hasError,
             itemCount: cart.itemCount,
             items: cart.items,
           );
@@ -356,7 +357,7 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
     }
     // Always refresh — user may have topped up even if they didn't pop with
     // `true`.
-    ref.invalidate(walletBalanceProvider);
+    ref.invalidate(walletProvider);
   }
 
   void _showSnackBar(String message, {bool isError = false}) {

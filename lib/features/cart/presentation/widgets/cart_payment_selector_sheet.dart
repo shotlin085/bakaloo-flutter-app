@@ -7,7 +7,7 @@ import 'package:phosphor_flutter/phosphor_flutter.dart';
 import 'package:bakaloo_flutter_app/core/theme/app_colors.dart';
 import 'package:bakaloo_flutter_app/core/theme/app_text_styles.dart';
 import 'package:bakaloo_flutter_app/core/utils/extensions/double_extensions.dart';
-import 'package:bakaloo_flutter_app/features/payments/presentation/providers/payment_provider.dart';
+import 'package:bakaloo_flutter_app/features/wallet/presentation/providers/wallet_provider.dart';
 
 class CartPaymentSelectorSheet extends ConsumerWidget {
   const CartPaymentSelectorSheet({
@@ -21,8 +21,10 @@ class CartPaymentSelectorSheet extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final walletBalanceAsync = ref.watch(walletBalanceProvider);
-    final walletBalance = walletBalanceAsync.asData?.value ?? 0.0;
+    // FIX: Use walletProvider (WalletNotifier, keepAlive) for consistent
+    // balance — never shows stale 0 or "Low Balance" incorrectly.
+    final walletAsync = ref.watch(walletProvider);
+    final walletBalance = walletAsync.asData?.value.balance ?? 0.0;
     final hasEnoughWalletBalance = walletBalance >= orderTotal;
 
     return Container(
