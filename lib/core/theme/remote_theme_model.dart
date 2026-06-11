@@ -151,11 +151,15 @@ class CategoryTabsTheme {
     required this.visible,
     required this.textColor,
     required this.indicatorColor,
+    this.backgroundColor,
   });
 
   final bool visible;
   final Color textColor;
   final Color indicatorColor;
+  /// Optional independent background for the category-tabs container row.
+  /// When null, the parent [SearchZoneTheme.backgroundColor] is used (legacy behavior).
+  final Color? backgroundColor;
 
   factory CategoryTabsTheme.fromJson(Map<String, dynamic> json) {
     final defaults = CategoryTabsTheme.defaults();
@@ -169,6 +173,13 @@ class CategoryTabsTheme {
         _parseNullableString(json['indicatorColor']),
         defaults.indicatorColor,
       ),
+      // backgroundColor is additive — null means "inherit from search zone" (backward compat)
+      backgroundColor: json['backgroundColor'] != null
+          ? _parseColor(
+              _parseNullableString(json['backgroundColor']),
+              defaults.textColor, // dummy fallback — null is returned when key absent
+            )
+          : null,
     );
   }
 
@@ -176,12 +187,15 @@ class CategoryTabsTheme {
         visible: true,
         textColor: Color(0xFF111827),
         indicatorColor: Color(0xFF111827),
+        backgroundColor: null,
       );
 
   Map<String, dynamic> toJson() => <String, dynamic>{
         'visible': visible,
         'textColor': _colorToHex(textColor),
         'indicatorColor': _colorToHex(indicatorColor),
+        if (backgroundColor != null)
+          'backgroundColor': _colorToHex(backgroundColor!),
       };
 }
 
@@ -316,18 +330,64 @@ class FeeStripTheme {
       };
 }
 
+/// A tap action attached to a mosaic tile. Additive + nullable so legacy
+/// themes (which never stored an action) keep their original behaviour of
+/// navigating to the resolved product.
+class MosaicTileAction {
+  const MosaicTileAction({required this.type, this.value});
+
+  /// none | product | category | tab | app_page | external_url
+  final String type;
+  final String? value;
+
+  bool get isNone => type == 'none' || type.isEmpty;
+
+  bool get isActionable {
+    if (isNone) return false;
+    if (type == 'tab' || type == 'app_page') {
+      return value != null && value!.isNotEmpty;
+    }
+    if (type == 'product' ||
+        type == 'category' ||
+        type == 'external_url') {
+      return value != null && value!.isNotEmpty;
+    }
+    return false;
+  }
+
+  static MosaicTileAction? fromJson(dynamic json) {
+    if (json is! Map) return null;
+    final map = Map<String, dynamic>.from(json);
+    final type = _parseNullableString(map['type']);
+    if (type == null || type == 'none') return null;
+    return MosaicTileAction(
+      type: type,
+      value: _parseNullableString(map['value']),
+    );
+  }
+
+  Map<String, dynamic> toJson() => <String, dynamic>{
+        'type': type,
+        'value': value,
+      };
+}
+
 class HeroTileTheme {
   HeroTileTheme({
     required this.title,
     required this.gradient,
     required this.badgeText,
     required this.badgeGradient,
+    this.imageUrl,
+    this.action,
   });
 
   final String title;
   final List<Color> gradient;
   final String badgeText;
   final List<Color> badgeGradient;
+  final String? imageUrl;
+  final MosaicTileAction? action;
 
   factory HeroTileTheme.fromJson(Map<String, dynamic> json) {
     final defaults = HeroTileTheme.defaults();
@@ -342,6 +402,8 @@ class HeroTileTheme {
         _asList(json['badgeGradient']),
         defaults.badgeGradient,
       ),
+      imageUrl: _parseNullableString(json['imageUrl']),
+      action: MosaicTileAction.fromJson(json['action']),
     );
   }
 
@@ -363,6 +425,8 @@ class HeroTileTheme {
         'gradient': _gradientToHex(gradient),
         'badgeText': badgeText,
         'badgeGradient': _gradientToHex(badgeGradient),
+        'imageUrl': imageUrl,
+        if (action != null) 'action': action!.toJson(),
       };
 }
 
@@ -371,11 +435,13 @@ class MiniTileTheme {
     required this.title,
     required this.gradient,
     required this.imageUrl,
+    this.action,
   });
 
   final String title;
   final List<Color> gradient;
   final String? imageUrl;
+  final MosaicTileAction? action;
 
   factory MiniTileTheme.fromJson(
     Map<String, dynamic> json, {
@@ -388,6 +454,7 @@ class MiniTileTheme {
         fallback.gradient,
       ),
       imageUrl: _parseNullableString(json['imageUrl']),
+      action: MosaicTileAction.fromJson(json['action']),
     );
   }
 
@@ -406,6 +473,7 @@ class MiniTileTheme {
         'title': title,
         'gradient': _gradientToHex(gradient),
         'imageUrl': imageUrl,
+        if (action != null) 'action': action!.toJson(),
       };
 }
 

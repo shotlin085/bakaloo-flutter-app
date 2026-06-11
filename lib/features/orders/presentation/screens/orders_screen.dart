@@ -170,7 +170,7 @@ class _OrdersScreenState extends ConsumerState<OrdersScreen> {
               content: Text('Items added to cart$warnings'),
               action: SnackBarAction(
                 label: 'View Cart',
-                onPressed: () => context.go(RouteNames.cart),
+                onPressed: () => context.push(RouteNames.cart),
               ),
             ),
           );
@@ -317,7 +317,7 @@ class _OrdersHeader extends ConsumerWidget {
             icon: PhosphorIcons.handbag(PhosphorIconsStyle.bold),
             semanticLabel: 'Cart',
             badgeCount: cartCount,
-            onTap: () => context.go(RouteNames.cart),
+            onTap: () => context.push(RouteNames.cart),
           ),
         ],
       ),

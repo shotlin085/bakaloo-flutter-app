@@ -284,6 +284,7 @@ class _StoreScreenShellState extends ConsumerState<StoreScreenShell>
                                   onWalletTap: () =>
                                       context.go(RouteNames.wallet),
                                   topBarTheme: chromeTheme.topBarTheme,
+                                  searchZoneColor: chromeTheme.searchZoneColor,
                                 );
                               },
                             ),

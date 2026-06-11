@@ -24,6 +24,7 @@ import 'package:bakaloo_flutter_app/features/products/presentation/widgets/produ
 import 'package:bakaloo_flutter_app/features/products/presentation/widgets/product_info_header.dart';
 import 'package:bakaloo_flutter_app/features/products/presentation/widgets/product_promo_banner.dart';
 import 'package:bakaloo_flutter_app/features/products/presentation/widgets/product_recommendation_wrappers.dart';
+import 'package:bakaloo_flutter_app/features/products/presentation/widgets/product_store_row.dart';
 import 'package:bakaloo_flutter_app/features/products/presentation/widgets/product_trust_badges.dart';
 import 'package:bakaloo_flutter_app/features/products/presentation/widgets/product_vendor_section.dart';
 import 'package:bakaloo_flutter_app/features/wishlist/presentation/providers/wishlist_ids_provider.dart';
@@ -178,6 +179,11 @@ class _ProductDetailScreenState extends ConsumerState<ProductDetailScreen> {
                 ),
                 SliverToBoxAdapter(
                   child: RepaintBoundary(
+                    child: ProductStoreRow(productId: effectiveProduct.id),
+                  ),
+                ),
+                SliverToBoxAdapter(
+                  child: RepaintBoundary(
                     child: ProductTrustBadges(
                       product: effectiveProduct,
                       onBrandTap: () => _navigateToBrand(effectiveProduct),
@@ -262,7 +268,7 @@ class _ProductDetailScreenState extends ConsumerState<ProductDetailScreen> {
             product: effectiveProduct,
             quantity: cartQty,
             onAddToCart: () => _addToCart(effectiveProduct),
-            onViewCart: () => context.go(RouteNames.cart),
+            onViewCart: () => context.push(RouteNames.cart),
             onQuantityChange: (qty) => _updateCart(effectiveProduct, qty),
           ),
         );

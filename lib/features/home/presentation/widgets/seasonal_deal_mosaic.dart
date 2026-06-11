@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:bakaloo_flutter_app/shared/widgets/app_image.dart';
@@ -5,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:go_router/go_router.dart';
 import 'package:phosphor_flutter/phosphor_flutter.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import 'package:bakaloo_flutter_app/core/constants/api_constants.dart';
 import 'package:bakaloo_flutter_app/core/theme/remote_theme_model.dart';
@@ -54,6 +56,7 @@ class SeasonalDealMosaic extends StatelessWidget {
               title: tiles[0].title,
               gradient: tiles[0].gradient,
               heroTileTheme: mosaicTheme?.heroTile,
+              action: mosaicTheme?.heroTile.action,
             ),
           ),
         );
@@ -82,6 +85,7 @@ class SeasonalDealMosaic extends StatelessWidget {
                     imageUrl: tile.imageUrl,
                     title: tile.title,
                     gradient: tile.gradient,
+                    action: tile.action,
                   ),
                 ),
               );
@@ -117,6 +121,7 @@ class SeasonalDealMosaic extends StatelessWidget {
                         title: tiles[0].title,
                         gradient: tiles[0].gradient,
                         heroTileTheme: mosaicTheme?.heroTile,
+                        action: mosaicTheme?.heroTile.action,
                       ),
                     ),
                     SizedBox(width: gap),
@@ -136,6 +141,7 @@ class SeasonalDealMosaic extends StatelessWidget {
                                     imageUrl: miniTiles[0].imageUrl,
                                     title: miniTiles[0].title,
                                     gradient: miniTiles[0].gradient,
+                                    action: miniTiles[0].action,
                                   ),
                                 ),
                                 SizedBox(width: smallGap),
@@ -147,6 +153,7 @@ class SeasonalDealMosaic extends StatelessWidget {
                                     imageUrl: miniTiles[1].imageUrl,
                                     title: miniTiles[1].title,
                                     gradient: miniTiles[1].gradient,
+                                    action: miniTiles[1].action,
                                   ),
                                 ),
                               ],
@@ -165,6 +172,7 @@ class SeasonalDealMosaic extends StatelessWidget {
                                     imageUrl: miniTiles[2].imageUrl,
                                     title: miniTiles[2].title,
                                     gradient: miniTiles[2].gradient,
+                                    action: miniTiles[2].action,
                                   ),
                                 ),
                                 SizedBox(width: smallGap),
@@ -176,6 +184,7 @@ class SeasonalDealMosaic extends StatelessWidget {
                                     imageUrl: miniTiles[3].imageUrl,
                                     title: miniTiles[3].title,
                                     gradient: miniTiles[3].gradient,
+                                    action: miniTiles[3].action,
                                   ),
                                 ),
                               ],
@@ -243,6 +252,7 @@ class SeasonalDealMosaic extends StatelessWidget {
                   imageUrl: tile.imageUrl,
                   title: tile.title,
                   gradient: tile.gradient,
+                  action: tile.action,
                 ),
               );
             }),
@@ -259,12 +269,14 @@ class _HeroSeasonalDealTile extends StatelessWidget {
     required this.title,
     required this.gradient,
     this.heroTileTheme,
+    this.action,
   });
 
   final ProductEntity product;
   final String title;
   final List<Color> gradient;
   final HeroTileTheme? heroTileTheme;
+  final MosaicTileAction? action;
 
   @override
   Widget build(BuildContext context) {
@@ -279,7 +291,7 @@ class _HeroSeasonalDealTile extends StatelessWidget {
     return Material(
       color: Colors.transparent,
       child: InkWell(
-        onTap: () => context.push('/product/${product.id}'),
+        onTap: () => resolveMosaicTap(context, action, product.id),
         borderRadius: borderRadius,
         child: Ink(
           decoration: BoxDecoration(
@@ -440,6 +452,7 @@ class _AssetMiniDealTile extends StatelessWidget {
     required this.title,
     required this.gradient,
     this.imageUrl,
+    this.action,
   });
 
   final ProductEntity product;
@@ -447,6 +460,7 @@ class _AssetMiniDealTile extends StatelessWidget {
   final String? imageUrl;
   final String title;
   final List<Color> gradient;
+  final MosaicTileAction? action;
 
   @override
   Widget build(BuildContext context) {
@@ -465,6 +479,7 @@ class _AssetMiniDealTile extends StatelessWidget {
               fit: BoxFit.cover,
               alignment: Alignment.bottomCenter,
               filterQuality: FilterQuality.low,
+              errorBuilder: (_, __, ___) => const SizedBox.shrink(),
             ),
           )
         : Image.asset(
@@ -472,12 +487,13 @@ class _AssetMiniDealTile extends StatelessWidget {
             fit: BoxFit.cover,
             alignment: Alignment.bottomCenter,
             filterQuality: FilterQuality.low,
+            errorBuilder: (_, __, ___) => const SizedBox.shrink(),
           );
 
     return Material(
       color: Colors.transparent,
       child: InkWell(
-        onTap: () => context.push('/product/${product.id}'),
+        onTap: () => resolveMosaicTap(context, action, product.id),
         borderRadius: borderRadius,
         child: ClipRRect(
           borderRadius: borderRadius,
@@ -687,6 +703,7 @@ class _MiniAssetTileSpec {
     required this.imageUrl,
     required this.title,
     required this.gradient,
+    this.action,
   });
 
   final ProductEntity product;
@@ -694,6 +711,62 @@ class _MiniAssetTileSpec {
   final String? imageUrl;
   final String title;
   final List<Color> gradient;
+  final MosaicTileAction? action;
+}
+
+/// Resolves a mosaic tile tap. When [action] is actionable it is honoured;
+/// otherwise we fall back to opening the resolved product (legacy behaviour).
+void resolveMosaicTap(
+  BuildContext context,
+  MosaicTileAction? action,
+  String fallbackProductId,
+) {
+  if (action != null && action.isActionable) {
+    switch (action.type) {
+      case 'product':
+        context.push('/product/${action.value}');
+        return;
+      case 'category':
+        context.push('/categories/${action.value}/products');
+        return;
+      case 'tab':
+        final route = _mosaicTabRoute(action.value!);
+        if (route != null) {
+          context.go(route);
+          return;
+        }
+        break;
+      case 'app_page':
+        context.push(action.value!);
+        return;
+      case 'external_url':
+        final uri = Uri.tryParse(action.value!);
+        if (uri != null) {
+          unawaited(
+            launchUrl(uri, mode: LaunchMode.externalApplication),
+          );
+          return;
+        }
+        break;
+      default:
+        break;
+    }
+  }
+  context.push('/product/$fallbackProductId');
+}
+
+String? _mosaicTabRoute(String key) {
+  switch (key) {
+    case 'home':
+      return '/home';
+    case 'off_zone':
+      return '/off_zone';
+    case 'super_mall':
+      return '/super_mall';
+    case 'cafe':
+      return '/cafe';
+  }
+  return null;
 }
 
 List<ProductEntity> _buildHeroProducts(List<ProductEntity> products) {
@@ -752,6 +825,34 @@ List<_SeasonalTileSpec> _buildTiles(
   ];
 }
 
+const List<List<List<String>>> _miniTileKeywordGroups = <List<List<String>>>[
+  <List<String>>[
+    <String>['coca-cola', 'cola', 'soft drink'],
+    <String>['real mango juice', 'mango juice', 'juice'],
+    <String>['amul vanilla magic', 'ice cream', 'vanilla magic'],
+  ],
+  <List<String>>[
+    <String>['amul vanilla magic', 'ice cream', 'vanilla magic'],
+    <String>['amul', 'frozen'],
+  ],
+  <List<String>>[
+    <String>['lays classic', 'lays', 'chips', 'salted'],
+    <String>['real mango juice', 'mango juice', 'juice'],
+  ],
+  <List<String>>[
+    <String>['milky mist paneer', 'paneer'],
+    <String>['amul taaza', 'taaza milk', 'milk'],
+    <String>['egg', 'eggs'],
+  ],
+];
+
+const List<String> _miniTileAssets = <String>[
+  'assets/images/1ST_MINIBOX.png',
+  'assets/images/2ND_MINIBOX.png',
+  'assets/images/3RD_MINIBOX.png',
+  'assets/images/4TH_MINIBOX.png',
+];
+
 List<_MiniAssetTileSpec> _buildMiniAssetTiles(
   List<ProductEntity> products,
   SeasonalMosaicTheme? mosaicTheme,
@@ -765,80 +866,32 @@ List<_MiniAssetTileSpec> _buildMiniAssetTiles(
     return const <_MiniAssetTileSpec>[];
   }
 
+  // Honour the configured tile count (e.g. 6 for the 2x3 layout) instead of
+  // hard-coding 4. Falls back to the default 4-tile set when no theme tiles
+  // are supplied.
+  final themedCount =
+      mosaicTheme?.miniTiles.length ?? defaultMosaicTheme.miniTiles.length;
+  final count = themedCount.clamp(1, 8);
+
   final usedIds = <String>{};
 
-  return <_MiniAssetTileSpec>[
-    _MiniAssetTileSpec(
+  return List<_MiniAssetTileSpec>.generate(count, (int index) {
+    final themed = _miniTileThemeAt(mosaicTheme, defaultMosaicTheme, index);
+    final fallbackTile = defaultMosaicTheme
+        .miniTiles[index % defaultMosaicTheme.miniTiles.length];
+    return _MiniAssetTileSpec(
       product: _pickMiniTileProduct(
         source,
         usedIds,
-        const <List<String>>[
-          <String>['coca-cola', 'cola', 'soft drink'],
-          <String>['real mango juice', 'mango juice', 'juice'],
-          <String>['amul vanilla magic', 'ice cream', 'vanilla magic'],
-        ],
+        _miniTileKeywordGroups[index % _miniTileKeywordGroups.length],
       ),
-      assetPath: 'assets/images/1ST_MINIBOX.png',
-      imageUrl: _miniTileThemeAt(mosaicTheme, defaultMosaicTheme, 0)?.imageUrl,
-      title: _miniTileThemeAt(mosaicTheme, defaultMosaicTheme, 0)?.title ??
-          defaultMosaicTheme.miniTiles[0].title,
-      gradient:
-          _miniTileThemeAt(mosaicTheme, defaultMosaicTheme, 0)?.gradient ??
-              defaultMosaicTheme.miniTiles[0].gradient,
-    ),
-    _MiniAssetTileSpec(
-      product: _pickMiniTileProduct(
-        source,
-        usedIds,
-        const <List<String>>[
-          <String>['amul vanilla magic', 'ice cream', 'vanilla magic'],
-          <String>['amul', 'frozen'],
-        ],
-      ),
-      assetPath: 'assets/images/2ND_MINIBOX.png',
-      imageUrl: _miniTileThemeAt(mosaicTheme, defaultMosaicTheme, 1)?.imageUrl,
-      title: _miniTileThemeAt(mosaicTheme, defaultMosaicTheme, 1)?.title ??
-          defaultMosaicTheme.miniTiles[1].title,
-      gradient:
-          _miniTileThemeAt(mosaicTheme, defaultMosaicTheme, 1)?.gradient ??
-              defaultMosaicTheme.miniTiles[1].gradient,
-    ),
-    _MiniAssetTileSpec(
-      product: _pickMiniTileProduct(
-        source,
-        usedIds,
-        const <List<String>>[
-          <String>['lays classic', 'lays', 'chips', 'salted'],
-          <String>['real mango juice', 'mango juice', 'juice'],
-        ],
-      ),
-      assetPath: 'assets/images/3RD_MINIBOX.png',
-      imageUrl: _miniTileThemeAt(mosaicTheme, defaultMosaicTheme, 2)?.imageUrl,
-      title: _miniTileThemeAt(mosaicTheme, defaultMosaicTheme, 2)?.title ??
-          defaultMosaicTheme.miniTiles[2].title,
-      gradient:
-          _miniTileThemeAt(mosaicTheme, defaultMosaicTheme, 2)?.gradient ??
-              defaultMosaicTheme.miniTiles[2].gradient,
-    ),
-    _MiniAssetTileSpec(
-      product: _pickMiniTileProduct(
-        source,
-        usedIds,
-        const <List<String>>[
-          <String>['milky mist paneer', 'paneer'],
-          <String>['amul taaza', 'taaza milk', 'milk'],
-          <String>['egg', 'eggs'],
-        ],
-      ),
-      assetPath: 'assets/images/4TH_MINIBOX.png',
-      imageUrl: _miniTileThemeAt(mosaicTheme, defaultMosaicTheme, 3)?.imageUrl,
-      title: _miniTileThemeAt(mosaicTheme, defaultMosaicTheme, 3)?.title ??
-          defaultMosaicTheme.miniTiles[3].title,
-      gradient:
-          _miniTileThemeAt(mosaicTheme, defaultMosaicTheme, 3)?.gradient ??
-              defaultMosaicTheme.miniTiles[3].gradient,
-    ),
-  ];
+      assetPath: _miniTileAssets[index % _miniTileAssets.length],
+      imageUrl: themed?.imageUrl,
+      title: themed?.title ?? fallbackTile.title,
+      gradient: themed?.gradient ?? fallbackTile.gradient,
+      action: themed?.action,
+    );
+  });
 }
 
 MiniTileTheme? _miniTileThemeAt(

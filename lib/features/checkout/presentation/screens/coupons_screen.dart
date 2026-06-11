@@ -15,6 +15,26 @@ import 'package:bakaloo_flutter_app/features/checkout/domain/entities/coupon_ent
 import 'package:bakaloo_flutter_app/features/checkout/presentation/providers/checkout_provider.dart';
 import 'package:bakaloo_flutter_app/features/checkout/presentation/providers/coupon_provider.dart';
 
+// ─── Color tokens local to this screen ───────────────────────────────────────
+const _kBg = Color(0xFFF4F6F8);
+const _kCardBg = Colors.white;
+const _kGreen = Color(0xFF0C831F);
+const _kGreenLight = Color(0xFFE8F5E9);
+const _kGreenMid = Color(0xFFCCEDD3);
+const _kGold = Color(0xFFF0A000);
+const _kGoldLight = Color(0xFFFFF4DD);
+const _kGoldDark = Color(0xFF8A5A00);
+const _kLocked = Color(0xFFF3F5F8);
+const _kLockedFg = Color(0xFF9AA3B0);
+const _kProgressBg = Color(0xFFE8EDF5);
+const _kProviderBlue = Color(0xFF0B2559);
+const _kProviderBluePill = Color(0xFFEFF3FF);
+const _kProviderBluePillFg = Color(0xFF173E8F);
+const _kBorder = Color(0xFFE8ECF0);
+const _kDivider = Color(0xFFEEEEEE);
+const _kInfoBg = Color(0xFFEDF7F0);
+const _kInfoBorder = Color(0xFFB8DFC4);
+
 class CouponsScreen extends ConsumerStatefulWidget {
   const CouponsScreen({super.key});
 
@@ -39,7 +59,6 @@ class _CouponsScreenState extends ConsumerState<CouponsScreen> {
     ref
       ..invalidate(availableCouponsProvider)
       ..invalidate(paymentOffersProvider);
-
     try {
       await Future.wait<dynamic>(<Future<dynamic>>[
         ref.read(availableCouponsProvider.future),
@@ -50,15 +69,11 @@ class _CouponsScreenState extends ConsumerState<CouponsScreen> {
 
   Future<void> _applyCode(String code) async {
     final normalized = code.trim().toUpperCase();
-    if (normalized.isEmpty) {
-      return;
-    }
+    if (normalized.isEmpty) return;
 
     final success =
         await ref.read(checkoutProvider.notifier).applyCoupon(normalized);
-    if (!mounted) {
-      return;
-    }
+    if (!mounted) return;
 
     if (success) {
       Navigator.of(context).pop(true);
@@ -86,179 +101,214 @@ class _CouponsScreenState extends ConsumerState<CouponsScreen> {
     final subtotal = ref.read(checkoutProvider.notifier).subtotal;
 
     final coupons = couponsAsync.asData?.value ?? const <CouponEntity>[];
-    final offers = offersAsync.asData?.value ?? const <PaymentOfferEntity>[];
+    final offers =
+        offersAsync.asData?.value ?? const <PaymentOfferEntity>[];
 
     return Scaffold(
-      backgroundColor: const Color(0xFFF5F7F9),
-      appBar: AppBar(
-        backgroundColor: Colors.white,
-        surfaceTintColor: Colors.transparent,
-        elevation: 0,
-        titleSpacing: 0,
-        title: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: <Widget>[
-            Text('Coupons & Offers', style: AppTextStyles.h2),
-            Text(
-              'Curated savings for this cart',
-              style: AppTextStyles.bodySmall.copyWith(
-                color: AppColors.textSecondary,
-              ),
-            ),
-          ],
-        ),
-        bottom: PreferredSize(
-          preferredSize: const Size.fromHeight(1),
-          child: Container(height: 1, color: AppColors.divider),
-        ),
-      ),
+      backgroundColor: _kBg,
+      appBar: _buildAppBar(),
       body: RefreshIndicator(
-        color: AppColors.primaryGreen,
+        color: _kGreen,
         onRefresh: _refreshData,
         child: ListView(
           physics: const AlwaysScrollableScrollPhysics(),
-          padding: EdgeInsets.fromLTRB(16.w, 16.h, 16.w, 32.h),
+          padding: EdgeInsets.fromLTRB(16.w, 20.h, 16.w, 36.h),
           children: <Widget>[
+            // Applied coupon banner
             if (checkoutState.appliedCoupon != null) ...<Widget>[
-              _AppliedCouponBanner(coupon: checkoutState.appliedCoupon!),
-              Gap(18.h),
+              _AppliedBanner(coupon: checkoutState.appliedCoupon!),
+              Gap(20.h),
             ],
-            Gap(22.h),
-            const _SectionHeader(
+
+            // ── Smart Coupons ─────────────────────────────────────────
+            _PremiumSectionHeader(
               eyebrow: 'SMART COUPONS',
+              eyebrowColor: _kGreen,
+              eyebrowIcon: PhosphorIcons.tag(PhosphorIconsStyle.fill),
               title: 'Best codes for this order',
               subtitle:
                   'These offers are ready to apply instantly on your current basket.',
             ),
-            Gap(12.h),
+            Gap(14.h),
+
             if (couponsAsync.isLoading && coupons.isEmpty) ...<Widget>[
-              const _LoadingOfferCard(),
+              const _SkeletonCouponCard(),
               Gap(12.h),
-              const _LoadingOfferCard(),
-            ] else if (couponsAsync.hasError && coupons.isEmpty) ...<Widget>[
-              _InlineStateCard(
+              const _SkeletonCouponCard(),
+            ] else if (couponsAsync.hasError && coupons.isEmpty)
+              _ErrorCard(
                 icon: PhosphorIcons.warningCircle(),
-                title: 'Unable to load coupons right now',
-                subtitle: couponsAsync.error.toString(),
-              ),
-            ] else if (coupons.isEmpty) ...<Widget>[
-              const _InlineStateCard(
-                icon: Icons.local_offer_outlined,
+                message: 'Unable to load coupons right now',
+                onRetry: () => ref.invalidate(availableCouponsProvider),
+              )
+            else if (coupons.isEmpty)
+              _EmptyCard(
+                icon: PhosphorIcons.tag(),
                 title: 'No live coupons right now',
                 subtitle:
-                    'You can still try a code manually or use one of the payment offers below.',
-              ),
-            ] else
-              ...coupons.map(
-                (coupon) {
-                  final isApplied =
-                      checkoutState.appliedCoupon?.code == coupon.code;
-                  final isEligible = subtotal >= coupon.minOrderAmount;
-                  final isExpanded = _expandedCoupons.contains(coupon.code);
-                  return Padding(
-                    padding: EdgeInsets.only(bottom: 12.h),
-                    child: _CouponCard(
-                      coupon: coupon,
-                      subtotal: subtotal,
-                      isApplied: isApplied,
-                      isEligible: isEligible,
-                      isExpanded: isExpanded,
-                      onApply: isApplied ? null : () => _applyCode(coupon.code),
-                      onToggleTerms: () {
-                        setState(() {
-                          if (isExpanded) {
-                            _expandedCoupons.remove(coupon.code);
-                          } else {
-                            _expandedCoupons.add(coupon.code);
-                          }
-                        });
-                      },
-                    ),
-                  );
-                },
-              ),
-            Gap(10.h),
-            const _SectionHeader(
+                    'Try a code manually or use one of the payment offers below.',
+              )
+            else
+              ...coupons.map((coupon) {
+                final isApplied =
+                    checkoutState.appliedCoupon?.code == coupon.code;
+                final isEligible = subtotal >= coupon.minOrderAmount;
+                final isExpanded =
+                    _expandedCoupons.contains(coupon.code);
+                return Padding(
+                  padding: EdgeInsets.only(bottom: 12.h),
+                  child: _PremiumCouponCard(
+                    coupon: coupon,
+                    subtotal: subtotal,
+                    isApplied: isApplied,
+                    isEligible: isEligible,
+                    isExpanded: isExpanded,
+                    onApply: isApplied ? null : () => _applyCode(coupon.code),
+                    onToggleTerms: () {
+                      setState(() {
+                        if (isExpanded) {
+                          _expandedCoupons.remove(coupon.code);
+                        } else {
+                          _expandedCoupons.add(coupon.code);
+                        }
+                      });
+                    },
+                  ),
+                );
+              }),
+
+            Gap(12.h),
+
+            // ── Bank & UPI Offers ──────────────────────────────────────
+            _PremiumSectionHeader(
               eyebrow: 'BANK & UPI OFFERS',
+              eyebrowColor: _kGold,
+              eyebrowIcon: PhosphorIcons.creditCard(PhosphorIconsStyle.fill),
               title: 'Payment perks you can unlock',
               subtitle:
                   'These work on online payment and update based on your cart total.',
             ),
-            Gap(12.h),
+            Gap(14.h),
+
             if (offersAsync.isLoading && offers.isEmpty) ...<Widget>[
-              const _LoadingOfferCard(),
+              const _SkeletonBankCard(),
               Gap(12.h),
-              const _LoadingOfferCard(),
-            ] else if (offersAsync.hasError && offers.isEmpty) ...<Widget>[
-              _InlineStateCard(
+              const _SkeletonBankCard(),
+            ] else if (offersAsync.hasError && offers.isEmpty)
+              _ErrorCard(
                 icon: PhosphorIcons.creditCard(),
-                title: 'Unable to load payment offers',
-                subtitle: offersAsync.error.toString(),
-              ),
-            ] else if (offers.isEmpty) ...<Widget>[
-              const _InlineStateCard(
-                icon: Icons.account_balance_wallet_outlined,
+                message: 'Unable to load payment offers',
+                onRetry: () => ref.invalidate(paymentOffersProvider),
+              )
+            else if (offers.isEmpty)
+              _EmptyCard(
+                icon: PhosphorIcons.bank(),
                 title: 'No payment offers right now',
                 subtitle:
                     'Once live offers are available, they will appear here automatically.',
-              ),
-            ] else
+              )
+            else
               ...offers.map(
                 (offer) => Padding(
                   padding: EdgeInsets.only(bottom: 12.h),
-                  child: _BankOfferCard(offer: offer),
+                  child: _PremiumPaymentOfferCard(offer: offer),
                 ),
               ),
-            Gap(8.h),
-            const _InlineStateCard(
-              icon: Icons.info_outline_rounded,
-              title: 'How savings are applied',
-              subtitle:
-                  'Coupons reduce your order total before payment. Bank and UPI offers are promotional benefits that may be credited by the payment partner after a successful online payment.',
-              dense: true,
-            ),
+
+            Gap(12.h),
+
+            // ── How savings are applied ────────────────────────────────
+            const _SavingsInfoCard(),
           ],
         ),
       ),
     );
   }
+
+  PreferredSizeWidget _buildAppBar() {
+    return AppBar(
+      backgroundColor: _kCardBg,
+      surfaceTintColor: Colors.transparent,
+      elevation: 0,
+      titleSpacing: 0,
+      leading: IconButton(
+        icon: Icon(
+          PhosphorIcons.arrowLeft(PhosphorIconsStyle.bold),
+          size: 22.sp,
+          color: AppColors.textPrimary,
+        ),
+        onPressed: () => Navigator.of(context).pop(),
+      ),
+      title: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: <Widget>[
+          Text(
+            'Coupons & Offers',
+            style: AppTextStyles.h2.copyWith(fontWeight: FontWeight.w700),
+          ),
+          Text(
+            'Curated savings for this cart',
+            style: AppTextStyles.bodySmall.copyWith(
+              color: AppColors.textSecondary,
+              fontSize: 11.5.sp,
+            ),
+          ),
+        ],
+      ),
+      actions: <Widget>[
+        Container(
+          margin: EdgeInsets.only(right: 14.w),
+          padding: EdgeInsets.all(10.w),
+          decoration: BoxDecoration(
+            color: _kGreenLight,
+            borderRadius: BorderRadius.circular(12.r),
+          ),
+          child: Icon(
+            PhosphorIcons.gift(PhosphorIconsStyle.fill),
+            size: 20.sp,
+            color: _kGreen,
+          ),
+        ),
+      ],
+      bottom: PreferredSize(
+        preferredSize: const Size.fromHeight(1),
+        child: Container(height: 1, color: _kBorder),
+      ),
+    );
+  }
 }
 
-class _AppliedCouponBanner extends StatelessWidget {
-  const _AppliedCouponBanner({
-    required this.coupon,
-  });
+// ─── Applied Banner ────────────────────────────────────────────────────────────
 
+class _AppliedBanner extends StatelessWidget {
+  const _AppliedBanner({required this.coupon});
   final CouponEntity coupon;
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: EdgeInsets.all(14.w),
+      padding: EdgeInsets.symmetric(horizontal: 16.w, vertical: 14.h),
       decoration: BoxDecoration(
-        color: AppColors.primaryGreenLight,
+        color: _kInfoBg,
         borderRadius: BorderRadius.circular(AppDimensions.radiusLg),
-        border: Border.all(
-          color: AppColors.primaryGreen.withValues(alpha: 0.18),
-        ),
+        border: Border.all(color: _kInfoBorder),
       ),
       child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
         children: <Widget>[
           Container(
-            width: 34.w,
-            height: 34.w,
+            width: 38.w,
+            height: 38.w,
             decoration: const BoxDecoration(
-              color: AppColors.primaryGreen,
+              color: _kGreen,
               shape: BoxShape.circle,
             ),
             child: Icon(
               Icons.check_rounded,
               color: Colors.white,
-              size: 18.sp,
+              size: 20.sp,
             ),
           ),
-          Gap(10.w),
+          Gap(12.w),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -266,8 +316,9 @@ class _AppliedCouponBanner extends StatelessWidget {
                 Text(
                   '${coupon.code} applied',
                   style: AppTextStyles.labelLarge.copyWith(
-                    color: AppColors.primaryGreen,
-                    fontWeight: FontWeight.w700,
+                    color: _kGreen,
+                    fontWeight: FontWeight.w800,
+                    fontSize: 14.sp,
                   ),
                 ),
                 Gap(2.h),
@@ -275,7 +326,7 @@ class _AppliedCouponBanner extends StatelessWidget {
                   coupon.description ??
                       'This coupon will be used when you place the order.',
                   style: AppTextStyles.bodySmall.copyWith(
-                    color: AppColors.textPrimary,
+                    color: AppColors.textSecondary,
                   ),
                 ),
               ],
@@ -287,14 +338,20 @@ class _AppliedCouponBanner extends StatelessWidget {
   }
 }
 
-class _SectionHeader extends StatelessWidget {
-  const _SectionHeader({
+// ─── Section Header ────────────────────────────────────────────────────────────
+
+class _PremiumSectionHeader extends StatelessWidget {
+  const _PremiumSectionHeader({
     required this.eyebrow,
+    required this.eyebrowColor,
+    required this.eyebrowIcon,
     required this.title,
     required this.subtitle,
   });
 
   final String eyebrow;
+  final Color eyebrowColor;
+  final IconData eyebrowIcon;
   final String title;
   final String subtitle;
 
@@ -303,20 +360,42 @@ class _SectionHeader extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: <Widget>[
+        Row(
+          children: <Widget>[
+            Container(
+              padding: EdgeInsets.all(5.w),
+              decoration: BoxDecoration(
+                color: eyebrowColor.withValues(alpha: 0.12),
+                borderRadius: BorderRadius.circular(6.r),
+              ),
+              child: Icon(eyebrowIcon, size: 13.sp, color: eyebrowColor),
+            ),
+            Gap(7.w),
+            Text(
+              eyebrow,
+              style: AppTextStyles.labelSmall.copyWith(
+                color: eyebrowColor,
+                letterSpacing: 1.1,
+                fontWeight: FontWeight.w800,
+                fontSize: 11.sp,
+              ),
+            ),
+          ],
+        ),
+        Gap(6.h),
         Text(
-          eyebrow,
-          style: AppTextStyles.bodySmall.copyWith(
-            color: AppColors.textSecondary,
-            letterSpacing: 0.9,
+          title,
+          style: AppTextStyles.h2.copyWith(
             fontWeight: FontWeight.w700,
+            fontSize: 19.sp,
           ),
         ),
-        Gap(4.h),
-        Text(title, style: AppTextStyles.h2),
+        Gap(3.h),
         Text(
           subtitle,
           style: AppTextStyles.bodySmall.copyWith(
             color: AppColors.textSecondary,
+            fontSize: 12.5.sp,
           ),
         ),
       ],
@@ -324,8 +403,10 @@ class _SectionHeader extends StatelessWidget {
   }
 }
 
-class _CouponCard extends StatelessWidget {
-  const _CouponCard({
+// ─── Premium Coupon Card ───────────────────────────────────────────────────────
+
+class _PremiumCouponCard extends StatelessWidget {
+  const _PremiumCouponCard({
     required this.coupon,
     required this.subtotal,
     required this.isApplied,
@@ -343,9 +424,10 @@ class _CouponCard extends StatelessWidget {
   final VoidCallback onToggleTerms;
   final VoidCallback? onApply;
 
-  String get _badgeMain => coupon.discountType == CouponDiscountType.PERCENTAGE
-      ? '${coupon.discountValue.toStringAsFixed(0)}%'
-      : coupon.discountValue.toInrCurrency;
+  String get _badgeMain =>
+      coupon.discountType == CouponDiscountType.PERCENTAGE
+          ? '${coupon.discountValue.toStringAsFixed(0)}%'
+          : coupon.discountValue.toInrCurrency;
 
   String get _saveLine {
     if (coupon.discountType == CouponDiscountType.PERCENTAGE &&
@@ -355,325 +437,439 @@ class _CouponCard extends StatelessWidget {
     return 'Instant savings on this order';
   }
 
+  Color get _leftBg {
+    if (isApplied) return _kGreen;
+    if (isEligible) return const Color(0xFFF3FCF4);
+    return _kLocked;
+  }
+
+  Color get _leftIconColor {
+    if (isApplied) return Colors.white;
+    if (isEligible) return _kGreen;
+    return _kLockedFg;
+  }
+
+  Color get _leftTextColor {
+    if (isApplied) return Colors.white;
+    return AppColors.textPrimary;
+  }
+
   @override
   Widget build(BuildContext context) {
     final shortfall = coupon.minOrderAmount > subtotal
         ? coupon.minOrderAmount - subtotal
         : 0.0;
-    final accentGradient = isApplied
-        ? AppColors.heroGradient
-        : isEligible
-            ? AppColors.offerBannerGradient
-            : const LinearGradient(
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-                colors: <Color>[
-                  Color(0xFFF3F4F6),
-                  Color(0xFFE6E7EB),
-                ],
-              );
 
     return AnimatedContainer(
-      duration: const Duration(milliseconds: 220),
+      duration: const Duration(milliseconds: 200),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: _kCardBg,
         borderRadius: BorderRadius.circular(AppDimensions.radiusXl),
         border: Border.all(
-          color: isApplied
-              ? AppColors.primaryGreen
-              : AppColors.borderLight.withValues(alpha: 0.9),
-          width: isApplied ? 1.4 : 1,
+          color: isApplied ? _kGreen.withValues(alpha: 0.6) : _kBorder,
+          width: isApplied ? 1.5 : 1.0,
         ),
         boxShadow: const <BoxShadow>[AppShadows.cardShadow],
       ),
-      child: Column(
-        children: <Widget>[
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: <Widget>[
-              Container(
-                width: 92.w,
-                padding: EdgeInsets.fromLTRB(12.w, 14.h, 12.w, 14.h),
-                decoration: BoxDecoration(
-                  gradient: accentGradient,
-                  borderRadius: const BorderRadius.only(
-                    topLeft: Radius.circular(AppDimensions.radiusXl),
-                    bottomLeft: Radius.circular(AppDimensions.radiusXl),
-                  ),
-                ),
-                child: Column(
-                  children: <Widget>[
-                    Icon(
-                      isApplied
-                          ? Icons.check_circle_rounded
-                          : Icons.local_offer_rounded,
-                      color: isApplied
-                          ? Colors.white
-                          : isEligible
-                              ? AppColors.warmOrangeDark
-                              : AppColors.textSecondary,
-                      size: 18.sp,
-                    ),
-                    Gap(8.h),
-                    Text(
-                      _badgeMain,
-                      textAlign: TextAlign.center,
-                      style: AppTextStyles.h2.copyWith(
-                        color: isApplied ? Colors.white : AppColors.textPrimary,
-                        fontWeight: FontWeight.w800,
-                        fontSize: 20.sp,
-                      ),
-                    ),
-                    Text(
-                      'OFF',
-                      style: AppTextStyles.bodySmall.copyWith(
-                        color: isApplied
-                            ? Colors.white.withValues(alpha: 0.9)
-                            : AppColors.textSecondary,
-                        fontWeight: FontWeight.w700,
-                        letterSpacing: 0.8,
-                      ),
-                    ),
-                  ],
+      child: IntrinsicHeight(
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: <Widget>[
+            // ── Left discount panel ──────────────────────────────────
+            Container(
+              width: 88.w,
+              decoration: BoxDecoration(
+                color: _leftBg,
+                borderRadius: const BorderRadius.only(
+                  topLeft: Radius.circular(AppDimensions.radiusXl),
+                  bottomLeft: Radius.circular(AppDimensions.radiusXl),
                 ),
               ),
-              Expanded(
-                child: Padding(
-                  padding: EdgeInsets.fromLTRB(14.w, 14.h, 14.w, 12.h),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: <Widget>[
-                      Row(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: <Widget>[
-                          Expanded(
-                            child: Wrap(
-                              spacing: 8.w,
-                              runSpacing: 8.h,
-                              children: <Widget>[
-                                _TinyPill(
-                                  text: coupon.code,
-                                  background: AppColors.bgSection,
-                                  foreground: AppColors.textPrimary,
-                                ),
-                                _TinyPill(
-                                  text: isApplied
-                                      ? 'Applied'
-                                      : isEligible
-                                          ? 'Ready'
-                                          : 'Locked',
-                                  background: isApplied
-                                      ? AppColors.primaryGreenLight
-                                      : isEligible
-                                          ? AppColors.warmCard
-                                          : const Color(0xFFF0F2F5),
-                                  foreground: isApplied
-                                      ? AppColors.primaryGreen
-                                      : isEligible
-                                          ? AppColors.warmOrangeDark
-                                          : AppColors.textSecondary,
-                                ),
-                              ],
-                            ),
-                          ),
-                          Gap(8.w),
-                          FilledButton(
-                            onPressed: isEligible ? onApply : null,
-                            style: FilledButton.styleFrom(
-                              backgroundColor: isApplied
-                                  ? AppColors.primaryGreenLight
-                                  : AppColors.primaryGreen,
-                              foregroundColor: isApplied
-                                  ? AppColors.primaryGreen
-                                  : Colors.white,
-                              disabledBackgroundColor: AppColors.bgSection,
-                              disabledForegroundColor: AppColors.textTertiary,
-                              minimumSize: Size(84.w, 42.h),
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(
-                                  AppDimensions.radiusMd,
-                                ),
-                              ),
-                            ),
-                            child: Text(
-                              isApplied ? 'Applied' : 'Apply',
-                              style: AppTextStyles.buttonSmall.copyWith(
-                                color: isApplied
-                                    ? AppColors.primaryGreen
-                                    : Colors.white,
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                      Gap(10.h),
-                      Text(
-                        coupon.description ??
-                            'Use this coupon to reduce your final bill.',
-                        style: AppTextStyles.h3.copyWith(
-                          fontSize: 15.sp,
-                        ),
-                      ),
-                      Gap(6.h),
-                      Text(
-                        _saveLine,
-                        style: AppTextStyles.bodySmall.copyWith(
-                          color: AppColors.textSecondary,
-                        ),
-                      ),
-                      Gap(10.h),
-                      Row(
-                        children: <Widget>[
-                          Icon(
-                            Icons.shopping_bag_outlined,
-                            size: 14.sp,
-                            color: AppColors.textSecondary,
-                          ),
-                          Gap(6.w),
-                          Expanded(
-                            child: Text(
-                              'Min cart ${coupon.minOrderAmount.toInrCurrency}',
-                              style: AppTextStyles.bodySmall.copyWith(
-                                color: AppColors.textSecondary,
-                              ),
-                            ),
-                          ),
-                          if (!isEligible)
-                            Text(
-                              'Add ${shortfall.toInrCurrency} more',
-                              style: AppTextStyles.bodySmall.copyWith(
-                                color: AppColors.warningOrange,
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: <Widget>[
+                  Icon(
+                    isApplied
+                        ? Icons.check_circle_rounded
+                        : Icons.local_offer_rounded,
+                    color: _leftIconColor,
+                    size: 20.sp,
+                  ),
+                  Gap(8.h),
+                  Text(
+                    _badgeMain,
+                    textAlign: TextAlign.center,
+                    style: AppTextStyles.h2.copyWith(
+                      color: _leftTextColor,
+                      fontWeight: FontWeight.w800,
+                      fontSize: 20.sp,
+                      height: 1.0,
+                    ),
+                  ),
+                  Gap(2.h),
+                  Text(
+                    'OFF',
+                    style: AppTextStyles.bodySmall.copyWith(
+                      color: isApplied
+                          ? Colors.white.withValues(alpha: 0.85)
+                          : AppColors.textSecondary,
+                      fontWeight: FontWeight.w700,
+                      letterSpacing: 0.8,
+                      fontSize: 10.sp,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+
+            // Dashed separator
+            const _DashedDivider(),
+
+            // ── Right content ────────────────────────────────────────
+            Expanded(
+              child: Padding(
+                padding: EdgeInsets.fromLTRB(14.w, 14.h, 14.w, 0),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: <Widget>[
+                    // Code chip + status chip + Apply button
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: <Widget>[
+                        Expanded(
+                          child: Wrap(
+                            spacing: 8.w,
+                            runSpacing: 6.h,
+                            children: <Widget>[
+                              _Chip(
+                                text: coupon.code,
+                                bg: const Color(0xFFF0F2F5),
+                                fg: AppColors.textPrimary,
                                 fontWeight: FontWeight.w700,
                               ),
-                            ),
-                        ],
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ],
-          ),
-          Padding(
-            padding: EdgeInsets.fromLTRB(14.w, 0, 14.w, 12.h),
-            child: Column(
-              children: <Widget>[
-                Divider(
-                  height: 1,
-                  color: AppColors.divider,
-                  indent: 92.w,
-                ),
-                Gap(8.h),
-                Row(
-                  children: <Widget>[
-                    SizedBox(width: 92.w),
-                    Expanded(
-                      child: TextButton(
-                        onPressed: onToggleTerms,
-                        style: TextButton.styleFrom(
-                          padding: EdgeInsets.zero,
-                          alignment: Alignment.centerLeft,
-                          minimumSize: Size.zero,
-                          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                        ),
-                        child: Text(
-                          isExpanded ? 'Hide terms' : 'View terms',
-                          style: AppTextStyles.buttonSmall.copyWith(
-                            color: AppColors.primaryGreen,
+                              _Chip(
+                                text: isApplied
+                                    ? 'Applied'
+                                    : isEligible
+                                        ? 'Ready'
+                                        : 'Locked',
+                                bg: isApplied
+                                    ? _kGreenLight
+                                    : isEligible
+                                        ? const Color(0xFFFFF3E0)
+                                        : const Color(0xFFF0F2F5),
+                                fg: isApplied
+                                    ? _kGreen
+                                    : isEligible
+                                        ? const Color(0xFFBF6900)
+                                        : _kLockedFg,
+                              ),
+                            ],
                           ),
+                        ),
+                        Gap(8.w),
+                        _ApplyButton(
+                          isApplied: isApplied,
+                          isEligible: isEligible,
+                          onTap: isEligible ? onApply : null,
+                        ),
+                      ],
+                    ),
+                    Gap(10.h),
+
+                    // Title
+                    Text(
+                      coupon.description ??
+                          'Use this coupon to reduce your final bill.',
+                      style: AppTextStyles.h3.copyWith(
+                        fontSize: 14.5.sp,
+                        fontWeight: FontWeight.w600,
+                      ),
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    Gap(5.h),
+
+                    // Save line
+                    Text(
+                      _saveLine,
+                      style: AppTextStyles.bodySmall.copyWith(
+                        color: AppColors.textSecondary,
+                      ),
+                    ),
+                    Gap(10.h),
+
+                    // Min cart + shortfall
+                    Row(
+                      children: <Widget>[
+                        Icon(
+                          PhosphorIcons.shoppingBag(),
+                          size: 13.sp,
+                          color: AppColors.textSecondary,
+                        ),
+                        Gap(5.w),
+                        Expanded(
+                          child: Text(
+                            'Min cart ${coupon.minOrderAmount.toInrCurrency}',
+                            style: AppTextStyles.bodySmall.copyWith(
+                              color: AppColors.textSecondary,
+                            ),
+                          ),
+                        ),
+                        if (!isEligible && shortfall > 0)
+                          Text(
+                            'Add ${shortfall.toInrCurrency} more',
+                            style: AppTextStyles.bodySmall.copyWith(
+                              color: const Color(0xFFE07800),
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                      ],
+                    ),
+                    Gap(12.h),
+
+                    // View terms row
+                    Divider(height: 1, color: _kDivider),
+                    Gap(8.h),
+                    InkWell(
+                      onTap: onToggleTerms,
+                      borderRadius:
+                          BorderRadius.circular(AppDimensions.radiusSm),
+                      child: Padding(
+                        padding: EdgeInsets.symmetric(vertical: 4.h),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: <Widget>[
+                            Text(
+                              isExpanded ? 'Hide terms' : 'View terms',
+                              style: AppTextStyles.buttonSmall.copyWith(
+                                color: _kGreen,
+                                fontSize: 12.5.sp,
+                              ),
+                            ),
+                            Gap(4.w),
+                            Icon(
+                              isExpanded
+                                  ? Icons.keyboard_arrow_up_rounded
+                                  : Icons.keyboard_arrow_right_rounded,
+                              size: 16.sp,
+                              color: _kGreen,
+                            ),
+                          ],
                         ),
                       ),
                     ),
+
+                    // Terms expanded
+                    AnimatedSize(
+                      duration: const Duration(milliseconds: 220),
+                      curve: Curves.easeInOut,
+                      child: isExpanded
+                          ? Padding(
+                              padding:
+                                  EdgeInsets.only(top: 8.h, bottom: 6.h),
+                              child: Container(
+                                width: double.infinity,
+                                padding: EdgeInsets.all(12.w),
+                                decoration: BoxDecoration(
+                                  color: const Color(0xFFF8FAFC),
+                                  borderRadius: BorderRadius.circular(
+                                    AppDimensions.radiusMd,
+                                  ),
+                                  border: Border.all(color: _kBorder),
+                                ),
+                                child: Text(
+                                  coupon.terms ??
+                                      'Valid on one order. Cannot be clubbed with another coupon in the same checkout.',
+                                  style: AppTextStyles.bodySmall.copyWith(
+                                    color: AppColors.textSecondary,
+                                  ),
+                                ),
+                              ),
+                            )
+                          : const SizedBox.shrink(),
+                    ),
+                    Gap(4.h),
                   ],
                 ),
-                AnimatedSize(
-                  duration: const Duration(milliseconds: 220),
-                  curve: Curves.easeInOut,
-                  child: isExpanded
-                      ? Padding(
-                          padding: EdgeInsets.only(left: 92.w),
-                          child: Container(
-                            width: double.infinity,
-                            padding: EdgeInsets.all(12.w),
-                            decoration: BoxDecoration(
-                              color: const Color(0xFFF8FAFC),
-                              borderRadius: BorderRadius.circular(
-                                AppDimensions.radiusMd,
-                              ),
-                              border: Border.all(
-                                color: AppColors.borderLight,
-                              ),
-                            ),
-                            child: Text(
-                              coupon.terms ??
-                                  'Valid on one order. Cannot be clubbed with another coupon in the same checkout.',
-                              style: AppTextStyles.bodySmall.copyWith(
-                                color: AppColors.textSecondary,
-                              ),
-                            ),
-                          ),
-                        )
-                      : const SizedBox.shrink(),
-                ),
-              ],
+              ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
 }
 
-class _BankOfferCard extends StatelessWidget {
-  const _BankOfferCard({
-    required this.offer,
-  });
-
-  final PaymentOfferEntity offer;
+/// A vertical dashed separator between the left accent panel and the card body.
+class _DashedDivider extends StatelessWidget {
+  const _DashedDivider();
 
   @override
   Widget build(BuildContext context) {
-    final providerInitial = offer.provider.trim().isEmpty
-        ? '₹'
-        : offer.provider.trim().substring(0, 1).toUpperCase();
+    return SizedBox(
+      width: 1,
+      child: CustomPaint(
+        painter: const _DashPainter(color: _kBorder),
+      ),
+    );
+  }
+}
+
+class _DashPainter extends CustomPainter {
+  const _DashPainter({required this.color});
+  final Color color;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    const dashHeight = 5.0;
+    const dashSpace = 4.0;
+    double y = 0;
+    final paint = Paint()..color = color;
+    while (y < size.height) {
+      canvas.drawRect(
+        Rect.fromLTWH(0, y, 1, dashHeight),
+        paint,
+      );
+      y += dashHeight + dashSpace;
+    }
+  }
+
+  @override
+  bool shouldRepaint(_DashPainter old) => old.color != color;
+}
+
+// ─── Apply Button ──────────────────────────────────────────────────────────────
+
+class _ApplyButton extends StatelessWidget {
+  const _ApplyButton({
+    required this.isApplied,
+    required this.isEligible,
+    this.onTap,
+  });
+
+  final bool isApplied;
+  final bool isEligible;
+  final VoidCallback? onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    if (isApplied) {
+      return Container(
+        height: 38.h,
+        padding: EdgeInsets.symmetric(horizontal: 14.w),
+        decoration: BoxDecoration(
+          color: _kGreenLight,
+          borderRadius: BorderRadius.circular(10.r),
+          border: Border.all(color: _kGreenMid),
+        ),
+        alignment: Alignment.center,
+        child: Text(
+          'Applied',
+          style: AppTextStyles.buttonSmall.copyWith(
+            color: _kGreen,
+            fontSize: 12.5.sp,
+          ),
+        ),
+      );
+    }
+
+    return SizedBox(
+      height: 38.h,
+      child: OutlinedButton(
+        onPressed: onTap,
+        style: OutlinedButton.styleFrom(
+          foregroundColor: isEligible ? _kGreen : _kLockedFg,
+          side: BorderSide(
+            color: isEligible ? _kGreen : _kBorder,
+            width: 1.4,
+          ),
+          padding: EdgeInsets.symmetric(horizontal: 14.w),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(10.r),
+          ),
+        ),
+        child: Text(
+          'Apply',
+          style: AppTextStyles.buttonSmall.copyWith(
+            color: isEligible ? _kGreen : _kLockedFg,
+            fontSize: 12.5.sp,
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// ─── Premium Payment Offer Card ───────────────────────────────────────────────
+
+class _PremiumPaymentOfferCard extends StatelessWidget {
+  const _PremiumPaymentOfferCard({required this.offer});
+  final PaymentOfferEntity offer;
+
+  /// Returns a colour pair [bg, fg] keyed on the provider name.
+  List<Color> _providerColors() {
+    final name = offer.provider.trim().toLowerCase();
+    if (name.contains('icici')) {
+      return [const Color(0xFF003087), const Color(0xFFE8EFFF)];
+    } else if (name.contains('hdfc')) {
+      return [const Color(0xFF003366), const Color(0xFFE6EDF8)];
+    } else if (name.contains('paytm')) {
+      return [const Color(0xFF00BAF2), const Color(0xFFE0F7FD)];
+    } else if (name.contains('sbi')) {
+      return [const Color(0xFF003399), const Color(0xFFE0E8FF)];
+    } else if (name.contains('axis')) {
+      return [const Color(0xFFB40000), const Color(0xFFFDE8E8)];
+    } else if (name.contains('upi') || name.contains('gpay')) {
+      return [const Color(0xFF4285F4), const Color(0xFFE8F0FE)];
+    }
+    return [_kProviderBlue, const Color(0xFFE8EDF5)];
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final progress = offer.unlockProgress.clamp(0.0, 1.0).toDouble();
+    final providerName = offer.provider.trim().isEmpty ? '₹' : offer.provider;
+    final initial = providerName.substring(0, 1).toUpperCase();
+    final colors = _providerColors();
+    final avatarBg = colors[0];
 
     return Container(
-      padding: EdgeInsets.all(16.w),
+      padding: EdgeInsets.fromLTRB(16.w, 16.h, 16.w, 14.h),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: _kCardBg,
         borderRadius: BorderRadius.circular(AppDimensions.radiusXl),
+        border: Border.all(color: _kBorder),
         boxShadow: const <BoxShadow>[AppShadows.cardShadow],
       ),
       child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: <Widget>[
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: <Widget>[
+              // Provider avatar
               Container(
-                width: 48.w,
-                height: 48.w,
+                width: 46.w,
+                height: 46.w,
                 decoration: BoxDecoration(
-                  gradient: const LinearGradient(
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                    colors: <Color>[
-                      Color(0xFF0B2559),
-                      Color(0xFF294A9B),
-                    ],
-                  ),
-                  borderRadius: BorderRadius.circular(14),
+                  color: avatarBg,
+                  borderRadius: BorderRadius.circular(13.r),
                 ),
                 child: Center(
                   child: Text(
-                    providerInitial,
+                    initial,
                     style: AppTextStyles.h2.copyWith(
                       color: Colors.white,
-                      fontWeight: FontWeight.w800,
+                      fontWeight: FontWeight.w900,
+                      fontSize: 18.sp,
                     ),
                   ),
                 ),
               ),
               Gap(12.w),
+
+              // Title + description + chips
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -681,31 +877,37 @@ class _BankOfferCard extends StatelessWidget {
                     Text(
                       offer.title,
                       style: AppTextStyles.h3.copyWith(
-                        fontSize: 15.sp,
+                        fontSize: 14.5.sp,
+                        fontWeight: FontWeight.w600,
                       ),
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
                     ),
                     Gap(4.h),
                     Text(
                       offer.description ??
-                          'Online payment promotion available on eligible carts.',
+                          'Online payment promotion on eligible carts.',
                       style: AppTextStyles.bodySmall.copyWith(
                         color: AppColors.textSecondary,
+                        fontSize: 12.sp,
                       ),
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
                     ),
                     Gap(8.h),
                     Wrap(
                       spacing: 8.w,
-                      runSpacing: 8.h,
+                      runSpacing: 6.h,
                       children: <Widget>[
-                        _TinyPill(
-                          text: offer.provider,
-                          background: const Color(0xFFEFF3FF),
-                          foreground: const Color(0xFF173E8F),
+                        _Chip(
+                          text: providerName,
+                          bg: _kProviderBluePill,
+                          fg: _kProviderBluePillFg,
                         ),
-                        _TinyPill(
+                        _Chip(
                           text: 'Above ${offer.minOrderAmount.toInrCurrency}',
-                          background: AppColors.bgSection,
-                          foreground: AppColors.textSecondary,
+                          bg: const Color(0xFFF0F2F5),
+                          fg: AppColors.textSecondary,
                         ),
                       ],
                     ),
@@ -713,12 +915,15 @@ class _BankOfferCard extends StatelessWidget {
                 ),
               ),
               Gap(10.w),
+
+              // Reward badge
               Container(
-                padding: EdgeInsets.symmetric(horizontal: 12.w, vertical: 10.h),
+                padding: EdgeInsets.symmetric(
+                  horizontal: 10.w,
+                  vertical: 8.h,
+                ),
                 decoration: BoxDecoration(
-                  color: offer.isLocked
-                      ? const Color(0xFFFFF4DD)
-                      : AppColors.primaryGreenLight,
+                  color: offer.isLocked ? _kGoldLight : _kGreenLight,
                   borderRadius: BorderRadius.circular(AppDimensions.radiusMd),
                 ),
                 child: Column(
@@ -727,19 +932,17 @@ class _BankOfferCard extends StatelessWidget {
                     Text(
                       offer.cashbackAmount.toInrCurrency,
                       style: AppTextStyles.labelLarge.copyWith(
-                        color: offer.isLocked
-                            ? const Color(0xFF8A5A00)
-                            : AppColors.primaryGreen,
+                        color: offer.isLocked ? _kGoldDark : _kGreen,
                         fontWeight: FontWeight.w800,
+                        fontSize: 14.sp,
                       ),
                     ),
                     Text(
                       offer.isLocked ? 'Unlock' : 'Cashback',
                       style: AppTextStyles.bodySmall.copyWith(
-                        color: offer.isLocked
-                            ? const Color(0xFF8A5A00)
-                            : AppColors.primaryGreen,
+                        color: offer.isLocked ? _kGoldDark : _kGreen,
                         fontWeight: FontWeight.w700,
+                        fontSize: 10.5.sp,
                       ),
                     ),
                   ],
@@ -747,21 +950,25 @@ class _BankOfferCard extends StatelessWidget {
               ),
             ],
           ),
+
           Gap(14.h),
+
+          // Progress bar
           ClipRRect(
             borderRadius: BorderRadius.circular(AppDimensions.radiusFull),
             child: LinearProgressIndicator(
-              minHeight: 8.h,
-              value: offer.unlockProgress.clamp(0.0, 1.0).toDouble(),
-              backgroundColor: const Color(0xFFE9EEF9),
+              minHeight: 7.h,
+              value: progress,
+              backgroundColor: _kProgressBg,
               valueColor: AlwaysStoppedAnimation<Color>(
-                offer.isLocked
-                    ? const Color(0xFFF0A000)
-                    : AppColors.primaryGreen,
+                offer.isLocked ? _kGold : _kGreen,
               ),
             ),
           ),
+
           Gap(10.h),
+
+          // Lock status row
           Row(
             children: <Widget>[
               Expanded(
@@ -772,18 +979,16 @@ class _BankOfferCard extends StatelessWidget {
                       : 'Ready to claim on your next online payment.',
                   style: AppTextStyles.bodySmall.copyWith(
                     color: AppColors.textSecondary,
+                    fontSize: 11.5.sp,
                   ),
                 ),
               ),
-              Gap(8.w),
-              _TinyPill(
+              Gap(10.w),
+              _Chip(
                 text: offer.isLocked ? 'Locked' : 'Live',
-                background: offer.isLocked
-                    ? const Color(0xFFFFF4DD)
-                    : AppColors.primaryGreenLight,
-                foreground: offer.isLocked
-                    ? const Color(0xFF8A5A00)
-                    : AppColors.primaryGreen,
+                bg: offer.isLocked ? _kGoldLight : _kGreenLight,
+                fg: offer.isLocked ? _kGoldDark : _kGreen,
+                fontWeight: FontWeight.w700,
               ),
             ],
           ),
@@ -793,42 +998,33 @@ class _BankOfferCard extends StatelessWidget {
   }
 }
 
-class _InlineStateCard extends StatelessWidget {
-  const _InlineStateCard({
-    required this.icon,
-    required this.title,
-    required this.subtitle,
-    this.dense = false,
-  });
+// ─── Savings Info Card ─────────────────────────────────────────────────────────
 
-  final IconData icon;
-  final String title;
-  final String subtitle;
-  final bool dense;
-
+class _SavingsInfoCard extends StatelessWidget {
+  const _SavingsInfoCard();
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: EdgeInsets.all(dense ? 14.w : 18.w),
+      padding: EdgeInsets.all(16.w),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: _kInfoBg,
         borderRadius: BorderRadius.circular(AppDimensions.radiusLg),
-        border: Border.all(color: AppColors.borderLight),
+        border: Border.all(color: _kInfoBorder),
       ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: <Widget>[
           Container(
-            width: dense ? 34.w : 40.w,
-            height: dense ? 34.w : 40.w,
+            width: 38.w,
+            height: 38.w,
             decoration: BoxDecoration(
-              color: AppColors.bgSection,
-              borderRadius: BorderRadius.circular(12),
+              color: _kGreen.withValues(alpha: 0.12),
+              shape: BoxShape.circle,
             ),
             child: Icon(
-              icon,
-              color: AppColors.textSecondary,
-              size: dense ? 16.sp : 18.sp,
+              PhosphorIcons.shieldCheck(PhosphorIconsStyle.fill),
+              size: 18.sp,
+              color: _kGreen,
             ),
           ),
           Gap(12.w),
@@ -836,12 +1032,21 @@ class _InlineStateCard extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: <Widget>[
-                Text(title, style: AppTextStyles.labelLarge),
-                Gap(2.h),
                 Text(
-                  subtitle,
+                  'How savings are applied',
+                  style: AppTextStyles.labelLarge.copyWith(
+                    fontWeight: FontWeight.w700,
+                    color: AppColors.textPrimary,
+                    fontSize: 13.5.sp,
+                  ),
+                ),
+                Gap(4.h),
+                Text(
+                  'Coupons reduce your order total before payment. Bank and UPI offers are promotional benefits that may be credited by the payment partner after a successful online payment.',
                   style: AppTextStyles.bodySmall.copyWith(
                     color: AppColors.textSecondary,
+                    fontSize: 12.sp,
+                    height: 1.55,
                   ),
                 ),
               ],
@@ -853,24 +1058,127 @@ class _InlineStateCard extends StatelessWidget {
   }
 }
 
-class _LoadingOfferCard extends StatelessWidget {
-  const _LoadingOfferCard();
+// ─── Error Card ────────────────────────────────────────────────────────────────
+
+class _ErrorCard extends StatelessWidget {
+  const _ErrorCard({
+    required this.icon,
+    required this.message,
+    required this.onRetry,
+  });
+
+  final IconData icon;
+  final String message;
+  final VoidCallback onRetry;
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      height: 132.h,
+      padding: EdgeInsets.symmetric(horizontal: 20.w, vertical: 20.h),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: _kCardBg,
+        borderRadius: BorderRadius.circular(AppDimensions.radiusLg),
+        border: Border.all(color: _kBorder),
+      ),
+      child: Column(
+        children: <Widget>[
+          Icon(icon, size: 28.sp, color: AppColors.textTertiary),
+          Gap(10.h),
+          Text(
+            message,
+            textAlign: TextAlign.center,
+            style: AppTextStyles.labelLarge.copyWith(
+              color: AppColors.textSecondary,
+            ),
+          ),
+          Gap(14.h),
+          OutlinedButton(
+            onPressed: onRetry,
+            style: OutlinedButton.styleFrom(
+              side: const BorderSide(color: _kGreen),
+              foregroundColor: _kGreen,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(10.r),
+              ),
+            ),
+            child: Text(
+              'Retry',
+              style: AppTextStyles.buttonSmall.copyWith(color: _kGreen),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ─── Empty Card ────────────────────────────────────────────────────────────────
+
+class _EmptyCard extends StatelessWidget {
+  const _EmptyCard({
+    required this.icon,
+    required this.title,
+    required this.subtitle,
+  });
+
+  final IconData icon;
+  final String title;
+  final String subtitle;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: EdgeInsets.symmetric(horizontal: 20.w, vertical: 24.h),
+      decoration: BoxDecoration(
+        color: _kCardBg,
+        borderRadius: BorderRadius.circular(AppDimensions.radiusLg),
+        border: Border.all(color: _kBorder),
+      ),
+      child: Column(
+        children: <Widget>[
+          Icon(icon, size: 30.sp, color: AppColors.textTertiary),
+          Gap(10.h),
+          Text(
+            title,
+            textAlign: TextAlign.center,
+            style: AppTextStyles.labelLarge.copyWith(
+              fontWeight: FontWeight.w700,
+              color: AppColors.textPrimary,
+            ),
+          ),
+          Gap(4.h),
+          Text(
+            subtitle,
+            textAlign: TextAlign.center,
+            style: AppTextStyles.bodySmall.copyWith(
+              color: AppColors.textSecondary,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ─── Skeleton Cards ────────────────────────────────────────────────────────────
+
+class _SkeletonCouponCard extends StatelessWidget {
+  const _SkeletonCouponCard();
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      height: 130.h,
+      decoration: BoxDecoration(
+        color: _kCardBg,
         borderRadius: BorderRadius.circular(AppDimensions.radiusXl),
-        border: Border.all(color: AppColors.borderLight),
+        border: Border.all(color: _kBorder),
       ),
       child: Row(
         children: <Widget>[
           Container(
-            width: 92.w,
+            width: 88.w,
             decoration: const BoxDecoration(
-              color: Color(0xFFF1F3F5),
+              color: Color(0xFFF0F2F5),
               borderRadius: BorderRadius.only(
                 topLeft: Radius.circular(AppDimensions.radiusXl),
                 bottomLeft: Radius.circular(AppDimensions.radiusXl),
@@ -883,32 +1191,11 @@ class _LoadingOfferCard extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: <Widget>[
-                  Container(
-                    width: 90.w,
-                    height: 18.h,
-                    decoration: BoxDecoration(
-                      color: AppColors.bgSection,
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                  ),
+                  _SkeletonBox(width: 100.w, height: 16.h),
                   Gap(12.h),
-                  Container(
-                    width: double.infinity,
-                    height: 14.h,
-                    decoration: BoxDecoration(
-                      color: AppColors.bgSection,
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                  ),
+                  _SkeletonBox(width: double.infinity, height: 13.h),
                   Gap(8.h),
-                  Container(
-                    width: 140.w,
-                    height: 12.h,
-                    decoration: BoxDecoration(
-                      color: AppColors.bgSection,
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                  ),
+                  _SkeletonBox(width: 150.w, height: 11.h),
                 ],
               ),
             ),
@@ -919,30 +1206,92 @@ class _LoadingOfferCard extends StatelessWidget {
   }
 }
 
-class _TinyPill extends StatelessWidget {
-  const _TinyPill({
-    required this.text,
-    required this.background,
-    required this.foreground,
+class _SkeletonBankCard extends StatelessWidget {
+  const _SkeletonBankCard();
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: EdgeInsets.all(16.w),
+      decoration: BoxDecoration(
+        color: _kCardBg,
+        borderRadius: BorderRadius.circular(AppDimensions.radiusXl),
+        border: Border.all(color: _kBorder),
+      ),
+      child: Row(
+        children: <Widget>[
+          _SkeletonBox(width: 46.w, height: 46.w, radius: 13),
+          Gap(12.w),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: <Widget>[
+                _SkeletonBox(width: 160.w, height: 14.h),
+                Gap(8.h),
+                _SkeletonBox(width: double.infinity, height: 12.h),
+                Gap(6.h),
+                _SkeletonBox(width: 120.w, height: 10.h),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _SkeletonBox extends StatelessWidget {
+  const _SkeletonBox({
+    required this.width,
+    required this.height,
+    this.radius = 8.0,
   });
 
-  final String text;
-  final Color background;
-  final Color foreground;
+  final double width;
+  final double height;
+  final double radius;
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: EdgeInsets.symmetric(horizontal: 10.w, vertical: 6.h),
+      width: width,
+      height: height,
       decoration: BoxDecoration(
-        color: background,
+        color: AppColors.bgSkeleton,
+        borderRadius: BorderRadius.circular(radius),
+      ),
+    );
+  }
+}
+
+// ─── Chip ──────────────────────────────────────────────────────────────────────
+
+class _Chip extends StatelessWidget {
+  const _Chip({
+    required this.text,
+    required this.bg,
+    required this.fg,
+    this.fontWeight = FontWeight.w600,
+  });
+
+  final String text;
+  final Color bg;
+  final Color fg;
+  final FontWeight fontWeight;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: EdgeInsets.symmetric(horizontal: 9.w, vertical: 5.h),
+      decoration: BoxDecoration(
+        color: bg,
         borderRadius: BorderRadius.circular(AppDimensions.radiusFull),
       ),
       child: Text(
         text,
         style: AppTextStyles.labelSmall.copyWith(
-          color: foreground,
-          fontWeight: FontWeight.w700,
+          color: fg,
+          fontWeight: fontWeight,
+          fontSize: 11.sp,
         ),
       ),
     );

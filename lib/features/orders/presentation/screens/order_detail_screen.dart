@@ -122,7 +122,7 @@ class _OrderDetailScreenState extends ConsumerState<OrderDetailScreen> {
             content: Text('Items added to cart$warnings'),
             action: SnackBarAction(
               label: 'View Cart',
-              onPressed: () => context.go(RouteNames.cart),
+              onPressed: () => context.push(RouteNames.cart),
             ),
           ),
         );

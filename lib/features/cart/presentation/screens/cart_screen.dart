@@ -21,7 +21,6 @@ import 'package:bakaloo_flutter_app/features/cart/presentation/widgets/cart_deli
 import 'package:bakaloo_flutter_app/features/cart/presentation/widgets/cart_item_card.dart';
 import 'package:bakaloo_flutter_app/features/cart/presentation/widgets/cart_misc_widgets.dart';
 import 'package:bakaloo_flutter_app/features/cart/presentation/widgets/cart_ordering_for.dart';
-import 'package:bakaloo_flutter_app/features/cart/presentation/widgets/cart_product_sections.dart';
 import 'package:bakaloo_flutter_app/features/cart/presentation/widgets/cart_savings_banner.dart';
 import 'package:bakaloo_flutter_app/features/cart/presentation/widgets/cart_savings_breakdown.dart';
 import 'package:bakaloo_flutter_app/features/cart/presentation/widgets/cart_tip_section.dart';
@@ -48,7 +47,6 @@ class _CartScreenState extends ConsumerState<CartScreen> {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       ref.read(priceDropProductsProvider);
-      ref.read(lastMinuteProductsProvider);
       ref.read(paymentOffersProvider);
     });
   }
@@ -230,8 +228,6 @@ class _CartScreenState extends ConsumerState<CartScreen> {
     widgets.addAll(_buildItemCards(context, cart.items));
     widgets.add(const CartSectionDivider());
 
-    widgets.add(const RepaintBoundary(child: CartLastMinuteSection()));
-    widgets.add(const CartSectionDivider());
     widgets.add(const RepaintBoundary(child: CartTipSection()));
 
     if (hasAddress) {

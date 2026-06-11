@@ -579,6 +579,15 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
         (theme) => theme.sections.categoryTabs.visible,
       ),
     );
+    // Independent category-tab background — falls back to search zone color
+    // for themes that don't have it set (backward compatible).
+    final categoryTabsBgColor = ref.watch(
+      activeTabThemeProvider.select(
+        (theme) =>
+            theme.sections.categoryTabs.backgroundColor ??
+            theme.sections.searchZone.backgroundColor,
+      ),
+    );
     final homeAsync = ref.watch(homeProvider);
     final topInset = MediaQuery.paddingOf(context).top;
 
@@ -668,6 +677,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
                                         onWalletTap: () =>
                                             context.go(RouteNames.wallet),
                                         topBarTheme: topBarTheme,
+                                        searchZoneColor: searchZoneTheme
+                                            .backgroundColor,
                                       );
                                     },
                                   ),
@@ -698,37 +709,64 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
                               ) {
                                 return Container(
                                   key: _topSearchZoneKey,
-                                  color: searchZoneTheme.backgroundColor,
-                                  child: TickerMode(
-                                    enabled: isTopChromeMotionEnabled,
-                                    child: Column(
-                                      crossAxisAlignment:
-                                          CrossAxisAlignment.start,
-                                      children: <Widget>[
-                                        // PHASE 3C: Zero-height ClipPath removed.
-                                        // The SizedBox(height:0)+ClipPath wave was
-                                        // invisible but still evaluated by the raster
-                                        // thread. Replaced with a zero-height SizedBox.
-                                        const SizedBox.shrink(),
-                                        HomeSearchBar(
-                                          onSearchTap: _openSearch,
-                                          animateHints:
-                                              isTopChromeMotionEnabled,
-                                          searchTheme: searchZoneTheme,
-                                          outerPadding: EdgeInsets.fromLTRB(
-                                            12.w,
-                                            0,
-                                            12.w,
-                                            0,
+                                  color: Colors.transparent,
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: <Widget>[
+                                      // Search zone — uses searchZone.backgroundColor
+                                      ColoredBox(
+                                        color: searchZoneTheme.backgroundColor,
+                                        child: TickerMode(
+                                          enabled: isTopChromeMotionEnabled,
+                                          child: Column(
+                                            crossAxisAlignment:
+                                                CrossAxisAlignment.start,
+                                            children: <Widget>[
+                                              const SizedBox.shrink(),
+                                              HomeSearchBar(
+                                                onSearchTap: _openSearch,
+                                                animateHints:
+                                                    isTopChromeMotionEnabled,
+                                                searchTheme: searchZoneTheme,
+                                                outerPadding:
+                                                    EdgeInsets.fromLTRB(
+                                                  12.w,
+                                                  0,
+                                                  12.w,
+                                                  10.h,
+                                                ),
+                                              ),
+                                            ],
                                           ),
                                         ),
-                                        if (showCategoryTabs) ...<Widget>[
-                                          Gap(10.h),
-                                          const CategoryTabsRow(),
-                                        ] else
-                                          Gap(18.h),
-                                      ],
-                                    ),
+                                      ),
+                                      // Category tabs — independent backgroundColor
+                                      // (falls back to searchZone color for legacy themes)
+                                      if (showCategoryTabs) ...<Widget>[
+                                        ColoredBox(
+                                          color: categoryTabsBgColor,
+                                          child: TickerMode(
+                                            enabled: isTopChromeMotionEnabled,
+                                            child: Column(
+                                              crossAxisAlignment:
+                                                  CrossAxisAlignment.start,
+                                              children: <Widget>[
+                                                Gap(4.h),
+                                                const CategoryTabsRow(),
+                                                Gap(6.h),
+                                              ],
+                                            ),
+                                          ),
+                                        ),
+                                      ] else
+                                        ColoredBox(
+                                          color:
+                                              searchZoneTheme.backgroundColor,
+                                          child: Gap(10.h),
+                                        ),
+                                    ],
                                   ),
                                 );
                               },
@@ -967,7 +1005,7 @@ class _StickySearchOverlayChrome extends StatelessWidget {
   final SearchZoneTheme? searchTheme;
 
   double get _searchTopPadding => 8.h;
-  double get _betweenSections => 6.h;
+  double get _betweenSections => 4.h;
   double get _bottomPadding => 6.h;
 
   @override

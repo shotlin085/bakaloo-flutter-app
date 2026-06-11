@@ -256,7 +256,7 @@ class _CategoriesHeader extends ConsumerWidget {
             icon: PhosphorIcons.shoppingCartSimple(PhosphorIconsStyle.bold),
             semanticLabel: 'Cart',
             badgeCount: cartCount,
-            onTap: () => context.go(RouteNames.cart),
+            onTap: () => context.push(RouteNames.cart),
           ),
         ],
       ),

@@ -456,8 +456,8 @@ class _NavTabButton extends StatelessWidget {
             mainAxisSize: MainAxisSize.min,
             children: <Widget>[
               SizedBox(
-                width: 48.w,
-                height: 30.h,
+                width: 56.w,
+                height: 38.h,
                 child: Center(
                   child: AnimatedScale(
                     scale: selected ? 1.05 : 1.0,
@@ -466,8 +466,8 @@ class _NavTabButton extends StatelessWidget {
                     child: selected
                         ? Image.asset(
                             iconAsset,
-                            width: 28.w,
-                            height: 28.h,
+                            width: 36.w,
+                            height: 36.h,
                             fit: BoxFit.contain,
                             filterQuality: FilterQuality.medium,
                           )
@@ -478,8 +478,8 @@ class _NavTabButton extends StatelessWidget {
                             ),
                             child: Image.asset(
                               iconAsset,
-                              width: 28.w,
-                              height: 28.h,
+                              width: 36.w,
+                              height: 36.h,
                               fit: BoxFit.contain,
                               filterQuality: FilterQuality.medium,
                             ),

@@ -124,25 +124,37 @@ Widget _buildSeasonalMosaic(
   }
 
   final fallback = theme.sections.seasonalMosaic;
+
+  // V2: prefer the rich `hero_tile` object; fall back to legacy flat keys.
+  final heroTileConfig = _asConfigMap(entry.config['hero_tile']);
   final heroGradient = _resolveGradient(
-    entry.config['hero_gradient'],
+    heroTileConfig?['gradient'] ?? entry.config['hero_gradient'],
     fallback.heroTile.gradient,
   );
   final heroTheme = HeroTileTheme(
-    title: _readString(entry.config['hero_title']) ??
+    title: _readString(heroTileConfig?['title']) ??
+        _readString(entry.config['hero_title']) ??
         entry.title ??
         fallback.heroTile.title,
     gradient: heroGradient,
-    badgeText: _readString(entry.config['hero_badge_text']) ??
+    badgeText: _readString(heroTileConfig?['badge_text']) ??
+        _readString(entry.config['hero_badge_text']) ??
         fallback.heroTile.badgeText,
-    badgeGradient: fallback.heroTile.badgeGradient,
+    badgeGradient: _resolveGradient(
+      heroTileConfig?['badge_gradient'],
+      fallback.heroTile.badgeGradient,
+    ),
+    imageUrl: _readString(heroTileConfig?['image_url']),
+    action: MosaicTileAction.fromJson(heroTileConfig?['action']),
   );
+
+  final miniTiles = _buildManifestMiniTiles(entry, fallback);
 
   final mosaicTheme = SeasonalMosaicTheme(
     containerColor:
         _resolveColor(entry.containerColor, fallback.containerColor),
     heroTile: heroTheme,
-    miniTiles: fallback.miniTiles,
+    miniTiles: miniTiles,
   );
   final heroCandidates = _mergeUniqueProducts(
     <List<ProductEntity>>[
@@ -158,6 +170,38 @@ Widget _buildSeasonalMosaic(
     mosaicTheme: mosaicTheme,
     layoutVariant: entry.layoutVariant ?? 'hero_plus_four',
   );
+}
+
+Map<String, dynamic>? _asConfigMap(dynamic value) {
+  if (value is Map) {
+    return Map<String, dynamic>.from(value);
+  }
+  return null;
+}
+
+/// Builds the mosaic mini tiles from the section config `mini_tiles` array,
+/// falling back to the global preset tiles when the section has none (legacy).
+List<MiniTileTheme> _buildManifestMiniTiles(
+  SectionManifestEntry entry,
+  SeasonalMosaicTheme fallback,
+) {
+  final raw = entry.config['mini_tiles'];
+  if (raw is! List || raw.isEmpty) {
+    return fallback.miniTiles;
+  }
+
+  return List<MiniTileTheme>.generate(raw.length, (int index) {
+    final map = _asConfigMap(raw[index]) ?? <String, dynamic>{};
+    final fb = fallback.miniTiles.isEmpty
+        ? MiniTileTheme.defaults(index)
+        : fallback.miniTiles[index % fallback.miniTiles.length];
+    return MiniTileTheme(
+      title: _readString(map['title']) ?? fb.title,
+      gradient: _resolveGradient(map['gradient'], fb.gradient),
+      imageUrl: _readString(map['image_url']),
+      action: MosaicTileAction.fromJson(map['action']),
+    );
+  });
 }
 
 Widget _buildRoundCategoryIcons(
@@ -510,6 +554,41 @@ List<ProductEntity> _resolveTrendingPool(WidgetRef ref) {
 }
 
 List<_PromoItem> _resolvePromoItems(WidgetRef ref, SectionManifestEntry entry) {
+  // banner_source: "system" (default) → pull from live /banners API
+  //               "custom"            → use inline images[] from config
+  // Legacy sections without banner_source default to "system" for
+  // backward compatibility (existing behaviour before this change).
+  final String source =
+      _readString(entry.config['banner_source']) ?? 'system';
+
+  if (source == 'custom') {
+    // ── Custom mode: use images[] from section config ──────────────────────
+    final inlineImages = _readStringList(entry.config['images']);
+    if (inlineImages.isNotEmpty) {
+      return inlineImages
+          .take(5)
+          .map(
+            (String imageUrl) => _PromoItem(
+              imageUrl: imageUrl,
+              linkUrl: _readString(entry.config['link_url']),
+            ),
+          )
+          .where((item) => item.imageUrl.trim().isNotEmpty)
+          .toList(growable: false);
+    }
+    // Also accept legacy single image_url if no images[] set yet
+    if (entry.imageUrl != null && entry.imageUrl!.trim().isNotEmpty) {
+      return <_PromoItem>[
+        _PromoItem(
+          imageUrl: entry.imageUrl!,
+          linkUrl: _readString(entry.config['link_url']),
+        ),
+      ];
+    }
+    return const <_PromoItem>[];
+  }
+
+  // ── System mode (default): pull from bannerProvider ────────────────────
   final bannerAsync = ref.watch(bannerProvider);
   final banners = bannerAsync.asData?.value ?? const <BannerEntity>[];
   final sorted = List<BannerEntity>.from(banners)
@@ -529,6 +608,7 @@ List<_PromoItem> _resolvePromoItems(WidgetRef ref, SectionManifestEntry entry) {
     return items;
   }
 
+  // ── Fallback (system mode, no live banners yet): try inline config ──────
   final inlineImages = _readStringList(entry.config['images']);
   if (inlineImages.isNotEmpty) {
     return inlineImages
@@ -541,7 +621,7 @@ List<_PromoItem> _resolvePromoItems(WidgetRef ref, SectionManifestEntry entry) {
         .toList(growable: false);
   }
 
-  if (entry.imageUrl != null) {
+  if (entry.imageUrl != null && entry.imageUrl!.trim().isNotEmpty) {
     return <_PromoItem>[
       _PromoItem(
         imageUrl: entry.imageUrl!,

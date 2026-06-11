@@ -15,6 +15,7 @@ class HomeHeader extends ConsumerWidget {
     required this.onProfileTap,
     this.onWalletTap,
     this.topBarTheme,
+    this.searchZoneColor,
     super.key,
   });
 
@@ -23,6 +24,9 @@ class HomeHeader extends ConsumerWidget {
   final VoidCallback onProfileTap;
   final VoidCallback? onWalletTap;
   final TopBarTheme? topBarTheme;
+  /// Color used by the curved bottom strip so it matches the search zone
+  /// background beneath it. Defaults to white when not provided.
+  final Color? searchZoneColor;
 
   static const Color _lavenderTop = Color(0xFFEDE4FB);
   static const Color _lavenderBottom = Color(0xFFF6F1FD);
@@ -32,15 +36,23 @@ class HomeHeader extends ConsumerWidget {
     final topInset = MediaQuery.paddingOf(context).top;
     final store = ref.watch(selectedStoreProvider);
 
+    // Use the dashboard-configured top bar color when available.
+    // Fall back to the default lavender gradient only when no theme is provided.
+    final Color? themeColor = topBarTheme?.backgroundColor;
+
+    final Decoration headerDecoration = themeColor != null
+        ? BoxDecoration(color: themeColor)
+        : const BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topCenter,
+              end: Alignment.bottomCenter,
+              colors: <Color>[_lavenderTop, _lavenderBottom],
+            ),
+          );
+
     return Container(
       width: double.infinity,
-      decoration: const BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topCenter,
-          end: Alignment.bottomCenter,
-          colors: <Color>[_lavenderTop, _lavenderBottom],
-        ),
-      ),
+      decoration: headerDecoration,
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: <Widget>[
@@ -132,11 +144,13 @@ class HomeHeader extends ConsumerWidget {
             ),
           ),
           // Downward curved divider into the content below.
+          // The color matches the search-zone background so the curve
+          // blends seamlessly regardless of the active theme color.
           ClipPath(
             clipper: const _HeaderBottomCurveClipper(),
             child: Container(
               height: 10.h,
-              color: Colors.white,
+              color: searchZoneColor ?? Colors.white,
             ),
           ),
         ],
