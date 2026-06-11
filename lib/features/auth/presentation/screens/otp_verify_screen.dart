@@ -148,19 +148,20 @@ class _OtpVerifyScreenState extends ConsumerState<OtpVerifyScreen>
       value: SystemUiOverlayStyle.dark,
       child: Scaffold(
         backgroundColor: Colors.white,
-        resizeToAvoidBottomInset: true,
+        // Fix #3: Do NOT resize when keyboard opens — prevents layout shift
+        // that causes the background image to zoom/jump when OTP box is tapped.
+        resizeToAvoidBottomInset: false,
         body: Stack(
           children: <Widget>[
             // ── Full-screen illustration background ──
-            // Shifted up so the baked-in logo clears the heading text below.
+            // Fix #1: Show image from top without any negative translate shift.
+            // Use BoxFit.fitWidth so the image fills the width and shows from
+            // the top — no cropping of the branding/logo area.
             Positioned.fill(
-              child: Transform.translate(
-                offset: Offset(0, -MediaQuery.sizeOf(context).height * 0.07),
-                child: Image.asset(
-                  _bgAsset,
-                  fit: BoxFit.cover,
-                  alignment: Alignment.topCenter,
-                ),
+              child: Image.asset(
+                _bgAsset,
+                fit: BoxFit.fitWidth,
+                alignment: Alignment.topCenter,
               ),
             ),
 
@@ -238,9 +239,18 @@ class _OtpVerifyScreenState extends ConsumerState<OtpVerifyScreen>
             ),
 
             // ── Bottom code-entry sheet ──
+            // Fix #3 (continued): Use AnimatedPadding driven by the keyboard
+            // viewInsets so the sheet slides UP with the keyboard smoothly
+            // without the background image distorting.
             Align(
               alignment: Alignment.bottomCenter,
-              child: Container(
+              child: AnimatedPadding(
+                duration: const Duration(milliseconds: 200),
+                curve: Curves.easeOut,
+                padding: EdgeInsets.only(
+                  bottom: MediaQuery.viewInsetsOf(context).bottom,
+                ),
+                child: Container(
                 width: double.infinity,
                 decoration: BoxDecoration(
                   color: Colors.white,
@@ -291,7 +301,10 @@ class _OtpVerifyScreenState extends ConsumerState<OtpVerifyScreen>
                         child: Pinput(
                           controller: _otpController,
                           length: 6,
-                          autofocus: true,
+                          // Fix #2: Do NOT autofocus — prevents keyboard from
+                          // opening immediately and squeezing the OTP boxes.
+                          // User taps a box to bring up the keyboard naturally.
+                          autofocus: false,
                           keyboardType: TextInputType.number,
                           defaultPinTheme: defaultPinTheme,
                           focusedPinTheme: focusedPinTheme,
@@ -553,7 +566,8 @@ class _OtpVerifyScreenState extends ConsumerState<OtpVerifyScreen>
                   ),
                 ),
               ),
-            ),
+            ), // closes AnimatedPadding
+            ),  // closes Align
           ],
         ),
       ),

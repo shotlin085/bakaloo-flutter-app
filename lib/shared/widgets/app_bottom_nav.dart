@@ -277,13 +277,19 @@ class _CartPillHost extends ConsumerWidget {
   final double bottomInset;
   final VoidCallback onTap;
 
+  /// The cart pill should only appear on product-related tabs:
+  /// 0 = Home (includes search, product detail sub-routes)
+  /// 2 = Categories (includes category product pages)
+  /// NOT on Orders (1) or Profile (3) or address/settings sub-pages.
+  static bool _isProductTab(int tabIndex) => tabIndex == 0 || tabIndex == 2;
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final cartCount = ref.watch(cartCountProvider);
     return ValueListenableBuilder<bool>(
       valueListenable: productOptionSheetVisible,
       builder: (context, isSheetOpen, _) {
-        final showCartPill = cartCount > 0 && !isSheetOpen;
+        final showCartPill = cartCount > 0 && !isSheetOpen && _isProductTab(selectedIndex);
     // Pill sits just above the bottom nav (≈12dp gap), centred horizontally,
     // and spans ~60% of the screen width — never full-width, never mid-screen.
     final screenWidth = MediaQuery.sizeOf(context).width;

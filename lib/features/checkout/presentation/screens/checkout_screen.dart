@@ -15,6 +15,8 @@ import 'package:bakaloo_flutter_app/core/utils/extensions/double_extensions.dart
 import 'package:bakaloo_flutter_app/features/addresses/domain/entities/address_entity.dart';
 import 'package:bakaloo_flutter_app/features/addresses/presentation/providers/address_provider.dart';
 import 'package:bakaloo_flutter_app/features/cart/domain/entities/cart_item_entity.dart';
+import 'package:bakaloo_flutter_app/features/cart/domain/entities/bill_summary_entity.dart';
+import 'package:bakaloo_flutter_app/features/cart/presentation/providers/cart_enhancement_providers.dart';
 import 'package:bakaloo_flutter_app/features/cart/presentation/providers/cart_provider.dart';
 import 'package:bakaloo_flutter_app/features/checkout/domain/entities/checkout_summary_entity.dart';
 import 'package:bakaloo_flutter_app/features/checkout/domain/entities/delivery_slot_entity.dart';
@@ -72,6 +74,13 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
     final walletBalance = walletAsync.asData?.value.balance;
     final walletLoading = walletAsync.isLoading;
     final summary = ref.read(checkoutProvider.notifier).summary;
+    // Backend bill summary is the source of truth for the amount charged.
+    // Use it for every money display + the wallet sufficiency check so the
+    // checkout total always matches what the backend actually charges.
+    final billSummary = ref.watch(billSummaryProvider).asData?.value;
+    final effectiveSummary = billSummary != null
+        ? summary.copyWith(total: billSummary.payable)
+        : summary;
     final isPlacing = checkoutState.isPlacingOrder;
 
     ref
@@ -132,7 +141,8 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
           }
           return _buildBody(
             checkoutState: checkoutState,
-            summary: summary,
+            summary: effectiveSummary,
+            billSummary: billSummary,
             walletBalance: walletBalance ?? 0.0,
             walletLoading: walletLoading,
             walletError: walletAsync.hasError,
@@ -142,7 +152,7 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
         },
       ),
       bottomNavigationBar: _CheckoutBottomBar(
-        summary: summary,
+        summary: effectiveSummary,
         isLoading: isPlacing,
         onPlaceOrder: () => _handlePayment(checkoutState.paymentMethod),
       ),
@@ -179,6 +189,7 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
   Widget _buildBody({
     required CheckoutState checkoutState,
     required CheckoutSummaryEntity summary,
+    required BillSummaryEntity? billSummary,
     required double walletBalance,
     required bool walletLoading,
     required bool walletError,
@@ -200,6 +211,7 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
         // ── Bill Accordion ──────────────────────────────────────────
         _BillAccordion(
           summary: summary,
+          billSummary: billSummary,
           expanded: _billExpanded,
           onToggle: () => setState(() => _billExpanded = !_billExpanded),
         ),
@@ -384,13 +396,141 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
 class _BillAccordion extends StatelessWidget {
   const _BillAccordion({
     required this.summary,
+    required this.billSummary,
     required this.expanded,
     required this.onToggle,
   });
 
   final CheckoutSummaryEntity summary;
+  final BillSummaryEntity? billSummary;
   final bool expanded;
   final VoidCallback onToggle;
+
+  double get _payable => billSummary?.payable ?? summary.total;
+
+  /// Itemized breakdown — uses the backend canonical bill when available,
+  /// otherwise falls back to the local summary so the row always renders.
+  Widget _buildBreakdown() {
+    final bs = billSummary;
+    final divider = Padding(
+      padding: EdgeInsets.symmetric(vertical: 10.h),
+      child: const Divider(height: 1, color: AppColors.divider),
+    );
+
+    if (bs == null) {
+      return Column(
+        children: <Widget>[
+          _BillRow(label: 'Items total', value: summary.subtotal),
+          Gap(8.h),
+          _BillRow(label: 'Delivery fee', value: summary.deliveryFee),
+          Gap(8.h),
+          _BillRow(label: 'Platform fee', value: summary.platformFee),
+          if (summary.discount > 0) ...<Widget>[
+            Gap(8.h),
+            _BillRow(
+              label: 'Coupon discount',
+              value: summary.discount,
+              prefix: '-',
+              valueColor: AppColors.successGreen,
+            ),
+          ],
+          divider,
+          _BillRow(
+            label: 'Total',
+            value: summary.total,
+            valueStyle:
+                AppTextStyles.h3.copyWith(fontWeight: FontWeight.w800),
+          ),
+        ],
+      );
+    }
+
+    final delivery = bs.deliveryFee;
+    final rows = <Widget>[
+      _BillRow(label: 'Items total', value: bs.itemTotal.discounted),
+      Gap(8.h),
+      _BillRow(
+        label: 'Delivery fee',
+        value: delivery.amount,
+        isFree: delivery.isFree,
+      ),
+    ];
+    if (!delivery.isFree && bs.distance.known && bs.distance.label.isNotEmpty) {
+      rows
+        ..add(Gap(4.h))
+        ..add(
+          Align(
+            alignment: Alignment.centerLeft,
+            child: Text(
+              '${bs.distance.label} from store',
+              style: AppTextStyles.bodySmall.copyWith(
+                color: AppColors.textSecondary,
+                fontSize: 11.sp,
+              ),
+            ),
+          ),
+        );
+    }
+    if (delivery.isFree) {
+      rows
+        ..add(Gap(4.h))
+        ..add(
+          Align(
+            alignment: Alignment.centerLeft,
+            child: Text(
+              'Free delivery unlocked',
+              style: AppTextStyles.bodySmall.copyWith(
+                color: AppColors.successGreen,
+                fontSize: 11.sp,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+        );
+    }
+    if (bs.handlingFee.amount > 0) {
+      rows
+        ..add(Gap(8.h))
+        ..add(_BillRow(label: 'Handling fee', value: bs.handlingFee.amount));
+    }
+    if (bs.platformFee.amount > 0) {
+      rows
+        ..add(Gap(8.h))
+        ..add(_BillRow(label: 'Platform fee', value: bs.platformFee.amount));
+    }
+    if (bs.smallCartFee.amount > 0) {
+      rows
+        ..add(Gap(8.h))
+        ..add(_BillRow(label: 'Small cart fee', value: bs.smallCartFee.amount));
+    }
+    if (bs.couponDiscount > 0) {
+      rows
+        ..add(Gap(8.h))
+        ..add(
+          _BillRow(
+            label: 'Coupon discount',
+            value: bs.couponDiscount,
+            prefix: '-',
+            valueColor: AppColors.successGreen,
+          ),
+        );
+    }
+    if (bs.tipAmount > 0) {
+      rows
+        ..add(Gap(8.h))
+        ..add(_BillRow(label: 'Delivery partner tip', value: bs.tipAmount));
+    }
+    rows
+      ..add(divider)
+      ..add(
+        _BillRow(
+          label: 'Total',
+          value: bs.payable,
+          valueStyle: AppTextStyles.h3.copyWith(fontWeight: FontWeight.w800),
+        ),
+      );
+    return Column(children: rows);
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -419,7 +559,7 @@ class _BillAccordion extends StatelessWidget {
                   ),
                   const Spacer(),
                   Text(
-                    summary.total.toInrCurrency,
+                    _payable.toInrCurrency,
                     style: AppTextStyles.h3.copyWith(
                       fontSize: 18.sp,
                       fontWeight: FontWeight.w800,
@@ -461,46 +601,7 @@ class _BillAccordion extends StatelessWidget {
                         ),
                         Padding(
                           padding: EdgeInsets.fromLTRB(16.w, 12.h, 16.w, 14.h),
-                          child: Column(
-                            children: <Widget>[
-                              _BillRow(
-                                label: 'Items total',
-                                value: summary.subtotal,
-                              ),
-                              Gap(8.h),
-                              _BillRow(
-                                label: 'Delivery fee',
-                                value: summary.deliveryFee,
-                              ),
-                              Gap(8.h),
-                              _BillRow(
-                                label: 'Platform fee',
-                                value: summary.platformFee,
-                              ),
-                              if (summary.discount > 0) ...<Widget>[
-                                Gap(8.h),
-                                _BillRow(
-                                  label: 'Coupon discount',
-                                  value: summary.discount,
-                                  prefix: '-',
-                                  valueColor: AppColors.successGreen,
-                                ),
-                              ],
-                              Padding(
-                                padding: EdgeInsets.symmetric(vertical: 10.h),
-                                child: const Divider(
-                                  height: 1,
-                                  color: AppColors.divider,
-                                ),
-                              ),
-                              _BillRow(
-                                label: 'Total',
-                                value: summary.total,
-                                valueStyle: AppTextStyles.h3
-                                    .copyWith(fontWeight: FontWeight.w800),
-                              ),
-                            ],
-                          ),
+                          child: _buildBreakdown(),
                         ),
                       ],
                     )
@@ -520,6 +621,7 @@ class _BillRow extends StatelessWidget {
     this.prefix = '',
     this.valueColor,
     this.valueStyle,
+    this.isFree = false,
   });
 
   final String label;
@@ -527,6 +629,7 @@ class _BillRow extends StatelessWidget {
   final String prefix;
   final Color? valueColor;
   final TextStyle? valueStyle;
+  final bool isFree;
 
   @override
   Widget build(BuildContext context) {
@@ -540,10 +643,12 @@ class _BillRow extends StatelessWidget {
           ),
         ),
         Text(
-          '$prefix${value.toInrCurrency}',
+          isFree ? 'FREE' : '$prefix${value.toInrCurrency}',
           style: valueStyle ??
               AppTextStyles.labelLarge.copyWith(
-                color: valueColor ?? AppColors.textPrimary,
+                color: isFree
+                    ? AppColors.successGreen
+                    : (valueColor ?? AppColors.textPrimary),
                 fontWeight: FontWeight.w600,
               ),
         ),

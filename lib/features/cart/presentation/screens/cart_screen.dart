@@ -71,7 +71,9 @@ class _CartScreenState extends ConsumerState<CartScreen> {
       checkoutSummary: checkoutSummary,
       remoteSummary: billSummary,
     );
-    final toPay = hasAddress ? checkoutSummary.total : cart.subtotal;
+    // Bottom bar mirrors the bill's "To pay" — backend total when available,
+    // otherwise the item subtotal while the summary loads.
+    final toPay = billSummary != null ? displayBillSummary.payable : cart.subtotal;
 
     return Scaffold(
       backgroundColor: const Color(0xFFF5F5F5),
@@ -496,52 +498,41 @@ class _CartScreenState extends ConsumerState<CartScreen> {
     required CheckoutSummaryEntity checkoutSummary,
     required BillSummaryEntity? remoteSummary,
   }) {
-    final mrpSavings = cart.totalSavings;
-    final couponSavings = checkoutSummary.discount;
-    final savingsItems = <SavingsLineItem>[
-      if (mrpSavings > 0)
-        SavingsLineItem(
-          type: 'mrp_discount',
-          label: 'Discount on MRP',
-          amount: mrpSavings,
-        ),
-      if (couponSavings > 0)
-        SavingsLineItem(
-          type: 'handling_waiver',
-          label: 'Coupon savings',
-          amount: couponSavings,
-        ),
-    ];
+    // The backend TotalsEngine is the single source of truth — when its
+    // summary is available we render it verbatim (dynamic delivery fee,
+    // handling/platform fees, distance, free-delivery progress, total).
+    if (remoteSummary != null) {
+      return remoteSummary;
+    }
 
+    // Fallback shown only while the backend summary is still loading: show the
+    // item subtotal without fabricating any fees (no hardcoded ₹25/₹5 math).
+    final mrpSavings = cart.totalSavings;
     return BillSummaryEntity(
       itemTotal: ItemTotal(
         original: cart.subtotal + mrpSavings,
-        discounted: checkoutSummary.subtotal,
+        discounted: cart.subtotal,
       ),
-      deliveryFee: DeliveryFeeInfo(
-        amount: checkoutSummary.deliveryFee,
-        isFree: checkoutSummary.deliveryFee <= 0,
-        freeIn: remoteSummary?.deliveryFee.freeIn ?? 0,
-      ),
-      handlingFee: FeeInfo(
-        amount: checkoutSummary.platformFee,
-        isFree: checkoutSummary.platformFee <= 0,
-      ),
-      lateNightFee: const LateNightFeeInfo(
-        amount: 0,
-        isFree: true,
-      ),
+      deliveryFee: const DeliveryFeeInfo(),
+      handlingFee: const FeeInfo(),
+      lateNightFee: const LateNightFeeInfo(),
       toPay: BillToPay(
-        original: checkoutSummary.total + mrpSavings + couponSavings,
-        finalAmount: checkoutSummary.total,
+        original: cart.subtotal + mrpSavings,
+        finalAmount: cart.subtotal,
       ),
       savings: SavingsBreakdownEntity(
-        total: mrpSavings + couponSavings,
-        items: savingsItems,
+        total: mrpSavings,
+        items: <SavingsLineItem>[
+          if (mrpSavings > 0)
+            SavingsLineItem(
+              type: 'mrp_discount',
+              label: 'Discount on MRP',
+              amount: mrpSavings,
+            ),
+        ],
       ),
-      deliveryEstimate:
-          remoteSummary?.deliveryEstimate ?? const DeliveryEstimate(),
-      couponDiscount: couponSavings,
+      deliveryEstimate: const DeliveryEstimate(),
+      totalPayable: cart.subtotal,
       tipAmount: cart.tipAmount,
       itemCount: cart.itemCount,
     );
