@@ -10,6 +10,10 @@ import 'package:bakaloo_flutter_app/features/products/presentation/widgets/produ
 /// the sheet is visible.
 final productOptionSheetVisible = ValueNotifier<bool>(false);
 
+/// Tracks whether the delivery address bottom sheet is open.
+/// The floating cart pill watches this so it hides behind the sheet.
+final addressSheetVisible = ValueNotifier<bool>(false);
+
 /// Opens the variant option sheet for [product].
 ///
 /// Matches the reference workflow: a dark dimmed overlay, a floating circular

@@ -34,6 +34,7 @@ import 'package:bakaloo_flutter_app/shared/widgets/home_search_bar.dart';
 import 'package:bakaloo_flutter_app/shared/widgets/product_card.dart';
 import 'package:bakaloo_flutter_app/shared/widgets/skeleton_loader.dart';
 import 'package:bakaloo_flutter_app/features/products/presentation/widgets/show_product_options.dart';
+import 'package:bakaloo_flutter_app/shared/widgets/address_bottom_sheet.dart';
 
 double _horizontalRailExtent(
   int index,
@@ -664,14 +665,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
                                           isLoggedIn: currentUser != null,
                                           addresses: addresses,
                                         ),
-                                        onAddressTap: () {
-                                          showModalBottomSheet<void>(
-                                            context: context,
-                                            backgroundColor: Colors.transparent,
-                                            builder: (_) =>
-                                                const _AddressBottomSheet(),
-                                          );
-                                        },
+                                        onAddressTap: () =>
+                                            showAddressSheet(context),
                                         onProfileTap: () =>
                                             context.go(RouteNames.profile),
                                         onWalletTap: () =>
@@ -1554,68 +1549,7 @@ class _AddressBottomSheet extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final storeColor = ref.watch(
-      selectedStoreProvider.select((store) => store.chipActiveColor),
-    );
-    final storeBgColor = ref.watch(
-      selectedStoreProvider.select((store) => store.backgroundColor),
-    );
-
-    return Container(
-      decoration: const BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
-      padding: const EdgeInsets.fromLTRB(24, 20, 24, 32),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: <Widget>[
-          Center(
-            child: Container(
-              width: 36,
-              height: 4,
-              decoration: BoxDecoration(
-                color: const Color(0xFFDDDDDD),
-                borderRadius: BorderRadius.circular(2),
-              ),
-            ),
-          ),
-          const SizedBox(height: 16),
-          const Text(
-            'Delivery Address',
-            style: TextStyle(
-              fontSize: 18,
-              fontWeight: FontWeight.w700,
-              color: Colors.black,
-            ),
-          ),
-          const SizedBox(height: 16),
-          GestureDetector(
-            onTap: () {
-              Navigator.pop(context);
-              context.go(RouteNames.addresses);
-            },
-            child: Container(
-              width: double.infinity,
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-              decoration: BoxDecoration(
-                color: storeBgColor.withValues(alpha: 0.15),
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: Text(
-                'Manage Addresses',
-                style: TextStyle(
-                  fontSize: 15,
-                  fontWeight: FontWeight.w600,
-                  color: storeColor,
-                ),
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
+    return const AddressBottomSheet();
   }
 }
 

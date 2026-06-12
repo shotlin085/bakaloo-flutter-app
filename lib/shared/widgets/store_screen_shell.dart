@@ -21,6 +21,7 @@ import 'package:bakaloo_flutter_app/shared/widgets/delivery_promo_bar.dart';
 import 'package:bakaloo_flutter_app/shared/widgets/home_header.dart';
 import 'package:bakaloo_flutter_app/shared/widgets/home_search_bar.dart';
 import 'package:bakaloo_flutter_app/shared/utils/address_utils.dart';
+import 'package:bakaloo_flutter_app/shared/widgets/address_bottom_sheet.dart';
 import 'package:bakaloo_flutter_app/shared/widgets/shared_painters.dart';
 
 class StoreScreenShell extends ConsumerStatefulWidget {
@@ -278,7 +279,7 @@ class _StoreScreenShellState extends ConsumerState<StoreScreenShell>
                                 return HomeHeader(
                                   addressText: addressText,
                                   onAddressTap: () =>
-                                      context.go(RouteNames.addresses),
+                                      showAddressSheet(context),
                                   onProfileTap: () =>
                                       context.go(RouteNames.profile),
                                   onWalletTap: () =>

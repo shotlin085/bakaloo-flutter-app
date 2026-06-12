@@ -286,10 +286,6 @@ class _CartPillHost extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final cartCount = ref.watch(cartCountProvider);
-    return ValueListenableBuilder<bool>(
-      valueListenable: productOptionSheetVisible,
-      builder: (context, isSheetOpen, _) {
-        final showCartPill = cartCount > 0 && !isSheetOpen && _isProductTab(selectedIndex);
     // Pill sits just above the bottom nav (≈12dp gap), centred horizontally,
     // and spans ~60% of the screen width — never full-width, never mid-screen.
     final screenWidth = MediaQuery.sizeOf(context).width;
@@ -301,40 +297,58 @@ class _CartPillHost extends ConsumerWidget {
     // gap above the nav when shown, and (b) clear the safe area when hidden —
     // letting the pill glide down with the nav without ever clipping.
     final hiddenGap = bottomInset > 0 ? bottomInset : 10.h;
-    return AnimatedBuilder(
-      animation: navAnimation,
-      builder: (context, child) {
-        // navAnimation: 1 = nav visible, 0 = nav hidden.
-        final bottomOffset = 8.h + hiddenGap * (1 - navAnimation.value);
-        return Positioned(
-          bottom: bottomOffset,
-          left: 0,
-          right: 0,
-          child: child!,
-        );
-      },
-      child: IgnorePointer(
-        ignoring: !showCartPill,
-        child: Center(
-          child: RepaintBoundary(
-            child: AnimatedSlide(
-              offset: showCartPill ? Offset.zero : const Offset(0, 1.5),
-              duration: const Duration(milliseconds: 280),
-              curve: Curves.easeOutCubic,
-              child: AnimatedOpacity(
-                opacity: showCartPill ? 1.0 : 0.0,
-                duration: const Duration(milliseconds: 220),
-                curve: Curves.easeOut,
-                child: SizedBox(
-                  width: pillWidth,
-                  child: _FloatingCartPill(cartCount: cartCount, onTap: onTap),
+
+    return ValueListenableBuilder<bool>(
+      valueListenable: productOptionSheetVisible,
+      builder: (context, isProductSheetOpen, _) {
+        return ValueListenableBuilder<bool>(
+          valueListenable: addressSheetVisible,
+          builder: (context, isAddressSheetOpen, _) {
+            final showCartPill = cartCount > 0 &&
+                !isProductSheetOpen &&
+                !isAddressSheetOpen &&
+                _isProductTab(selectedIndex);
+            return AnimatedBuilder(
+              animation: navAnimation,
+              builder: (context, child) {
+                // navAnimation: 1 = nav visible, 0 = nav hidden.
+                final bottomOffset =
+                    8.h + hiddenGap * (1 - navAnimation.value);
+                return Positioned(
+                  bottom: bottomOffset,
+                  left: 0,
+                  right: 0,
+                  child: child!,
+                );
+              },
+              child: IgnorePointer(
+                ignoring: !showCartPill,
+                child: Center(
+                  child: RepaintBoundary(
+                    child: AnimatedSlide(
+                      offset:
+                          showCartPill ? Offset.zero : const Offset(0, 1.5),
+                      duration: const Duration(milliseconds: 280),
+                      curve: Curves.easeOutCubic,
+                      child: AnimatedOpacity(
+                        opacity: showCartPill ? 1.0 : 0.0,
+                        duration: const Duration(milliseconds: 220),
+                        curve: Curves.easeOut,
+                        child: SizedBox(
+                          width: pillWidth,
+                          child: _FloatingCartPill(
+                            cartCount: cartCount,
+                            onTap: onTap,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
                 ),
               ),
-            ),
-          ),
-        ),
-      ),
-    );
+            );
+          },
+        );
       },
     );
   }
