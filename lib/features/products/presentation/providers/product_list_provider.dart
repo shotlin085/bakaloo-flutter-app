@@ -48,6 +48,7 @@ class ProductListViewState {
     this.isLoadingMore = false,
     this.isStale = false,
     this.paginationMessage,
+    this.newItemCount = 0,
   });
 
   final List<ProductEntity> items;
@@ -56,6 +57,8 @@ class ProductListViewState {
   final bool isLoadingMore;
   final bool isStale;
   final String? paginationMessage;
+  // How many items were appended in the last loadMore — used for stagger animation.
+  final int newItemCount;
 
   ProductListViewState copyWith({
     List<ProductEntity>? items,
@@ -65,6 +68,7 @@ class ProductListViewState {
     bool? isStale,
     String? paginationMessage,
     bool clearPaginationMessage = false,
+    int? newItemCount,
   }) {
     return ProductListViewState(
       items: items ?? this.items,
@@ -75,6 +79,7 @@ class ProductListViewState {
       paginationMessage: clearPaginationMessage
           ? null
           : paginationMessage ?? this.paginationMessage,
+      newItemCount: newItemCount ?? 0,
     );
   }
 }
@@ -118,7 +123,9 @@ final getDealsUseCaseProvider = Provider<GetDealsUseCase>((Ref ref) {
 
 @riverpod
 class ProductListNotifier extends _$ProductListNotifier {
-  static const int _limit = 20;
+  // Show 8 products initially, load 8 more per "View More" tap.
+  static const int _initialLimit = 8;
+  static const int _pageLimit = 8;
 
   final List<ProductEntity> _items = <ProductEntity>[];
   late ProductListParams _params;
@@ -170,15 +177,16 @@ class ProductListNotifier extends _$ProductListNotifier {
     ProductListParams params, {
     bool reset = false,
   }) async {
+    final limit = reset ? _initialLimit : _pageLimit;
     final result = params.categoryId == null
         ? await ref.read(getProductsUseCaseProvider).call(
               page: _page,
-              limit: _limit,
+              limit: limit,
             )
         : await ref.read(getCategoryProductsUseCaseProvider).call(
               categoryId: params.categoryId!,
               page: _page,
-              limit: _limit,
+              limit: limit,
             );
 
     return result.fold((failure) {
@@ -188,11 +196,12 @@ class ProductListNotifier extends _$ProductListNotifier {
         _items.clear();
       }
 
+      final newCount = pageResult.items.length;
       _items.addAll(pageResult.items);
       final totalPages = pageResult.pagination.totalPages;
       _hasMore = totalPages > 0
           ? pageResult.pagination.page < totalPages
-          : pageResult.items.length >= _limit;
+          : pageResult.items.length >= limit;
 
       return ProductListViewState(
         items: List<ProductEntity>.unmodifiable(_items),
@@ -200,6 +209,7 @@ class ProductListNotifier extends _$ProductListNotifier {
         hasMore: _hasMore,
         isLoadingMore: false,
         isStale: pageResult.isStale,
+        newItemCount: reset ? 0 : newCount,
       );
     });
   }

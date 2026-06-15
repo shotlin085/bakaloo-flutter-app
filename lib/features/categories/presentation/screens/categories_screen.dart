@@ -539,10 +539,16 @@ class _CategoryProductPane extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final loadedCount = productsAsync.asData?.value.length;
-    final countLabel = loadedCount == null
-        ? '${selectedParent.productCount} products'
+    final loadedCount = productsAsync.asData?.value.length ?? 0;
+    final totalCount = selectedParent.productCount;
+    final countLabel = loadedCount == 0
+        ? '$totalCount products'
         : '$loadedCount products';
+
+    final feedCategoryId = selectedFeedId;
+    final feedCategoryName = selectedFeedId == selectedParent.id
+        ? selectedParent.name
+        : highlightedCategory.name;
 
     return CustomScrollView(
       key: key,
@@ -587,9 +593,7 @@ class _CategoryProductPane extends StatelessWidget {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: <Widget>[
                       Text(
-                        selectedFeedId == selectedParent.id
-                            ? selectedParent.name
-                            : highlightedCategory.name,
+                        feedCategoryName,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: AppTextStyles.h3.copyWith(
@@ -635,7 +639,7 @@ class _CategoryProductPane extends StatelessWidget {
             }
 
             return SliverPadding(
-              padding: EdgeInsets.fromLTRB(14.w, 0, 14.w, 20.h),
+              padding: EdgeInsets.fromLTRB(14.w, 0, 14.w, 4.h),
               sliver: SliverGrid.builder(
                 itemCount: products.length,
                 gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
@@ -683,6 +687,16 @@ class _CategoryProductPane extends StatelessWidget {
             );
           },
         ),
+        // View All button — navigate to dedicated full product list
+        if (productsAsync.asData != null)
+          SliverToBoxAdapter(
+            child: _ViewAllButton(
+              categoryId: feedCategoryId,
+              categoryName: feedCategoryName,
+              totalCount: totalCount,
+              loadedCount: loadedCount,
+            ),
+          ),
       ],
     );
   }
@@ -701,6 +715,98 @@ class _CategoryProductPane extends StatelessWidget {
         itemBuilder: (_, __) => const SkeletonLoader(
           height: 220,
           radius: 16,
+        ),
+      ),
+    );
+  }
+}
+
+// ── Glassmorphism "View All" button ──────────────────────────────────────────
+
+class _ViewAllButton extends StatefulWidget {
+  const _ViewAllButton({
+    required this.categoryId,
+    required this.categoryName,
+    required this.totalCount,
+    required this.loadedCount,
+  });
+
+  final String categoryId;
+  final String categoryName;
+  final int totalCount;
+  final int loadedCount;
+
+  @override
+  State<_ViewAllButton> createState() => _ViewAllButtonState();
+}
+
+class _ViewAllButtonState extends State<_ViewAllButton> {
+  bool _pressed = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final label = widget.totalCount > widget.loadedCount
+        ? 'View All ${widget.totalCount} Products'
+        : 'View All Products';
+
+    return Padding(
+      padding: EdgeInsets.fromLTRB(14.w, 10.h, 14.w, 28.h),
+      child: Center(
+        child: GestureDetector(
+          onTapDown: (_) => setState(() => _pressed = true),
+          onTapUp: (_) {
+            setState(() => _pressed = false);
+            context.push('/categories/${widget.categoryId}/products');
+          },
+          onTapCancel: () => setState(() => _pressed = false),
+          child: AnimatedScale(
+            scale: _pressed ? 0.95 : 1.0,
+            duration: const Duration(milliseconds: 110),
+            child: Container(
+              padding: EdgeInsets.symmetric(horizontal: 28.w, vertical: 13.h),
+              decoration: BoxDecoration(
+                color: Colors.white.withOpacity(0.18),
+                borderRadius: BorderRadius.circular(50),
+                border: Border.all(
+                  color: AppColors.orderViolet.withOpacity(0.28),
+                  width: 1.3,
+                ),
+                boxShadow: <BoxShadow>[
+                  BoxShadow(
+                    color: AppColors.orderViolet.withOpacity(0.15),
+                    blurRadius: 18,
+                    offset: const Offset(0, 5),
+                  ),
+                  BoxShadow(
+                    color: Colors.white.withOpacity(0.55),
+                    blurRadius: 1,
+                    offset: const Offset(0, -1),
+                  ),
+                ],
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: <Widget>[
+                  Text(
+                    label,
+                    style: TextStyle(
+                      fontFamily: 'Poppins',
+                      fontSize: 12.5.sp,
+                      fontWeight: FontWeight.w700,
+                      color: AppColors.orderViolet,
+                      letterSpacing: 0.2,
+                    ),
+                  ),
+                  Gap(5.w),
+                  Icon(
+                    Icons.arrow_forward_rounded,
+                    color: AppColors.orderViolet,
+                    size: 15.sp,
+                  ),
+                ],
+              ),
+            ),
+          ),
         ),
       ),
     );

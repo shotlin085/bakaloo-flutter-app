@@ -29,37 +29,10 @@ class ProductListScreen extends ConsumerStatefulWidget {
 }
 
 class _ProductListScreenState extends ConsumerState<ProductListScreen> {
-  late final ScrollController _scrollController;
-
   ProductListParams get _params => ProductListParams(
         categoryId: widget.categoryId,
         title: widget.title,
       );
-
-  @override
-  void initState() {
-    super.initState();
-    _scrollController = ScrollController()..addListener(_onScroll);
-  }
-
-  @override
-  void dispose() {
-    _scrollController
-      ..removeListener(_onScroll)
-      ..dispose();
-    super.dispose();
-  }
-
-  void _onScroll() {
-    if (!_scrollController.hasClients) {
-      return;
-    }
-
-    final threshold = _scrollController.position.maxScrollExtent * 0.8;
-    if (_scrollController.position.pixels >= threshold) {
-      ref.read(productListProvider(_params).notifier).loadMore();
-    }
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -80,7 +53,8 @@ class _ProductListScreenState extends ConsumerState<ProductListScreen> {
           if (viewState.items.isEmpty) {
             return const EmptyState(
               title: 'No products yet',
-              message: 'Products will appear here when inventory is available.',
+              message:
+                  'Products will appear here when inventory is available.',
             );
           }
 
@@ -91,7 +65,6 @@ class _ProductListScreenState extends ConsumerState<ProductListScreen> {
             },
             color: AppColors.primaryGreen,
             child: CustomScrollView(
-              controller: _scrollController,
               slivers: <Widget>[
                 if (viewState.isStale)
                   SliverToBoxAdapter(
@@ -100,15 +73,13 @@ class _ProductListScreenState extends ConsumerState<ProductListScreen> {
                       padding: EdgeInsets.all(12.w),
                       decoration: BoxDecoration(
                         color: AppColors.accentYellowLight,
-                        borderRadius: BorderRadius.circular(
-                          AppDimensions.radiusMd,
-                        ),
+                        borderRadius:
+                            BorderRadius.circular(AppDimensions.radiusMd),
                       ),
                       child: Text(
-                        'Showing cached products. Reconnect to refresh the latest inventory.',
-                        style: AppTextStyles.bodySmall.copyWith(
-                          color: AppColors.textPrimary,
-                        ),
+                        'Showing cached products. Reconnect to see the latest inventory.',
+                        style: AppTextStyles.bodySmall
+                            .copyWith(color: AppColors.textPrimary),
                       ),
                     ),
                   ),
@@ -124,14 +95,33 @@ class _ProductListScreenState extends ConsumerState<ProductListScreen> {
                     ),
                     itemBuilder: (context, index) {
                       final product = viewState.items[index];
+                      final isNew = viewState.newItemCount > 0 &&
+                          index >=
+                              viewState.items.length -
+                                  viewState.newItemCount;
+                      final staggerIndex = isNew
+                          ? index -
+                              (viewState.items.length -
+                                  viewState.newItemCount)
+                          : 0;
+
                       return RepaintBoundary(
-                        child: ProductCard(
-                          product: product,
-                          style: ProductCardStyle.grid,
-                          onTap: () => context.push('/product/${product.id}'),
-                          onOptionsTap: product.hasMultipleOptions
-                              ? () => showProductOptionsSheet(context, product)
-                              : null,
+                        child: _AnimatedCard(
+                          key: ValueKey<String>(product.id),
+                          animate: isNew,
+                          staggerIndex: staggerIndex,
+                          child: ProductCard(
+                            product: product,
+                            style: ProductCardStyle.grid,
+                            onTap: () =>
+                                context.push('/product/${product.id}'),
+                            onOptionsTap: product.hasMultipleOptions
+                                ? () => showProductOptionsSheet(
+                                      context,
+                                      product,
+                                    )
+                                : null,
+                          ),
                         ),
                       );
                     },
@@ -139,19 +129,12 @@ class _ProductListScreenState extends ConsumerState<ProductListScreen> {
                 ),
                 SliverToBoxAdapter(
                   child: Padding(
-                    padding: EdgeInsets.fromLTRB(16.w, 0, 16.w, 24.h),
+                    padding: EdgeInsets.fromLTRB(16.w, 4.h, 16.w, 32.h),
                     child: Column(
                       children: <Widget>[
-                        if (viewState.isLoadingMore)
-                          const Padding(
-                            padding: EdgeInsets.symmetric(vertical: 12),
-                            child: CircularProgressIndicator(
-                              color: AppColors.primaryGreen,
-                            ),
-                          ),
                         if (viewState.paginationMessage != null)
                           Padding(
-                            padding: EdgeInsets.only(bottom: 12.h),
+                            padding: EdgeInsets.only(bottom: 10.h),
                             child: Text(
                               viewState.paginationMessage!,
                               style: AppTextStyles.bodySmall.copyWith(
@@ -159,10 +142,23 @@ class _ProductListScreenState extends ConsumerState<ProductListScreen> {
                               ),
                             ),
                           ),
-                        if (!viewState.hasMore)
+                        if (viewState.hasMore)
+                          _ViewMoreButton(
+                            isLoading: viewState.isLoadingMore,
+                            onTap: () {
+                              ref
+                                  .read(
+                                    productListProvider(_params).notifier,
+                                  )
+                                  .loadMore();
+                            },
+                          )
+                        else if (viewState.items.length > 8)
                           Text(
-                            'You have reached the end of the list.',
-                            style: AppTextStyles.bodySmall,
+                            "You've seen all ${viewState.items.length} products",
+                            style: AppTextStyles.bodySmall.copyWith(
+                              color: AppColors.textSecondary,
+                            ),
                           ),
                       ],
                     ),
@@ -185,7 +181,7 @@ class _ProductListScreenState extends ConsumerState<ProductListScreen> {
         mainAxisSpacing: 12.h,
         mainAxisExtent: 268.h,
       ),
-      itemCount: 6,
+      itemCount: 8,
       itemBuilder: (_, __) => const Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: <Widget>[
@@ -195,6 +191,195 @@ class _ProductListScreenState extends ConsumerState<ProductListScreen> {
           Gap(AppDimensions.spacing8),
           SkeletonLoader(height: 12, width: 80, radius: 8),
         ],
+      ),
+    );
+  }
+}
+
+// ── Staggered fade-in + slide-up wrapper ────────────────────────────────────
+
+class _AnimatedCard extends StatefulWidget {
+  const _AnimatedCard({
+    required this.animate,
+    required this.staggerIndex,
+    required this.child,
+    super.key,
+  });
+
+  final bool animate;
+  final int staggerIndex;
+  final Widget child;
+
+  @override
+  State<_AnimatedCard> createState() => _AnimatedCardState();
+}
+
+class _AnimatedCardState extends State<_AnimatedCard>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _ctrl;
+  late final Animation<double> _opacity;
+  late final Animation<Offset> _slide;
+
+  @override
+  void initState() {
+    super.initState();
+    _ctrl = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 360),
+    );
+    _opacity = CurvedAnimation(
+      parent: _ctrl,
+      curve: const Interval(0, 0.75, curve: Curves.easeOut),
+    );
+    _slide = Tween<Offset>(
+      begin: const Offset(0, 0.07),
+      end: Offset.zero,
+    ).animate(CurvedAnimation(parent: _ctrl, curve: Curves.easeOutCubic));
+
+    if (widget.animate) {
+      Future<void>.delayed(
+        Duration(milliseconds: widget.staggerIndex * 55),
+        () {
+          if (mounted) _ctrl.forward();
+        },
+      );
+    } else {
+      _ctrl.value = 1;
+    }
+  }
+
+  @override
+  void dispose() {
+    _ctrl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (!widget.animate) return widget.child;
+    return FadeTransition(
+      opacity: _opacity,
+      child: SlideTransition(position: _slide, child: widget.child),
+    );
+  }
+}
+
+// ── Premium glassmorphism View More button ───────────────────────────────────
+
+class _ViewMoreButton extends StatefulWidget {
+  const _ViewMoreButton({
+    required this.isLoading,
+    required this.onTap,
+  });
+
+  final bool isLoading;
+  final VoidCallback onTap;
+
+  @override
+  State<_ViewMoreButton> createState() => _ViewMoreButtonState();
+}
+
+class _ViewMoreButtonState extends State<_ViewMoreButton>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _shimmer;
+  bool _pressed = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _shimmer = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1800),
+    )..repeat();
+  }
+
+  @override
+  void dispose() {
+    _shimmer.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: GestureDetector(
+        onTapDown: (_) => setState(() => _pressed = true),
+        onTapUp: (_) {
+          setState(() => _pressed = false);
+          if (!widget.isLoading) widget.onTap();
+        },
+        onTapCancel: () => setState(() => _pressed = false),
+        child: AnimatedScale(
+          scale: _pressed ? 0.95 : 1.0,
+          duration: const Duration(milliseconds: 120),
+          child: Container(
+            padding: EdgeInsets.symmetric(horizontal: 36.w, vertical: 14.h),
+            decoration: BoxDecoration(
+              // Frosted glass look
+              color: Colors.white.withOpacity(0.18),
+              borderRadius: BorderRadius.circular(50),
+              border: Border.all(
+                color: Colors.white.withOpacity(0.50),
+                width: 1.3,
+              ),
+              boxShadow: <BoxShadow>[
+                BoxShadow(
+                  color: const Color(0xFF3DB87C).withOpacity(0.20),
+                  blurRadius: 20,
+                  offset: const Offset(0, 6),
+                ),
+                BoxShadow(
+                  color: Colors.white.withOpacity(0.55),
+                  blurRadius: 1,
+                  offset: const Offset(0, -1),
+                ),
+              ],
+            ),
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(50),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: <Widget>[
+                  if (widget.isLoading) ...<Widget>[
+                    SizedBox(
+                      width: 16.w,
+                      height: 16.w,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        valueColor: AlwaysStoppedAnimation<Color>(
+                          AppColors.primaryGreen,
+                        ),
+                      ),
+                    ),
+                    Gap(8.w),
+                    Text(
+                      'Loading...',
+                      style: AppTextStyles.buttonMedium.copyWith(
+                        color: AppColors.primaryGreen,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ] else ...<Widget>[
+                    Text(
+                      'View More',
+                      style: AppTextStyles.buttonMedium.copyWith(
+                        color: AppColors.primaryGreen,
+                        fontWeight: FontWeight.w700,
+                        letterSpacing: 0.3,
+                      ),
+                    ),
+                    Gap(4.w),
+                    Icon(
+                      Icons.keyboard_arrow_down_rounded,
+                      color: AppColors.primaryGreen,
+                      size: 20.sp,
+                    ),
+                  ],
+                ],
+              ),
+            ),
+          ),
+        ),
       ),
     );
   }
