@@ -71,6 +71,14 @@
 # ── Multidex ──────────────────────────────────────────────────
 -keep class androidx.multidex.** { *; }
 
+# ── Google Play Core (Flutter deferred components / split install) ─
+# The app does not use deferred components, but Flutter's embedding
+# references these classes. Tell R8 to ignore the missing references.
+-dontwarn com.google.android.play.core.**
+-keep class com.google.android.play.core.** { *; }
+-keep class io.flutter.embedding.android.FlutterPlayStoreSplitApplication { *; }
+-keep class io.flutter.embedding.engine.deferredcomponents.** { *; }
+
 # ── Suppress common warnings ──────────────────────────────────
 -dontwarn javax.annotation.**
 -dontwarn kotlin.Unit

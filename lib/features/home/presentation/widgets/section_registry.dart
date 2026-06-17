@@ -28,6 +28,7 @@ import 'package:bakaloo_flutter_app/features/home/presentation/providers/manual_
 import 'package:bakaloo_flutter_app/features/home/presentation/widgets/seasonal_deal_mosaic.dart';
 import 'package:bakaloo_flutter_app/features/home/presentation/widgets/spacer_section.dart';
 import 'package:bakaloo_flutter_app/features/home/presentation/widgets/text_header_section.dart';
+import 'package:bakaloo_flutter_app/features/products/data/models/product_model.dart';
 import 'package:bakaloo_flutter_app/features/products/domain/entities/product_entity.dart';
 import 'package:bakaloo_flutter_app/shared/widgets/arched_product_layouts.dart';
 import 'package:bakaloo_flutter_app/shared/widgets/app_image.dart';
@@ -483,6 +484,18 @@ List<ProductEntity> _resolveProducts(
 }) {
   final binding = entry.merchBinding ?? const <String, dynamic>{};
   final limit = entry.productLimit ?? fallbackLimit;
+
+  // PRIMARY PATH: use the products the backend already resolved for this
+  // section. The public section-manifest endpoint resolves `merch_binding`
+  // (manual `product_ids` + optional category fill) server-side and returns
+  // the ordered, stock-filtered product objects in `entry.products`. Preferring
+  // them guarantees hand-picked grids render exactly what the dashboard pinned,
+  // even when those products are not part of the home feed's product pool.
+  final List<ProductEntity> resolvedFromManifest = _parseManifestProducts(entry);
+  if (resolvedFromManifest.isNotEmpty) {
+    return resolvedFromManifest.take(limit).toList(growable: false);
+  }
+
   final source = _readString(binding['source']) ?? 'category';
   final basePool = fallbackProducts ?? _resolveDefaultProductPool(ref);
 
@@ -498,7 +511,7 @@ List<ProductEntity> _resolveProducts(
       // Some products missing from pool — fetch them directly from API
       // This handles products from categories not loaded on the home feed
       final fetched = ref
-          .watch(manualProductsByIdsProvider(productIds))
+          .watch(manualProductsByIdsProvider(productIds.join(',')))
           .asData
           ?.value;
       if (fetched != null && fetched.isNotEmpty) {
@@ -538,6 +551,24 @@ List<ProductEntity> _resolveProducts(
   }
 
   return basePool.take(limit).toList(growable: false);
+}
+
+/// Parses the server-resolved product objects attached to a section manifest
+/// entry into [ProductEntity]s. Malformed individual records are skipped so a
+/// single bad product never blanks the whole section.
+List<ProductEntity> _parseManifestProducts(SectionManifestEntry entry) {
+  if (entry.products.isEmpty) {
+    return const <ProductEntity>[];
+  }
+  final List<ProductEntity> result = <ProductEntity>[];
+  for (final Map<String, dynamic> raw in entry.products) {
+    try {
+      result.add(ProductModel.fromJson(raw).toEntity());
+    } catch (_) {
+      // Skip an unparseable product rather than failing the whole section.
+    }
+  }
+  return result;
 }
 
 List<ProductEntity> _resolveDefaultProductPool(WidgetRef ref) {

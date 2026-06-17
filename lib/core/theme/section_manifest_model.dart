@@ -39,6 +39,7 @@ class SectionManifestEntry {
     required this.visible,
     required this.config,
     required this.merchBinding,
+    this.products = const <Map<String, dynamic>>[],
   });
 
   final String id;
@@ -47,6 +48,14 @@ class SectionManifestEntry {
   final bool visible;
   final Map<String, dynamic> config;
   final Map<String, dynamic>? merchBinding;
+
+  /// Products already resolved server-side by the public section-manifest
+  /// endpoint. When a section's `merch_binding` pins `product_ids` (manual
+  /// source) or `category_ids`, the backend resolves, orders and stock-filters
+  /// them and returns the full product objects here. The app should prefer
+  /// these over re-resolving from the home pool — this guarantees hand-picked
+  /// products always render, even when they are not in the home feed's pool.
+  final List<Map<String, dynamic>> products;
 
   factory SectionManifestEntry.fromJson(Map<String, dynamic> json) {
     return SectionManifestEntry(
@@ -61,6 +70,7 @@ class SectionManifestEntry {
       merchBinding: _normalizeNullableMap(
         json['merch_binding'] ?? json['merchBinding'],
       ),
+      products: _parseMapList(json['products']),
     );
   }
 
@@ -72,6 +82,7 @@ class SectionManifestEntry {
       'visible': visible,
       'config': config,
       if (merchBinding != null) 'merch_binding': merchBinding,
+      if (products.isNotEmpty) 'products': products,
     };
   }
 
@@ -303,4 +314,16 @@ Map<String, dynamic>? _normalizeNullableMap(dynamic value) {
   }
   final Map<String, dynamic> normalized = _normalizeMap(value);
   return normalized.isEmpty ? null : normalized;
+}
+
+List<Map<String, dynamic>> _parseMapList(dynamic value) {
+  if (value is! List) {
+    return const <Map<String, dynamic>>[];
+  }
+  return List<Map<String, dynamic>>.unmodifiable(
+    value
+        .whereType<Map>()
+        .map((Map<dynamic, dynamic> item) => Map<String, dynamic>.from(item))
+        .toList(growable: false),
+  );
 }
