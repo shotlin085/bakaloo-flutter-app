@@ -24,6 +24,7 @@ import 'package:bakaloo_flutter_app/features/home/presentation/widgets/animated_
 import 'package:bakaloo_flutter_app/features/home/presentation/widgets/custom_banner_section.dart';
 // PHASE 2C: Import memoized pool provider from dedicated provider file.
 import 'package:bakaloo_flutter_app/features/home/presentation/providers/home_product_pool_provider.dart';
+import 'package:bakaloo_flutter_app/features/home/presentation/providers/manual_products_provider.dart';
 import 'package:bakaloo_flutter_app/features/home/presentation/widgets/seasonal_deal_mosaic.dart';
 import 'package:bakaloo_flutter_app/features/home/presentation/widgets/spacer_section.dart';
 import 'package:bakaloo_flutter_app/features/home/presentation/widgets/text_header_section.dart';
@@ -487,9 +488,26 @@ List<ProductEntity> _resolveProducts(
 
   if (source == 'manual') {
     final productIds = _readStringList(binding['product_ids']);
-    final manual = _filterByIds(basePool, productIds);
-    if (manual.isNotEmpty) {
-      return manual.take(limit).toList(growable: false);
+    if (productIds.isNotEmpty) {
+      // First try to resolve from the already-loaded pool (fast path)
+      final fromPool = _filterByIds(basePool, productIds);
+      if (fromPool.length >= productIds.length) {
+        // All products found in pool — use directly
+        return fromPool.take(limit).toList(growable: false);
+      }
+      // Some products missing from pool — fetch them directly from API
+      // This handles products from categories not loaded on the home feed
+      final fetched = ref
+          .watch(manualProductsByIdsProvider(productIds))
+          .asData
+          ?.value;
+      if (fetched != null && fetched.isNotEmpty) {
+        return fetched.take(limit).toList(growable: false);
+      }
+      // Fall back to what we have from pool while API loads
+      if (fromPool.isNotEmpty) {
+        return fromPool.take(limit).toList(growable: false);
+      }
     }
   }
 
@@ -1249,7 +1267,6 @@ class _ManifestProductGridSection extends StatelessWidget {
                 spacing: gap,
                 runSpacing: 12.h,
                 children: products
-                    .take(effectiveColumns * 2)
                     .map(
                       (ProductEntity product) => SizedBox(
                         width: itemWidth,
