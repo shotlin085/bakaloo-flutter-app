@@ -5,7 +5,6 @@ import 'package:flutter_slidable/flutter_slidable.dart';
 
 import 'package:bakaloo_flutter_app/core/theme/app_colors.dart';
 import 'package:bakaloo_flutter_app/features/cart/domain/entities/cart_item_entity.dart';
-
 class CartItemCard extends StatelessWidget {
   const CartItemCard({
     required this.item,
@@ -124,6 +123,32 @@ class CartItemCard extends StatelessWidget {
                         ),
                       ),
                     ),
+                  // Delivery time badge
+                  if (item.displayDeliveryMinutes != null &&
+                      item.displayDeliveryMinutes! > 0)
+                    Padding(
+                      padding: EdgeInsets.only(top: 5.h),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: <Widget>[
+                          Icon(
+                            Icons.access_time_rounded,
+                            size: 11.sp,
+                            color: const Color(0xFF0AC26B),
+                          ),
+                          SizedBox(width: 3.w),
+                          Text(
+                            '${item.displayDeliveryMinutes} mins delivery',
+                            style: TextStyle(
+                              fontSize: 11.sp,
+                              fontWeight: FontWeight.w500,
+                              color: const Color(0xFF0AC26B),
+                              fontFamily: 'Inter',
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
                   SizedBox(height: 10.h),
                   Row(
                     children: <Widget>[
@@ -159,32 +184,10 @@ class CartItemCard extends StatelessWidget {
             Column(
               crossAxisAlignment: CrossAxisAlignment.end,
               children: <Widget>[
-                Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: <Widget>[
-                    _QuantityButton(
-                      icon: Icons.remove_rounded,
-                      color: const Color(0xFFE23372),
-                      onPressed: onDecrease,
-                    ),
-                    Padding(
-                      padding: EdgeInsets.symmetric(horizontal: 12.w),
-                      child: Text(
-                        '${item.quantity}',
-                        style: TextStyle(
-                          fontSize: 14.sp,
-                          fontWeight: FontWeight.w600,
-                          color: const Color(0xFF222222),
-                          fontFamily: 'Inter',
-                        ),
-                      ),
-                    ),
-                    _QuantityButton(
-                      icon: Icons.add_rounded,
-                      color: const Color(0xFF0AC26B),
-                      onPressed: onIncrease,
-                    ),
-                  ],
+                _CartStepper(
+                  quantity: item.quantity,
+                  onDecrease: onDecrease,
+                  onIncrease: onIncrease,
                 ),
                 SizedBox(height: 12.h),
                 Text(
@@ -205,53 +208,113 @@ class CartItemCard extends StatelessWidget {
   }
 }
 
-class _QuantityButton extends StatefulWidget {
-  const _QuantityButton({
+// ── Pill-shaped stepper  ─ [–] count [+]  ────────────────────────────────────
+// – button: light violet surface + violet icon
+// + button: solid violet fill + white icon
+// Both buttons share the same pill container with a count in the middle.
+
+class _CartStepper extends StatelessWidget {
+  const _CartStepper({
+    required this.quantity,
+    required this.onDecrease,
+    required this.onIncrease,
+  });
+
+  static const Color _violetSurface = Color(0xFFEDE9FD);
+
+  final int quantity;
+  final VoidCallback onDecrease;
+  final VoidCallback onIncrease;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      height: 40.h,
+      decoration: BoxDecoration(
+        color: _violetSurface,
+        borderRadius: BorderRadius.circular(50.r),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: <Widget>[
+          // ── minus ─────────────────────────────────────────────────────────
+          _StepButton(
+            icon: Icons.remove_rounded,
+            onPressed: onDecrease,
+            isFilled: false,
+          ),
+          // ── count ─────────────────────────────────────────────────────────
+          SizedBox(
+            width: 28.w,
+            child: Text(
+              '$quantity',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                fontSize: 15.sp,
+                fontWeight: FontWeight.w700,
+                color: const Color(0xFF1A1A1A),
+                fontFamily: 'Inter',
+                height: 1,
+              ),
+            ),
+          ),
+          // ── plus ──────────────────────────────────────────────────────────
+          _StepButton(
+            icon: Icons.add_rounded,
+            onPressed: onIncrease,
+            isFilled: true,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _StepButton extends StatefulWidget {
+  const _StepButton({
     required this.icon,
-    required this.color,
     required this.onPressed,
+    required this.isFilled,
   });
 
   final IconData icon;
-  final Color color;
   final VoidCallback onPressed;
+  final bool isFilled; // true = solid violet (+), false = ghost (–)
 
   @override
-  State<_QuantityButton> createState() => _QuantityButtonState();
+  State<_StepButton> createState() => _StepButtonState();
 }
 
-class _QuantityButtonState extends State<_QuantityButton> {
+class _StepButtonState extends State<_StepButton> {
   double _scale = 1;
 
-  void _setPressed(bool pressed) {
-    setState(() {
-      _scale = pressed ? 0.92 : 1;
-    });
-  }
+  static const Color _violet = Color(0xFF7C3AED);
+  static const Color _violetSurface = Color(0xFFEDE9FD);
 
   @override
   Widget build(BuildContext context) {
     return AnimatedScale(
       scale: _scale,
-      duration: const Duration(milliseconds: 100),
+      duration: const Duration(milliseconds: 90),
       curve: Curves.easeOut,
-      child: Material(
-        color: widget.color,
-        shape: const CircleBorder(),
-        child: InkWell(
-          onTap: widget.onPressed,
-          onTapDown: (_) => _setPressed(true),
-          onTapUp: (_) => _setPressed(false),
-          onTapCancel: () => _setPressed(false),
-          customBorder: const CircleBorder(),
-          child: SizedBox(
-            width: 28.w,
-            height: 28.w,
-            child: Icon(
-              widget.icon,
-              size: 16.sp,
-              color: Colors.white,
-            ),
+      child: GestureDetector(
+        onTapDown: (_) => setState(() => _scale = 0.88),
+        onTapUp: (_) {
+          setState(() => _scale = 1);
+          widget.onPressed();
+        },
+        onTapCancel: () => setState(() => _scale = 1),
+        child: Container(
+          width: 40.h,
+          height: 40.h,
+          decoration: BoxDecoration(
+            color: widget.isFilled ? _violet : _violetSurface,
+            shape: BoxShape.circle,
+          ),
+          child: Icon(
+            widget.icon,
+            size: 18.sp,
+            color: widget.isFilled ? Colors.white : _violet,
           ),
         ),
       ),

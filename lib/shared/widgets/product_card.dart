@@ -158,7 +158,7 @@ class _ProductCardState extends State<ProductCard> {
     final whiteBox = DecoratedBox(
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(AppDimensions.radiusMd),
+        borderRadius: BorderRadius.circular(AppDimensions.radiusLg),
         border: Border.all(color: const Color(0xFFEDEDED), width: 0.8),
       ),
       child: Stack(
@@ -168,7 +168,7 @@ class _ProductCardState extends State<ProductCard> {
             children: <Widget>[
               ClipRRect(
                 borderRadius: const BorderRadius.vertical(
-                  top: Radius.circular(AppDimensions.radiusMd),
+                  top: Radius.circular(AppDimensions.radiusLg),
                 ),
                 child: _buildImageArea(
                   product: product,
@@ -665,51 +665,54 @@ class _ProductCardImageArea extends StatelessWidget {
       child: Stack(
         children: <Widget>[
           Positioned.fill(
-            child: DecoratedBox(
-              decoration: BoxDecoration(
-                color: const Color(0xFFF7F7F7),
-                border: showImageBorder
-                    ? Border.all(
-                        color: const Color(0xFFDCDCE0),
-                        width: 1,
-                      )
-                    : null,
-                borderRadius: showImageBorder
-                    ? BorderRadius.circular(AppDimensions.radiusMd)
-                    : null,
-              ),
-              child: imageUrl == null || imageUrl!.isEmpty
-                  ? const Center(
-                      child: Icon(
-                        Icons.image_outlined,
-                        color: AppColors.textDisabled,
-                        size: 28,
-                      ),
-                    )
-                  : Padding(
-                      padding: EdgeInsets.all(isGridStyle ? 8.w : 4.w),
-                      child: AppImage(
-                        imageUrl: optimizedImage.url ?? imageUrl!,
-                        memCacheWidth: optimizedImage.memCacheWidth,
-                        memCacheHeight: optimizedImage.memCacheHeight,
-                        fit: isGridStyle ? BoxFit.contain : BoxFit.cover,
-                        filterQuality: FilterQuality.low,
-                        placeholder: const ColoredBox(
-                          color: Color(0xFFF7F7F7),
-                          child: SizedBox.expand(),
+            child: ClipRRect(
+              borderRadius: showImageBorder
+                  ? BorderRadius.circular(AppDimensions.radiusLg)
+                  : const BorderRadius.vertical(
+                      top: Radius.circular(AppDimensions.radiusLg),
+                    ),
+              child: DecoratedBox(
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  border: showImageBorder
+                      ? Border.all(
+                          color: const Color(0xFFDCDCE0),
+                          width: 1,
+                        )
+                      : null,
+                ),
+                child: imageUrl == null || imageUrl!.isEmpty
+                    ? const Center(
+                        child: Icon(
+                          Icons.image_outlined,
+                          color: AppColors.textDisabled,
+                          size: 28,
                         ),
-                        errorWidget: const ColoredBox(
-                          color: Color(0xFFF7F7F7),
-                          child: Center(
-                            child: Icon(
-                              Icons.broken_image_outlined,
-                              color: AppColors.textDisabled,
-                              size: 28,
+                      )
+                    : SizedBox.expand(
+                        child: AppImage(
+                          imageUrl: optimizedImage.url ?? imageUrl!,
+                          memCacheWidth: optimizedImage.memCacheWidth,
+                          memCacheHeight: optimizedImage.memCacheHeight,
+                          fit: BoxFit.cover,
+                          filterQuality: FilterQuality.low,
+                          placeholder: const ColoredBox(
+                            color: Colors.white,
+                            child: SizedBox.expand(),
+                          ),
+                          errorWidget: const ColoredBox(
+                            color: Colors.white,
+                            child: Center(
+                              child: Icon(
+                                Icons.broken_image_outlined,
+                                color: AppColors.textDisabled,
+                                size: 28,
+                              ),
                             ),
                           ),
                         ),
                       ),
-                    ),
+              ),
             ),
           ),
           if (showWishlist)

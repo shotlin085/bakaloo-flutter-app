@@ -12,7 +12,7 @@ import 'package:bakaloo_flutter_app/core/theme/app_text_styles.dart';
 import 'package:bakaloo_flutter_app/features/cart/presentation/providers/cart_provider.dart';
 import 'package:bakaloo_flutter_app/features/categories/domain/entities/category_entity.dart';
 import 'package:bakaloo_flutter_app/features/categories/presentation/providers/category_provider.dart';
-import 'package:bakaloo_flutter_app/features/products/domain/entities/product_entity.dart';
+import 'package:bakaloo_flutter_app/features/products/presentation/providers/product_list_provider.dart';
 import 'package:bakaloo_flutter_app/features/products/presentation/widgets/show_product_options.dart';
 import 'package:bakaloo_flutter_app/routing/route_names.dart';
 import 'package:bakaloo_flutter_app/shared/widgets/empty_state.dart';
@@ -102,29 +102,12 @@ class _CategoriesScreenState extends ConsumerState<CategoriesScreen> {
         : selectedParent.id;
     _selectedFeedId = selectedFeedId;
 
-    final activeCategoryIds = selectedFeedId == selectedParent.id
-        ? <String>[
-            selectedParent.id,
-            ...childCategories.map((category) => category.id),
-          ]
-        : <String>[selectedFeedId];
-
     final highlightedCategory = selectedFeedId == selectedParent.id
         ? selectedParent
         : childCategories.firstWhere(
             (category) => category.id == selectedFeedId,
             orElse: () => selectedParent,
           );
-
-    final productsAsync = ref.watch(
-      categoryProductShelfProvider(
-        CategoryProductShelfRequest(
-          categoryIds: activeCategoryIds,
-          limitPerCategory: selectedFeedId == selectedParent.id ? 8 : 14,
-          maxItems: 24,
-        ),
-      ),
-    );
 
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -162,7 +145,6 @@ class _CategoriesScreenState extends ConsumerState<CategoriesScreen> {
               highlightedCategory: highlightedCategory,
               childCategories: childCategories,
               selectedFeedId: selectedFeedId,
-              productsAsync: productsAsync,
               onSelectChild: (categoryId) {
                 setState(() {
                   _selectedFeedId = categoryId;
@@ -519,13 +501,12 @@ class _Monogram extends StatelessWidget {
   }
 }
 
-class _CategoryProductPane extends StatelessWidget {
+class _CategoryProductPane extends ConsumerStatefulWidget {
   const _CategoryProductPane({
     required this.selectedParent,
     required this.highlightedCategory,
     required this.childCategories,
     required this.selectedFeedId,
-    required this.productsAsync,
     required this.onSelectChild,
     super.key,
   });
@@ -534,26 +515,70 @@ class _CategoryProductPane extends StatelessWidget {
   final CategoryEntity highlightedCategory;
   final List<CategoryEntity> childCategories;
   final String selectedFeedId;
-  final AsyncValue<List<ProductEntity>> productsAsync;
   final ValueChanged<String> onSelectChild;
 
   @override
-  Widget build(BuildContext context) {
-    final loadedCount = productsAsync.asData?.value.length ?? 0;
-    final totalCount = selectedParent.productCount;
-    final countLabel = loadedCount == 0
-        ? '$totalCount products'
-        : '$loadedCount products';
+  ConsumerState<_CategoryProductPane> createState() =>
+      _CategoryProductPaneState();
+}
 
-    final feedCategoryId = selectedFeedId;
-    final feedCategoryName = selectedFeedId == selectedParent.id
-        ? selectedParent.name
-        : highlightedCategory.name;
+class _CategoryProductPaneState extends ConsumerState<_CategoryProductPane> {
+  late final ScrollController _scrollController;
+
+  // The active feed params — derived from selectedFeedId.
+  ProductListParams get _params => ProductListParams(
+        categoryId: widget.selectedFeedId,
+        title: widget.selectedFeedId == widget.selectedParent.id
+            ? widget.selectedParent.name
+            : widget.highlightedCategory.name,
+      );
+
+  @override
+  void initState() {
+    super.initState();
+    _scrollController = ScrollController()..addListener(_onScroll);
+  }
+
+  @override
+  void dispose() {
+    _scrollController
+      ..removeListener(_onScroll)
+      ..dispose();
+    super.dispose();
+  }
+
+  void _onScroll() {
+    if (!_scrollController.hasClients) return;
+    final max = _scrollController.position.maxScrollExtent;
+    if (_scrollController.offset >= max - 300) {
+      final viewState =
+          ref.read(productListProvider(_params)).asData?.value;
+      if (viewState != null &&
+          viewState.hasMore &&
+          !viewState.isLoadingMore) {
+        ref.read(productListProvider(_params).notifier).loadMore();
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final productListAsync = ref.watch(productListProvider(_params));
+
+    final feedCategoryName = widget.selectedFeedId == widget.selectedParent.id
+        ? widget.selectedParent.name
+        : widget.highlightedCategory.name;
+
+    final loadedCount = productListAsync.asData?.value.items.length ?? 0;
+    final totalCount = widget.selectedParent.productCount;
+    final countLabel =
+        loadedCount == 0 ? '$totalCount products' : '$loadedCount products';
 
     return CustomScrollView(
-      key: key,
+      key: widget.key,
+      controller: _scrollController,
       slivers: <Widget>[
-        if (childCategories.isNotEmpty)
+        if (widget.childCategories.isNotEmpty)
           SliverPadding(
             padding: EdgeInsets.fromLTRB(14.w, 12.h, 14.w, 0),
             sliver: SliverToBoxAdapter(
@@ -564,16 +589,18 @@ class _CategoryProductPane extends StatelessWidget {
                   children: <Widget>[
                     _CategoryFilterChip(
                       label: 'All',
-                      selected: selectedFeedId == selectedParent.id,
-                      onTap: () => onSelectChild(selectedParent.id),
+                      selected:
+                          widget.selectedFeedId == widget.selectedParent.id,
+                      onTap: () =>
+                          widget.onSelectChild(widget.selectedParent.id),
                     ),
-                    ...childCategories.map(
+                    ...widget.childCategories.map(
                       (category) => Padding(
                         padding: EdgeInsets.only(left: 8.w),
                         child: _CategoryFilterChip(
                           label: category.name,
-                          selected: selectedFeedId == category.id,
-                          onTap: () => onSelectChild(category.id),
+                          selected: widget.selectedFeedId == category.id,
+                          onTap: () => widget.onSelectChild(category.id),
                         ),
                       ),
                     ),
@@ -617,17 +644,18 @@ class _CategoryProductPane extends StatelessWidget {
             ),
           ),
         ),
-        productsAsync.when(
+        productListAsync.when(
           loading: _buildLoadingSliver,
           error: (error, stackTrace) => SliverFillRemaining(
             hasScrollBody: false,
             child: ErrorState(
               message: error.toString().replaceFirst('Bad state: ', ''),
-              onRetry: () {},
+              onRetry: () =>
+                  ref.read(productListProvider(_params).notifier).refresh(),
             ),
           ),
-          data: (products) {
-            if (products.isEmpty) {
+          data: (viewState) {
+            if (viewState.items.isEmpty) {
               return const SliverFillRemaining(
                 hasScrollBody: false,
                 child: EmptyState(
@@ -641,7 +669,7 @@ class _CategoryProductPane extends StatelessWidget {
             return SliverPadding(
               padding: EdgeInsets.fromLTRB(14.w, 0, 14.w, 4.h),
               sliver: SliverGrid.builder(
-                itemCount: products.length,
+                itemCount: viewState.items.length,
                 gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
                   crossAxisCount: 2,
                   crossAxisSpacing: 12.w,
@@ -649,7 +677,7 @@ class _CategoryProductPane extends StatelessWidget {
                   mainAxisExtent: 256.h,
                 ),
                 itemBuilder: (context, index) {
-                  final product = products[index];
+                  final product = viewState.items[index];
                   return LayoutBuilder(
                     builder: (context, constraints) {
                       return TweenAnimationBuilder<double>(
@@ -667,7 +695,8 @@ class _CategoryProductPane extends StatelessWidget {
                           accentColor: _accent,
                           onTap: () => context.push('/product/${product.id}'),
                           onOptionsTap: product.hasMultipleOptions
-                              ? () => showProductOptionsSheet(context, product)
+                              ? () =>
+                                  showProductOptionsSheet(context, product)
                               : null,
                         ),
                         builder: (context, value, child) {
@@ -687,16 +716,46 @@ class _CategoryProductPane extends StatelessWidget {
             );
           },
         ),
-        // View All button — navigate to dedicated full product list
-        if (productsAsync.asData != null)
-          SliverToBoxAdapter(
-            child: _ViewAllButton(
-              categoryId: feedCategoryId,
-              categoryName: feedCategoryName,
-              totalCount: totalCount,
-              loadedCount: loadedCount,
-            ),
+        // Inline footer: spinner while loading more, or "seen all" when done.
+        SliverToBoxAdapter(
+          child: Builder(
+            builder: (context) {
+              final viewState = productListAsync.asData?.value;
+              if (viewState == null) return const SizedBox.shrink();
+              if (viewState.isLoadingMore) {
+                return Padding(
+                  padding: EdgeInsets.symmetric(vertical: 18.h),
+                  child: Center(
+                    child: SizedBox(
+                      width: 22.w,
+                      height: 22.w,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2.5,
+                        valueColor: AlwaysStoppedAnimation<Color>(_accent),
+                      ),
+                    ),
+                  ),
+                );
+              }
+              if (!viewState.hasMore && viewState.items.length > 20) {
+                return Padding(
+                  padding: EdgeInsets.fromLTRB(14.w, 8.h, 14.w, 28.h),
+                  child: Center(
+                    child: Text(
+                      "You've seen all ${viewState.items.length} products",
+                      style: TextStyle(
+                        fontFamily: 'Inter',
+                        fontSize: 12.sp,
+                        color: AppColors.textTertiary,
+                      ),
+                    ),
+                  ),
+                );
+              }
+              return SizedBox(height: 24.h);
+            },
           ),
+        ),
       ],
     );
   }
@@ -721,97 +780,7 @@ class _CategoryProductPane extends StatelessWidget {
   }
 }
 
-// ── Glassmorphism "View All" button ──────────────────────────────────────────
-
-class _ViewAllButton extends StatefulWidget {
-  const _ViewAllButton({
-    required this.categoryId,
-    required this.categoryName,
-    required this.totalCount,
-    required this.loadedCount,
-  });
-
-  final String categoryId;
-  final String categoryName;
-  final int totalCount;
-  final int loadedCount;
-
-  @override
-  State<_ViewAllButton> createState() => _ViewAllButtonState();
-}
-
-class _ViewAllButtonState extends State<_ViewAllButton> {
-  bool _pressed = false;
-
-  @override
-  Widget build(BuildContext context) {
-    final label = widget.totalCount > widget.loadedCount
-        ? 'View All ${widget.totalCount} Products'
-        : 'View All Products';
-
-    return Padding(
-      padding: EdgeInsets.fromLTRB(14.w, 10.h, 14.w, 28.h),
-      child: Center(
-        child: GestureDetector(
-          onTapDown: (_) => setState(() => _pressed = true),
-          onTapUp: (_) {
-            setState(() => _pressed = false);
-            context.push('/categories/${widget.categoryId}/products');
-          },
-          onTapCancel: () => setState(() => _pressed = false),
-          child: AnimatedScale(
-            scale: _pressed ? 0.95 : 1.0,
-            duration: const Duration(milliseconds: 110),
-            child: Container(
-              padding: EdgeInsets.symmetric(horizontal: 28.w, vertical: 13.h),
-              decoration: BoxDecoration(
-                color: Colors.white.withOpacity(0.18),
-                borderRadius: BorderRadius.circular(50),
-                border: Border.all(
-                  color: AppColors.orderViolet.withOpacity(0.28),
-                  width: 1.3,
-                ),
-                boxShadow: <BoxShadow>[
-                  BoxShadow(
-                    color: AppColors.orderViolet.withOpacity(0.15),
-                    blurRadius: 18,
-                    offset: const Offset(0, 5),
-                  ),
-                  BoxShadow(
-                    color: Colors.white.withOpacity(0.55),
-                    blurRadius: 1,
-                    offset: const Offset(0, -1),
-                  ),
-                ],
-              ),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: <Widget>[
-                  Text(
-                    label,
-                    style: TextStyle(
-                      fontFamily: 'Poppins',
-                      fontSize: 12.5.sp,
-                      fontWeight: FontWeight.w700,
-                      color: AppColors.orderViolet,
-                      letterSpacing: 0.2,
-                    ),
-                  ),
-                  Gap(5.w),
-                  Icon(
-                    Icons.arrow_forward_rounded,
-                    color: AppColors.orderViolet,
-                    size: 15.sp,
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
+// ── Category filter chips ──────────────────────────────────────────────────
 
 class _CategoryFilterChip extends StatelessWidget {
   const _CategoryFilterChip({

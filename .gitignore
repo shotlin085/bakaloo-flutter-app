@@ -55,6 +55,8 @@ ios/Pods/
 ios/.symlinks/
 ios/Flutter/Flutter.framework
 ios/Flutter/Flutter.podspec
+# Podfile.lock is intentionally tracked (pins exact versions)
+
 
 # Android signing
 android/key.properties

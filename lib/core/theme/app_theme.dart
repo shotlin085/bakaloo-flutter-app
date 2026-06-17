@@ -21,7 +21,7 @@ class AppTheme {
       useMaterial3: true,
       colorScheme: colorScheme,
       scaffoldBackgroundColor: AppColors.bgPrimary,
-      fontFamily: 'Inter',
+      fontFamily: 'DMSans',
       textTheme: TextTheme(
         displayLarge: AppTextStyles.display,
         headlineLarge: AppTextStyles.h1,

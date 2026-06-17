@@ -179,9 +179,24 @@ class _OrderDetailScreenState extends ConsumerState<OrderDetailScreen> {
       appBar: AppBar(
         title: Text('Order details', style: AppTextStyles.h2),
         actions: <Widget>[
-          IconButton(
+          TextButton.icon(
             onPressed: () => context.push('/orders/${widget.id}/track'),
-            icon: PhosphorIcon(PhosphorIcons.navigationArrow()),
+            icon: PhosphorIcon(
+              PhosphorIcons.navigationArrow(),
+              size: 16.sp,
+            ),
+            label: Text(
+              'Track',
+              style: TextStyle(
+                fontFamily: 'Inter',
+                fontSize: 13.sp,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+            style: TextButton.styleFrom(
+              foregroundColor: AppColors.primaryGreen,
+              padding: EdgeInsets.symmetric(horizontal: 12.w),
+            ),
           ),
         ],
       ),

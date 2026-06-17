@@ -29,10 +29,40 @@ class ProductListScreen extends ConsumerStatefulWidget {
 }
 
 class _ProductListScreenState extends ConsumerState<ProductListScreen> {
+  late final ScrollController _scrollController;
+
   ProductListParams get _params => ProductListParams(
         categoryId: widget.categoryId,
         title: widget.title,
       );
+
+  @override
+  void initState() {
+    super.initState();
+    _scrollController = ScrollController();
+    _scrollController.addListener(_onScroll);
+  }
+
+  @override
+  void dispose() {
+    _scrollController
+      ..removeListener(_onScroll)
+      ..dispose();
+    super.dispose();
+  }
+
+  void _onScroll() {
+    if (!_scrollController.hasClients) return;
+    final maxScroll = _scrollController.position.maxScrollExtent;
+    final current = _scrollController.offset;
+    // Trigger 300px before the end
+    if (current >= maxScroll - 300) {
+      final viewState = ref.read(productListProvider(_params)).asData?.value;
+      if (viewState != null && viewState.hasMore && !viewState.isLoadingMore) {
+        ref.read(productListProvider(_params).notifier).loadMore();
+      }
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -65,6 +95,7 @@ class _ProductListScreenState extends ConsumerState<ProductListScreen> {
             },
             color: AppColors.primaryGreen,
             child: CustomScrollView(
+              controller: _scrollController,
               slivers: <Widget>[
                 if (viewState.isStale)
                   SliverToBoxAdapter(
@@ -142,18 +173,22 @@ class _ProductListScreenState extends ConsumerState<ProductListScreen> {
                               ),
                             ),
                           ),
-                        if (viewState.hasMore)
-                          _ViewMoreButton(
-                            isLoading: viewState.isLoadingMore,
-                            onTap: () {
-                              ref
-                                  .read(
-                                    productListProvider(_params).notifier,
-                                  )
-                                  .loadMore();
-                            },
+                        if (viewState.isLoadingMore)
+                          Padding(
+                            padding: EdgeInsets.symmetric(vertical: 16.h),
+                            child: SizedBox(
+                              width: 24.w,
+                              height: 24.w,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2.5,
+                                valueColor: AlwaysStoppedAnimation<Color>(
+                                  AppColors.primaryGreen,
+                                ),
+                              ),
+                            ),
                           )
-                        else if (viewState.items.length > 8)
+                        else if (!viewState.hasMore &&
+                            viewState.items.length > 20)
                           Text(
                             "You've seen all ${viewState.items.length} products",
                             style: AppTextStyles.bodySmall.copyWith(
@@ -264,123 +299,4 @@ class _AnimatedCardState extends State<_AnimatedCard>
   }
 }
 
-// ── Premium glassmorphism View More button ───────────────────────────────────
 
-class _ViewMoreButton extends StatefulWidget {
-  const _ViewMoreButton({
-    required this.isLoading,
-    required this.onTap,
-  });
-
-  final bool isLoading;
-  final VoidCallback onTap;
-
-  @override
-  State<_ViewMoreButton> createState() => _ViewMoreButtonState();
-}
-
-class _ViewMoreButtonState extends State<_ViewMoreButton>
-    with SingleTickerProviderStateMixin {
-  late final AnimationController _shimmer;
-  bool _pressed = false;
-
-  @override
-  void initState() {
-    super.initState();
-    _shimmer = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 1800),
-    )..repeat();
-  }
-
-  @override
-  void dispose() {
-    _shimmer.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Center(
-      child: GestureDetector(
-        onTapDown: (_) => setState(() => _pressed = true),
-        onTapUp: (_) {
-          setState(() => _pressed = false);
-          if (!widget.isLoading) widget.onTap();
-        },
-        onTapCancel: () => setState(() => _pressed = false),
-        child: AnimatedScale(
-          scale: _pressed ? 0.95 : 1.0,
-          duration: const Duration(milliseconds: 120),
-          child: Container(
-            padding: EdgeInsets.symmetric(horizontal: 36.w, vertical: 14.h),
-            decoration: BoxDecoration(
-              // Frosted glass look
-              color: Colors.white.withOpacity(0.18),
-              borderRadius: BorderRadius.circular(50),
-              border: Border.all(
-                color: Colors.white.withOpacity(0.50),
-                width: 1.3,
-              ),
-              boxShadow: <BoxShadow>[
-                BoxShadow(
-                  color: const Color(0xFF3DB87C).withOpacity(0.20),
-                  blurRadius: 20,
-                  offset: const Offset(0, 6),
-                ),
-                BoxShadow(
-                  color: Colors.white.withOpacity(0.55),
-                  blurRadius: 1,
-                  offset: const Offset(0, -1),
-                ),
-              ],
-            ),
-            child: ClipRRect(
-              borderRadius: BorderRadius.circular(50),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: <Widget>[
-                  if (widget.isLoading) ...<Widget>[
-                    SizedBox(
-                      width: 16.w,
-                      height: 16.w,
-                      child: CircularProgressIndicator(
-                        strokeWidth: 2,
-                        valueColor: AlwaysStoppedAnimation<Color>(
-                          AppColors.primaryGreen,
-                        ),
-                      ),
-                    ),
-                    Gap(8.w),
-                    Text(
-                      'Loading...',
-                      style: AppTextStyles.buttonMedium.copyWith(
-                        color: AppColors.primaryGreen,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  ] else ...<Widget>[
-                    Text(
-                      'View More',
-                      style: AppTextStyles.buttonMedium.copyWith(
-                        color: AppColors.primaryGreen,
-                        fontWeight: FontWeight.w700,
-                        letterSpacing: 0.3,
-                      ),
-                    ),
-                    Gap(4.w),
-                    Icon(
-                      Icons.keyboard_arrow_down_rounded,
-                      color: AppColors.primaryGreen,
-                      size: 20.sp,
-                    ),
-                  ],
-                ],
-              ),
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}

@@ -36,11 +36,11 @@ class DefaultFirebaseOptions {
   );
 
   static const FirebaseOptions ios = FirebaseOptions(
-    apiKey: 'AIzaSyDUMMY_IOS_KEY',
-    appId: '1:1234567890:ios:abcdef1234567890',
-    messagingSenderId: '1234567890',
-    projectId: 'bakaloo-customer',
-    storageBucket: 'bakaloo-customer.appspot.com',
+    apiKey: 'AIzaSyBJJqvLI-10Smy4kp3OwPX0Ooi46PFhOR8',
+    appId: '1:802646854363:ios:e903b3cfb80476f6665afe',
+    messagingSenderId: '802646854363',
+    projectId: 'bakaloo',
+    storageBucket: 'bakaloo.firebasestorage.app',
     iosBundleId: 'com.bakaloo.bakalooFlutterApp',
   );
 }

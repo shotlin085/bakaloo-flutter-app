@@ -1258,6 +1258,7 @@ class _ManifestProductGridSection extends StatelessWidget {
                           width: cardWidth,
                           style: ProductCardStyle.grid,
                           variant: variant,
+                          showWishlist: true,
                           onTap: () => context.push('/product/${product.id}'),
                           onOptionsTap: product.hasMultipleOptions
                               ? () => showProductOptionsSheet(context, product)
@@ -1325,6 +1326,7 @@ class _ManifestHorizontalProductSection extends StatelessWidget {
                     width: 132,
                     style: ProductCardStyle.scroll,
                     variant: variant,
+                    showWishlist: true,
                     onTap: () => context.push('/product/${product.id}'),
                     onOptionsTap: product.hasMultipleOptions
                         ? () => showProductOptionsSheet(context, product)

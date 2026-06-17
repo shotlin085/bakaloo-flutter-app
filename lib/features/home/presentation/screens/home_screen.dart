@@ -34,6 +34,8 @@ import 'package:bakaloo_flutter_app/shared/widgets/home_search_bar.dart';
 import 'package:bakaloo_flutter_app/shared/widgets/product_card.dart';
 import 'package:bakaloo_flutter_app/shared/widgets/skeleton_loader.dart';
 import 'package:bakaloo_flutter_app/features/products/presentation/widgets/show_product_options.dart';
+import 'package:bakaloo_flutter_app/features/location/presentation/providers/location_prompt_provider.dart';
+import 'package:bakaloo_flutter_app/features/location/presentation/widgets/location_prompt_sheet.dart';
 import 'package:bakaloo_flutter_app/shared/widgets/address_bottom_sheet.dart';
 
 double _horizontalRailExtent(
@@ -174,6 +176,10 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
       if (mounted) {
         _updateStickyHeaderTriggerOffset();
         _handleHomeScroll();
+        // One-time location prompt — slight delay so home UI settles first
+        Future<void>.delayed(const Duration(milliseconds: 800), () {
+          if (mounted) _maybeShowLocationPrompt();
+        });
       }
     });
     SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
@@ -238,6 +244,22 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
     }
     if (nextTopChromeMotionEnabled != currentTopChromeMotionEnabled) {
       _isTopChromeMotionEnabled.value = nextTopChromeMotionEnabled;
+    }
+  }
+
+  /// Shows the one-time location permission prompt if conditions are met.
+  Future<void> _maybeShowLocationPrompt() async {
+    if (!mounted) return;
+    try {
+      final shouldShow =
+          await ref.read(locationPromptShouldShowProvider.future);
+      if (!mounted || !shouldShow) return;
+      // Mark as shown BEFORE displaying so rapid re-triggers don't double-show
+      await markLocationPromptShown();
+      if (!mounted) return;
+      await showLocationPromptSheet(context);
+    } catch (_) {
+      // Non-critical — silently ignore
     }
   }
 

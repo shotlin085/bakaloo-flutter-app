@@ -123,9 +123,9 @@ final getDealsUseCaseProvider = Provider<GetDealsUseCase>((Ref ref) {
 
 @riverpod
 class ProductListNotifier extends _$ProductListNotifier {
-  // Show 8 products initially, load 8 more per "View More" tap.
-  static const int _initialLimit = 8;
-  static const int _pageLimit = 8;
+  // Load 20 products initially, 20 more per infinite-scroll trigger.
+  static const int _initialLimit = 20;
+  static const int _pageLimit = 20;
 
   final List<ProductEntity> _items = <ProductEntity>[];
   late ProductListParams _params;
