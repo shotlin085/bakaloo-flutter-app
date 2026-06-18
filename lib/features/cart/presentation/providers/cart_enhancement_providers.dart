@@ -27,12 +27,32 @@ class BillSummaryNotifier extends _$BillSummaryNotifier {
       return BillSummaryEntity.empty();
     }
 
+    // Watch the applied coupon so the bill summary rebuilds whenever the user
+    // applies or removes a coupon, without requiring a separate refresh call.
+    final appliedCoupon = ref.watch(checkoutProvider).appliedCoupon;
+
     final result =
         await ref.read(cartEnhancementsDataSourceProvider).getCartSummary();
 
     return result.fold(
       (failure) => throw StateError(failure.message),
-      (summary) => summary,
+      (summary) {
+        // The backend always returns couponDiscount: 0 because the applied
+        // coupon lives in client-side Riverpod state, not in the server session.
+        // Patch the summary here with the locally-stored discount so both the
+        // discount row and the final "To pay" amount are correct.
+        if (appliedCoupon != null && appliedCoupon.discountAmount > 0) {
+          final discount = appliedCoupon.discountAmount;
+          final basePayable =
+              summary.totalPayable > 0 ? summary.totalPayable : summary.toPay.finalAmount;
+          final newPayable = (basePayable - discount).clamp(0.0, double.infinity);
+          return summary.copyWith(
+            couponDiscount: discount,
+            totalPayable: newPayable,
+          );
+        }
+        return summary;
+      },
     );
   }
 

@@ -165,6 +165,9 @@ class _OrdersScreenState extends ConsumerState<OrdersScreen> {
         final warnings =
             data.warnings.isEmpty ? '' : '\n${data.warnings.join('\n')}';
         AppToast.show(context, 'Items added to cart$warnings', type: ToastType.success);
+        // Take the user straight to the cart so the reorder has a visible
+        // result instead of silently adding items in the background.
+        context.push(RouteNames.cart);
       },
     );
   }

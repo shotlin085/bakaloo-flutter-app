@@ -214,7 +214,12 @@ class _ToastCard extends StatelessWidget {
 
     return Container(
       decoration: BoxDecoration(
-        color: accentColor.withValues(alpha: 0.09),
+        // Opaque, lightly tinted background so the message is always legible
+        // against whatever content sits behind the overlay.
+        color: Color.alphaBlend(
+          accentColor.withValues(alpha: 0.14),
+          Colors.white,
+        ),
         borderRadius: BorderRadius.circular(14.r),
         border: Border(
           left: BorderSide(color: accentColor, width: 4),

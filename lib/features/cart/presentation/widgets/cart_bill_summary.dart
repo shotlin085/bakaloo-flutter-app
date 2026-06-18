@@ -79,6 +79,12 @@ class CartBillSummary extends StatelessWidget {
               ),
               Gap(14.h),
 
+              // ── Coupon discount ─────────────────────────────────
+              if (summary.couponDiscount > 0) ...<Widget>[
+                _CouponDiscountRow(amount: summary.couponDiscount),
+                Gap(14.h),
+              ],
+
               // ── Delivery fee ────────────────────────────────────
               _BillRow(
                 label: 'Delivery fee',
@@ -413,6 +419,55 @@ class _SubNote extends StatelessWidget {
               color: color,
               fontFamily: 'Inter',
             ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Coupon discount row — green, shows amount saved with a tag icon
+// ─────────────────────────────────────────────────────────────────────────────
+
+class _CouponDiscountRow extends StatelessWidget {
+  const _CouponDiscountRow({required this.amount});
+
+  final double amount;
+
+  static const Color _green = Color(0xFF0AC26B);
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: <Widget>[
+        Row(
+          children: <Widget>[
+            PhosphorIcon(
+              PhosphorIcons.tag(PhosphorIconsStyle.fill),
+              size: 14.sp,
+              color: _green,
+            ),
+            Gap(6.w),
+            Text(
+              'Coupon discount',
+              style: TextStyle(
+                fontSize: 14.sp,
+                fontWeight: FontWeight.w500,
+                color: _green,
+                fontFamily: 'Inter',
+              ),
+            ),
+          ],
+        ),
+        Text(
+          '−₹${amount.toStringAsFixed(0)}',
+          style: TextStyle(
+            fontSize: 14.sp,
+            fontWeight: FontWeight.w700,
+            color: _green,
+            fontFamily: 'Inter',
           ),
         ),
       ],
