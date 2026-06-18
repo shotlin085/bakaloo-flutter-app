@@ -7,9 +7,9 @@
   "client": [
     {
       "client_info": {
-        "mobilesdk_app_id": "1:802646854363:android:e903b3cfb80476f6665afe",
+        "mobilesdk_app_id": "1:802646854363:android:7384771e7f36d1bd665afe",
         "android_client_info": {
-          "package_name": "com.bakaloo.bakaloo_flutter_app"
+          "package_name": "com.bakaloo.india"
         }
       },
       "oauth_client": [],

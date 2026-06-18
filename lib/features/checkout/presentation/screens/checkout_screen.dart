@@ -7,6 +7,7 @@ import 'package:gap/gap.dart';
 import 'package:go_router/go_router.dart';
 
 import 'package:bakaloo_flutter_app/core/theme/app_colors.dart';
+import 'package:bakaloo_flutter_app/core/utils/app_toast.dart';
 import 'package:bakaloo_flutter_app/core/theme/app_dimensions.dart';
 import 'package:bakaloo_flutter_app/core/theme/app_shadows.dart';
 import 'package:bakaloo_flutter_app/core/theme/app_text_styles.dart';
@@ -88,7 +89,7 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
       ..listen<CheckoutState>(checkoutProvider, (prev, next) {
         final msg = next.errorMessage;
         if (msg != null && msg != prev?.errorMessage && mounted) {
-          _showSnackBar(msg, isError: true);
+          AppToast.show(context, msg);
           ref.read(checkoutProvider.notifier).clearError();
         }
       })
@@ -96,31 +97,7 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
       ..listen<PaymentState>(paymentProvider, (prev, next) {
         final msg = next.errorMessage;
         if (msg != null && msg != prev?.errorMessage && mounted) {
-          ScaffoldMessenger.of(context)
-            ..hideCurrentSnackBar()
-            ..showSnackBar(
-              SnackBar(
-                content: Row(
-                  children: <Widget>[
-                    const Icon(
-                      Icons.info_outline,
-                      color: Colors.white,
-                      size: 16,
-                    ),
-                    const SizedBox(width: 8),
-                    Expanded(child: Text(msg)),
-                  ],
-                ),
-                behavior: SnackBarBehavior.floating,
-                backgroundColor: const Color(0xFF455A64),
-                duration: const Duration(seconds: 5),
-                action: SnackBarAction(
-                  label: 'Retry',
-                  textColor: Colors.white,
-                  onPressed: () => _handlePayment(PaymentMethod.online),
-                ),
-              ),
-            );
+          AppToast.show(context, msg);
           ref.read(paymentProvider.notifier).clearError();
         }
       });
@@ -296,7 +273,7 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
     }
 
     if (currentState.selectedAddress == null) {
-      _showSnackBar('Please choose a delivery address first.');
+      AppToast.show(context, '📍 Please choose a delivery address first.', type: ToastType.warning);
       return;
     }
 
@@ -314,7 +291,7 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
     }
 
     if (result.errorMessage != null) {
-      _showSnackBar(result.errorMessage!, isError: true);
+      AppToast.show(context, result.errorMessage!);
     }
   }
 
@@ -370,22 +347,6 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
     // Always refresh — user may have topped up even if they didn't pop with
     // `true`.
     ref.invalidate(walletProvider);
-  }
-
-  void _showSnackBar(String message, {bool isError = false}) {
-    if (!mounted) {
-      return;
-    }
-    ScaffoldMessenger.of(context)
-      ..hideCurrentSnackBar()
-      ..showSnackBar(
-        SnackBar(
-          content: Text(message),
-          behavior: SnackBarBehavior.floating,
-          backgroundColor:
-              isError ? AppColors.errorRed : const Color(0xFF455A64),
-        ),
-      );
   }
 }
 
@@ -896,7 +857,7 @@ class _DeliveryInfoCard extends StatelessWidget {
                         Gap(8.w),
                         Container(
                           padding: EdgeInsets.symmetric(
-                              horizontal: 8.w, vertical: 2.h),
+                              horizontal: 8.w, vertical: 2.h,),
                           decoration: BoxDecoration(
                             color: AppColors.orderVioletSurface,
                             borderRadius:

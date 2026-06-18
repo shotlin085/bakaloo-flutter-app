@@ -12,6 +12,7 @@ import 'package:phosphor_flutter/phosphor_flutter.dart';
 import 'package:share_plus/share_plus.dart';
 
 import 'package:bakaloo_flutter_app/core/theme/app_colors.dart';
+import 'package:bakaloo_flutter_app/core/utils/app_toast.dart';
 import 'package:bakaloo_flutter_app/core/theme/app_dimensions.dart';
 import 'package:bakaloo_flutter_app/core/theme/app_shadows.dart';
 import 'package:bakaloo_flutter_app/core/theme/app_text_styles.dart';
@@ -62,9 +63,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
       final previousError = previous?.error;
       if (previousError != next.error) {
         final message = next.error.toString().replaceFirst('Bad state: ', '');
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(message)),
-        );
+        AppToast.show(context, message);
       }
     });
 
@@ -188,9 +187,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                         icon: PhosphorIcons.creditCard(),
                         label: 'Payment settings',
                         onTap: () {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(content: Text('Coming soon')),
-                          );
+                          AppToast.show(context, '🚀 Coming soon!', type: ToastType.info);
                         },
                       ),
                     ],
@@ -211,9 +208,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                         icon: PhosphorIcons.shieldCheck(),
                         label: 'Privacy',
                         onTap: () {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(content: Text('Coming soon')),
-                          );
+                          AppToast.show(context, '🚀 Coming soon!', type: ToastType.info);
                         },
                       ),
                     ],
@@ -339,9 +334,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     if (!mounted || result.isSuccess) {
       return;
     }
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(result.failure!.message)),
-    );
+    AppToast.show(context, result.failure!.message);
   }
 
   Future<void> _openEditProfile() async {
@@ -370,9 +363,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     }
 
     if (!result.isSuccess && result.failure != null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(result.failure!.message)),
-      );
+      AppToast.show(context, result.failure!.message);
       return;
     }
     context.go(RouteNames.phone);
@@ -462,9 +453,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     if (!mounted) {
       return;
     }
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Rating is not available right now.')),
-    );
+    AppToast.show(context, '⚠️ Rating is not available right now.', type: ToastType.warning);
   }
 
   // FIX: Now receives AsyncValue<WalletEntity> from walletProvider instead of

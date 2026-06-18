@@ -175,7 +175,16 @@ class AuthNotifier extends _$AuthNotifier {
   }
 
   Future<void> logout() async {
-    await ref.read(logoutUseCaseProvider).call();
+    // Only hit the network logout endpoint if there's actually a session to
+    // invalidate. Without this guard, every 401 from an anonymous session
+    // (e.g. hitting /wallet with no token) routes through
+    // RefreshInterceptor's force-logout path and fires a real POST
+    // /auth/logout — for a user who was never logged in. With several
+    // auth-gated requests in flight on a cold home load, that cascades into
+    // dozens of logout calls and trips the server's rate limiter.
+    if (state is AuthAuthenticated) {
+      await ref.read(logoutUseCaseProvider).call();
+    }
     await ref.read(secureStorageProvider).clearAll();
     await HiveService.userBox.clear();
     await HiveService.settingsBox.delete(StorageKeys.lastFcmToken);

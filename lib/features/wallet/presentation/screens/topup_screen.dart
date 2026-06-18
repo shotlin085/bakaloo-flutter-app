@@ -9,6 +9,7 @@ import 'package:phosphor_flutter/phosphor_flutter.dart';
 import 'package:razorpay_flutter/razorpay_flutter.dart';
 
 import 'package:bakaloo_flutter_app/core/security/screenshot_prevention.dart';
+import 'package:bakaloo_flutter_app/core/utils/app_toast.dart';
 import 'package:bakaloo_flutter_app/core/theme/app_colors.dart';
 import 'package:bakaloo_flutter_app/core/theme/app_dimensions.dart';
 import 'package:bakaloo_flutter_app/core/theme/app_shadows.dart';
@@ -64,15 +65,7 @@ class _TopupScreenState extends ConsumerState<TopupScreen> {
           return;
         }
         final message = response.message?.trim();
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              message == null || message.isEmpty
-                  ? 'Payment cancelled or failed.'
-                  : message,
-            ),
-          ),
-        );
+        AppToast.show(context, message == null || message.isEmpty ? 'Payment cancelled or failed.' : message);
       }
       ..onExternalWallet = (_) {};
   }
@@ -80,9 +73,7 @@ class _TopupScreenState extends ConsumerState<TopupScreen> {
   Future<void> _startTopup() async {
     final amount = double.tryParse(_amountController.text.trim());
     if (amount == null || amount <= 0) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Enter a valid amount')),
-      );
+      AppToast.show(context, '⚠️ Enter a valid amount', type: ToastType.warning);
       return;
     }
 
@@ -103,9 +94,7 @@ class _TopupScreenState extends ConsumerState<TopupScreen> {
     });
 
     if (!result.isSuccess || result.order == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(result.failure!.message)),
-      );
+      AppToast.show(context, result.failure!.message);
       return;
     }
 
@@ -131,9 +120,7 @@ class _TopupScreenState extends ConsumerState<TopupScreen> {
       if (!mounted) {
         return;
       }
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Unable to open Razorpay right now.')),
-      );
+      AppToast.show(context, 'Unable to open Razorpay right now.');
     }
   }
 
@@ -146,9 +133,7 @@ class _TopupScreenState extends ConsumerState<TopupScreen> {
       if (!mounted) {
         return;
       }
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Payment verification details missing.')),
-      );
+      AppToast.show(context, 'Payment verification details missing.');
       return;
     }
 
@@ -175,18 +160,11 @@ class _TopupScreenState extends ConsumerState<TopupScreen> {
     });
 
     if (!result.isSuccess) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(result.failure!.message)),
-      );
+      AppToast.show(context, result.failure!.message);
       return;
     }
 
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Wallet top-up successful.'),
-        backgroundColor: AppColors.successGreen,
-      ),
-    );
+    AppToast.show(context, '✅ Wallet top-up successful.', type: ToastType.success);
     context.pop(true);
   }
 

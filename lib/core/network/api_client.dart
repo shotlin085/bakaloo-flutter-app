@@ -28,7 +28,9 @@ abstract class ApiClient {
   );
 
   @POST(ApiConstants.logout)
-  Future<ApiResponse<void>> logout();
+  Future<ApiResponse<void>> logout([
+    @Body() Map<String, dynamic> body = const <String, dynamic>{},
+  ]);
 
   @DELETE(ApiConstants.deleteAccount)
   Future<ApiResponse<void>> deleteAccount();
@@ -151,8 +153,9 @@ abstract class ApiClient {
 
   @PUT('/addresses/{id}/default')
   Future<HttpResponse<dynamic>> setDefaultAddress(
-    @Path('id') String id,
-  );
+    @Path('id') String id, [
+    @Body() Map<String, dynamic> body = const <String, dynamic>{},
+  ]);
 
   @POST(ApiConstants.validatePincode)
   Future<HttpResponse<dynamic>> validatePincode(
@@ -335,19 +338,25 @@ abstract class ApiClient {
 
   @PUT('/notifications/{id}/read')
   Future<HttpResponse<dynamic>> markNotificationRead(
-    @Path('id') String id,
-  );
+    @Path('id') String id, [
+    @Body() Map<String, dynamic> body = const <String, dynamic>{},
+  ]);
 
   @PATCH('/notifications/{id}/read')
   Future<HttpResponse<dynamic>> markNotificationReadPatch(
-    @Path('id') String id,
-  );
+    @Path('id') String id, [
+    @Body() Map<String, dynamic> body = const <String, dynamic>{},
+  ]);
 
   @PUT(ApiConstants.notificationReadAll)
-  Future<HttpResponse<dynamic>> markAllNotificationsRead();
+  Future<HttpResponse<dynamic>> markAllNotificationsRead([
+    @Body() Map<String, dynamic> body = const <String, dynamic>{},
+  ]);
 
   @PATCH(ApiConstants.notificationReadAll)
-  Future<HttpResponse<dynamic>> markAllNotificationsReadPatch();
+  Future<HttpResponse<dynamic>> markAllNotificationsReadPatch([
+    @Body() Map<String, dynamic> body = const <String, dynamic>{},
+  ]);
 
   @DELETE('/notifications/{id}')
   Future<HttpResponse<dynamic>> deleteNotification(

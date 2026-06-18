@@ -229,7 +229,7 @@ class _AddressMapPickerScreenState extends State<AddressMapPickerScreen>
       children: <Widget>[
         TileLayer(
           urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
-          userAgentPackageName: 'com.bakaloo.bakaloo_flutter_app',
+          userAgentPackageName: 'com.bakaloo.india',
           maxNativeZoom: 19,
           maxZoom: 19,
         ),

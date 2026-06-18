@@ -20,6 +20,7 @@ import 'package:bakaloo_flutter_app/features/cart/domain/usecases/get_cart.dart'
 import 'package:bakaloo_flutter_app/features/cart/domain/usecases/remove_item.dart';
 import 'package:bakaloo_flutter_app/features/cart/domain/usecases/update_item.dart';
 import 'package:bakaloo_flutter_app/features/cart/domain/usecases/validate_cart.dart';
+import 'package:bakaloo_flutter_app/core/utils/app_toast.dart';
 import 'package:bakaloo_flutter_app/features/products/domain/entities/product_entity.dart';
 
 part 'cart_provider.g.dart';
@@ -436,19 +437,10 @@ final cartTotalProvider = Provider<double>((Ref ref) {
 void showCartSnackBar(
   BuildContext context,
   String message, {
-  bool isError = true,
+  bool isError = true, // kept for API compatibility, type now auto-detected
 }) {
-  // Map raw backend/token error messages to user-friendly copy.
   final displayMessage = _mapCartErrorMessage(message);
-  ScaffoldMessenger.of(context)
-    ..hideCurrentSnackBar()
-    ..showSnackBar(
-      SnackBar(
-        content: Text(displayMessage),
-        backgroundColor: isError ? Colors.red.shade700 : Colors.green.shade700,
-        behavior: SnackBarBehavior.floating,
-      ),
-    );
+  AppToast.show(context, displayMessage);
 }
 
 /// Maps technical backend error messages to user-friendly copy.

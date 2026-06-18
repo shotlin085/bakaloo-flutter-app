@@ -112,8 +112,11 @@ class SectionManifestEntry {
   /// Corner radius for the card (default: 24)
   double? get cornerRadius => _parseDouble(config['corner_radius']);
 
+  // merch_binding.limit is the dashboard's canonical "Data" tab control and
+  // is what the backend actually uses to slice products server-side. Prefer
+  // it over the legacy config.limit (Style tab) so the two never disagree.
   int? get productLimit =>
-      _parseInt(config['limit']) ?? _parseInt(merchBinding?['limit']);
+      _parseInt(merchBinding?['limit']) ?? _parseInt(config['limit']);
 
   // ── Arched Showcase 2.0: Title zone ──
   bool get showTitle => _parseBool(config['show_title']) ?? true;

@@ -6,6 +6,7 @@ import 'package:phosphor_flutter/phosphor_flutter.dart';
 
 import 'package:bakaloo_flutter_app/core/theme/app_colors.dart';
 import 'package:bakaloo_flutter_app/core/theme/app_text_styles.dart';
+import 'package:bakaloo_flutter_app/core/utils/app_toast.dart';
 import 'package:bakaloo_flutter_app/features/cart/presentation/providers/cart_provider.dart';
 import 'package:bakaloo_flutter_app/features/products/data/models/product_options_response.dart';
 import 'package:bakaloo_flutter_app/features/products/domain/entities/product_entity.dart';
@@ -471,7 +472,7 @@ class _CartActionButton extends ConsumerWidget {
                 shopProductId: option.shopProductId,
               );
           if (!context.mounted || result.isSuccess) return;
-          showCartSnackBar(context, result.failure!.message);
+          AppToast.show(context, result.failure!.message);
         },
         style: OutlinedButton.styleFrom(
           backgroundColor: Colors.white,
@@ -525,7 +526,7 @@ class _QuantityStepper extends ConsumerWidget {
                       shopProductId: option.shopProductId,
                     );
                 if (!context.mounted || result.isSuccess) return;
-                showCartSnackBar(context, result.failure!.message);
+                AppToast.show(context, result.failure!.message);
                 return;
               }
               final result = await ref.read(cartProvider.notifier).updateItem(
@@ -534,7 +535,7 @@ class _QuantityStepper extends ConsumerWidget {
                     shopProductId: option.shopProductId,
                   );
               if (!context.mounted || result.isSuccess) return;
-              showCartSnackBar(context, result.failure!.message);
+              AppToast.show(context, result.failure!.message);
             },
           ),
           Text(
@@ -549,14 +550,21 @@ class _QuantityStepper extends ConsumerWidget {
           _StepperButton(
             icon: PhosphorIcons.plus(),
             onTap: () async {
-              if (quantity >= (option.maxOrderQty ?? 50)) return;
+              if (quantity >= (option.maxOrderQty ?? 50)) {
+                AppToast.show(
+                  context,
+                  '⚠️ Maximum ${option.maxOrderQty ?? 50} items allowed per order',
+                  type: ToastType.warning,
+                );
+                return;
+              }
               final result = await ref.read(cartProvider.notifier).updateItem(
                     option.id,
                     quantity + 1,
                     shopProductId: option.shopProductId,
                   );
               if (!context.mounted || result.isSuccess) return;
-              showCartSnackBar(context, result.failure!.message);
+              AppToast.show(context, result.failure!.message);
             },
           ),
         ],

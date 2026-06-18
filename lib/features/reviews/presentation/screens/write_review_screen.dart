@@ -7,6 +7,7 @@ import 'package:phosphor_flutter/phosphor_flutter.dart';
 
 import 'package:bakaloo_flutter_app/core/theme/app_colors.dart';
 import 'package:bakaloo_flutter_app/core/theme/app_dimensions.dart';
+import 'package:bakaloo_flutter_app/core/utils/app_toast.dart';
 import 'package:bakaloo_flutter_app/core/theme/app_shadows.dart';
 import 'package:bakaloo_flutter_app/core/theme/app_text_styles.dart';
 import 'package:bakaloo_flutter_app/features/reviews/domain/repositories/review_repository.dart';
@@ -58,9 +59,7 @@ class _WriteReviewScreenState extends ConsumerState<WriteReviewScreen> {
 
   Future<void> _submit() async {
     if (_rating <= 0) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please select a rating')),
-      );
+      AppToast.show(context, '⚠️ Please select a rating', type: ToastType.warning);
       return;
     }
 
@@ -89,11 +88,7 @@ class _WriteReviewScreenState extends ConsumerState<WriteReviewScreen> {
         setState(() {
           _submitting = false;
         });
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Review is not available for this product yet.'),
-          ),
-        );
+        AppToast.show(context, '⚠️ Review is not available for this product yet.', type: ToastType.warning);
         return;
       }
 
@@ -116,20 +111,11 @@ class _WriteReviewScreenState extends ConsumerState<WriteReviewScreen> {
     });
 
     if (!result.isSuccess) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(result.failure!.message)),
-      );
+      AppToast.show(context, result.failure!.message);
       return;
     }
 
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(
-          widget.isEdit ? 'Review updated.' : 'Review submitted.',
-        ),
-        backgroundColor: AppColors.successGreen,
-      ),
-    );
+    AppToast.show(context, widget.isEdit ? '✅ Review updated.' : '✅ Review submitted.', type: ToastType.success);
     Navigator.of(context).pop(true);
   }
 

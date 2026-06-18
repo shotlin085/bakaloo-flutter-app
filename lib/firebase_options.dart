@@ -28,11 +28,11 @@ class DefaultFirebaseOptions {
   }
 
   static const FirebaseOptions android = FirebaseOptions(
-    apiKey: 'AIzaSyBp4byrUr8x6Rl66ANboNZfxnzUhlFMrI4',
-    appId: '1:268417469016:android:487039928a41d18710582d',
-    messagingSenderId: '268417469016',
-    projectId: 'grocery-shotlin',
-    storageBucket: 'grocery-shotlin.firebasestorage.app',
+    apiKey: 'AIzaSyBJJqvLI-10Smy4kp3OwPX0Ooi46PFhOR8',
+    appId: '1:802646854363:android:7384771e7f36d1bd665afe',
+    messagingSenderId: '802646854363',
+    projectId: 'bakaloo',
+    storageBucket: 'bakaloo.firebasestorage.app',
   );
 
   static const FirebaseOptions ios = FirebaseOptions(

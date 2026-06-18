@@ -13,6 +13,7 @@ import 'package:phosphor_flutter/phosphor_flutter.dart';
 import 'package:timeago/timeago.dart' as timeago;
 
 import 'package:bakaloo_flutter_app/core/notifications/notification_router.dart';
+import 'package:bakaloo_flutter_app/core/utils/app_toast.dart';
 import 'package:bakaloo_flutter_app/core/theme/app_colors.dart';
 import 'package:bakaloo_flutter_app/core/theme/app_dimensions.dart';
 import 'package:bakaloo_flutter_app/core/theme/app_text_styles.dart';
@@ -306,9 +307,7 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
     if (!mounted || result.isSuccess || result.failure == null) {
       return;
     }
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(result.failure!.message)),
-    );
+    AppToast.show(context, result.failure!.message);
   }
 
   Future<void> _markAllRead() async {
@@ -316,9 +315,7 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
     if (!mounted || result.isSuccess || result.failure == null) {
       return;
     }
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(result.failure!.message)),
-    );
+    AppToast.show(context, result.failure!.message);
   }
 
   Future<void> _delete(String id) async {
@@ -327,9 +324,7 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
     if (!mounted || result.isSuccess || result.failure == null) {
       return;
     }
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(result.failure!.message)),
-    );
+    AppToast.show(context, result.failure!.message);
   }
 
   Future<void> _onTapNotification(NotificationEntity item) async {

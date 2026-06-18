@@ -9,6 +9,7 @@ import 'package:open_file/open_file.dart';
 import 'package:phosphor_flutter/phosphor_flutter.dart';
 
 import 'package:bakaloo_flutter_app/core/theme/app_colors.dart';
+import 'package:bakaloo_flutter_app/core/utils/app_toast.dart';
 import 'package:bakaloo_flutter_app/core/theme/app_dimensions.dart';
 import 'package:bakaloo_flutter_app/core/theme/app_shadows.dart';
 import 'package:bakaloo_flutter_app/core/theme/app_text_styles.dart';
@@ -73,17 +74,13 @@ class _OrderDetailScreenState extends ConsumerState<OrderDetailScreen> {
 
     result.fold(
       (failure) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(failure.message)),
-        );
+        AppToast.show(context, failure.message);
       },
       (_) {
         ref
           ..invalidate(activeOrderProvider)
           ..invalidate(orderDetailProvider(order.id));
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Order cancelled successfully')),
-        );
+        AppToast.show(context, '✅ Order cancelled successfully', type: ToastType.success);
       },
     );
   }
@@ -109,23 +106,13 @@ class _OrderDetailScreenState extends ConsumerState<OrderDetailScreen> {
 
     result.fold(
       (failure) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(failure.message)),
-        );
+        AppToast.show(context, failure.message);
       },
       (data) {
         ref.invalidate(cartProvider);
         final warnings =
             data.warnings.isEmpty ? '' : '\n${data.warnings.join('\n')}';
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Items added to cart$warnings'),
-            action: SnackBarAction(
-              label: 'View Cart',
-              onPressed: () => context.push(RouteNames.cart),
-            ),
-          ),
-        );
+        AppToast.show(context, 'Items added to cart$warnings', type: ToastType.success);
       },
     );
   }
@@ -151,9 +138,7 @@ class _OrderDetailScreenState extends ConsumerState<OrderDetailScreen> {
 
     await result.fold(
       (failure) async {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(failure.message)),
-        );
+        AppToast.show(context, failure.message);
       },
       (file) async {
         final openResult = await OpenFile.open(file.path);
@@ -163,9 +148,7 @@ class _OrderDetailScreenState extends ConsumerState<OrderDetailScreen> {
         final message = openResult.type == ResultType.done
             ? 'Invoice downloaded: ${file.fileName}'
             : openResult.message;
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(message)),
-        );
+        AppToast.show(context, message, type: message.startsWith('Invoice') ? ToastType.success : ToastType.error);
       },
     );
   }
@@ -326,7 +309,7 @@ class _StatusHero extends StatelessWidget {
                   Gap(8.h),
                   Container(
                     padding: EdgeInsets.symmetric(
-                        horizontal: 8.w, vertical: 4.h),
+                        horizontal: 8.w, vertical: 4.h,),
                     decoration: BoxDecoration(
                       color: Colors.white.withValues(alpha: 0.18),
                       borderRadius: BorderRadius.circular(6.r),

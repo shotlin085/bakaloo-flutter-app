@@ -265,10 +265,13 @@ Widget _buildCategoryProductGrid(
     return const SizedBox.shrink();
   }
 
-  final columns = (entry.columns ?? 3).clamp(2, 4);
+  final columns = (entry.columns ?? 3).clamp(2, 3);
   return _ManifestProductGridSection(
     title: entry.title ?? 'Products for you',
-    products: products.take(columns * 2).toList(growable: false),
+    // Render every product the manifest already resolved (already capped by
+    // entry.productLimit server-side) — don't re-truncate to a fixed row
+    // count here, or picks beyond 2 rows silently disappear.
+    products: products,
     columns: columns,
     variant: productCardVariantFromString(entry.productCardStyle),
   );

@@ -8,6 +8,7 @@ import 'package:infinite_scroll_pagination/infinite_scroll_pagination.dart';
 import 'package:phosphor_flutter/phosphor_flutter.dart';
 
 import 'package:bakaloo_flutter_app/core/theme/app_colors.dart';
+import 'package:bakaloo_flutter_app/core/utils/app_toast.dart';
 import 'package:bakaloo_flutter_app/core/theme/app_text_styles.dart';
 import 'package:bakaloo_flutter_app/features/cart/presentation/providers/cart_provider.dart';
 import 'package:bakaloo_flutter_app/features/orders/domain/entities/order_entity.dart';
@@ -124,14 +125,14 @@ class _OrdersScreenState extends ConsumerState<OrdersScreen> {
 
     result.fold(
       (failure) {
-        _showSnackBar(failure.message);
+        AppToast.show(context, failure.message);
       },
       (_) {
         ref
           ..invalidate(activeOrderProvider)
           ..invalidate(orderDetailProvider(order.id));
         _pagingController.refresh();
-        _showSnackBar('Order cancelled successfully');
+        AppToast.show(context, '✅ Order cancelled successfully', type: ToastType.success);
       },
     );
   }
@@ -157,31 +158,15 @@ class _OrdersScreenState extends ConsumerState<OrdersScreen> {
 
     result.fold(
       (failure) {
-        _showSnackBar(failure.message);
+        AppToast.show(context, failure.message);
       },
       (data) {
         ref.invalidate(cartProvider);
         final warnings =
             data.warnings.isEmpty ? '' : '\n${data.warnings.join('\n')}';
-        ScaffoldMessenger.of(context)
-          ..hideCurrentSnackBar()
-          ..showSnackBar(
-            SnackBar(
-              content: Text('Items added to cart$warnings'),
-              action: SnackBarAction(
-                label: 'View Cart',
-                onPressed: () => context.push(RouteNames.cart),
-              ),
-            ),
-          );
+        AppToast.show(context, 'Items added to cart$warnings', type: ToastType.success);
       },
     );
-  }
-
-  void _showSnackBar(String message) {
-    ScaffoldMessenger.of(context)
-      ..hideCurrentSnackBar()
-      ..showSnackBar(SnackBar(content: Text(message)));
   }
 
   @override

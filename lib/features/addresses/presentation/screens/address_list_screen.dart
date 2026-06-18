@@ -11,6 +11,7 @@ import 'package:bakaloo_flutter_app/core/theme/app_colors.dart';
 import 'package:bakaloo_flutter_app/core/theme/app_dimensions.dart';
 import 'package:bakaloo_flutter_app/core/theme/app_shadows.dart';
 import 'package:bakaloo_flutter_app/core/theme/app_text_styles.dart';
+import 'package:bakaloo_flutter_app/core/utils/app_toast.dart';
 import 'package:bakaloo_flutter_app/core/utils/haversine.dart';
 import 'package:bakaloo_flutter_app/features/addresses/domain/entities/address_entity.dart';
 import 'package:bakaloo_flutter_app/features/addresses/presentation/providers/address_provider.dart';
@@ -176,7 +177,6 @@ class AddressListScreen extends ConsumerWidget {
     WidgetRef ref,
     AddressEntity address,
   ) async {
-    final messenger = ScaffoldMessenger.of(context);
     final result = await ref
         .read(addressProvider.notifier)
         .deleteAddress(context, address.id);
@@ -186,24 +186,11 @@ class AddressListScreen extends ConsumerWidget {
     }
 
     if (!result.isSuccess) {
-      messenger
-        ..hideCurrentSnackBar()
-        ..showSnackBar(
-          SnackBar(
-            content: Text(
-              result.failure?.message ?? 'Unable to delete address.',
-            ),
-            backgroundColor: AppColors.errorRed,
-          ),
-        );
+      AppToast.show(context, result.failure?.message ?? 'Unable to delete address.');
       return;
     }
 
-    messenger
-      ..hideCurrentSnackBar()
-      ..showSnackBar(
-        const SnackBar(content: Text('Address deleted.')),
-      );
+    AppToast.show(context, '✅ Address deleted.', type: ToastType.success);
   }
 
   Future<void> _setDefaultAddress(
@@ -218,14 +205,7 @@ class AddressListScreen extends ConsumerWidget {
       return;
     }
 
-    ScaffoldMessenger.of(context)
-      ..hideCurrentSnackBar()
-      ..showSnackBar(
-        SnackBar(
-          content: Text(result.failure?.message ?? 'Unable to update address.'),
-          backgroundColor: AppColors.errorRed,
-        ),
-      );
+    AppToast.show(context, result.failure?.message ?? 'Unable to update address.');
   }
 
   void _shareAddress(AddressEntity address) {

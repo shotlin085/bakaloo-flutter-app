@@ -16,6 +16,7 @@ import 'package:bakaloo_flutter_app/core/theme/app_colors.dart';
 import 'package:bakaloo_flutter_app/core/theme/app_dimensions.dart';
 import 'package:bakaloo_flutter_app/core/theme/app_shadows.dart';
 import 'package:bakaloo_flutter_app/core/theme/app_text_styles.dart';
+import 'package:bakaloo_flutter_app/core/utils/app_toast.dart';
 import 'package:bakaloo_flutter_app/core/utils/debouncer.dart';
 import 'package:bakaloo_flutter_app/core/utils/validators.dart';
 import 'package:bakaloo_flutter_app/features/addresses/domain/entities/address_entity.dart';
@@ -206,15 +207,16 @@ class _AddEditAddressScreenState extends ConsumerState<AddEditAddressScreen> {
       }
 
       if (!permission.isGranted) {
-        _showSnackBar(
-          'Location permission is required to detect your location.',
-        );
+        AppToast.show(context, '📍 Location permission is required to detect your location.', type: ToastType.warning);
         return;
       }
 
       final serviceEnabled = await Geolocator.isLocationServiceEnabled();
+      if (!mounted) {
+        return;
+      }
       if (!serviceEnabled) {
-        _showSnackBar('Turn on location services and try again.');
+        AppToast.show(context, '📍 Turn on location services and try again.', type: ToastType.warning);
         return;
       }
 
@@ -238,7 +240,8 @@ class _AddEditAddressScreenState extends ConsumerState<AddEditAddressScreen> {
       if (!mounted) {
         return;
       }
-      _showSnackBar(
+      AppToast.show(
+        context,
         error is Exception
             ? error.toString().replaceFirst('Exception: ', '')
             : 'Unable to fetch your location right now.',
@@ -439,11 +442,11 @@ class _AddEditAddressScreenState extends ConsumerState<AddEditAddressScreen> {
         setState(() {});
         return;
       }
-      _showSnackBar('Receiver details are already filled.');
+      AppToast.show(context, '✅ Receiver details are already filled.', type: ToastType.info);
       return;
     }
 
-    _showSnackBar('Add receiver details manually.');
+    AppToast.show(context, 'ℹ️ Add receiver details manually.', type: ToastType.info);
   }
 
   Future<void> _saveAddress() async {
@@ -454,7 +457,7 @@ class _AddEditAddressScreenState extends ConsumerState<AddEditAddressScreen> {
     }
 
     if (!_hasPinnedLocation) {
-      _showSnackBar('Pick the delivery pin before saving this address.');
+      AppToast.show(context, '📍 Pick the delivery pin before saving this address.', type: ToastType.warning);
       return;
     }
 
@@ -462,7 +465,7 @@ class _AddEditAddressScreenState extends ConsumerState<AddEditAddressScreen> {
         (_city ?? '').trim().isEmpty ||
         (_state ?? '').trim().isEmpty ||
         (_pincode ?? '').trim().isEmpty) {
-      _showSnackBar('Choose a valid delivery pin to continue.');
+      AppToast.show(context, '📍 Choose a valid delivery pin to continue.', type: ToastType.warning);
       return;
     }
 
@@ -499,9 +502,9 @@ class _AddEditAddressScreenState extends ConsumerState<AddEditAddressScreen> {
     });
 
     if (!result.isSuccess) {
-      _showSnackBar(
+      AppToast.show(
+        context,
         result.failure?.message ?? 'Unable to save this address right now.',
-        isError: true,
       );
       return;
     }
@@ -524,21 +527,6 @@ class _AddEditAddressScreenState extends ConsumerState<AddEditAddressScreen> {
       return null;
     }
     return parts.join(', ');
-  }
-
-  void _showSnackBar(String message, {bool isError = false}) {
-    if (!mounted) {
-      return;
-    }
-    ScaffoldMessenger.of(context)
-      ..hideCurrentSnackBar()
-      ..showSnackBar(
-        SnackBar(
-          content: Text(message),
-          backgroundColor:
-              isError ? AppColors.errorRed : const Color(0xFF455A64),
-        ),
-      );
   }
 
   @override
@@ -756,7 +744,7 @@ class _CompactMapPreview extends StatelessWidget {
               children: <Widget>[
                 TileLayer(
                   urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
-                  userAgentPackageName: 'com.bakaloo.bakaloo_flutter_app',
+                  userAgentPackageName: 'com.bakaloo.india',
                   maxNativeZoom: 19,
                   maxZoom: 19,
                 ),
