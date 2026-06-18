@@ -1,4 +1,4 @@
-package com.bakaloo.bakaloo_flutter_app;
+package com.bakaloo.india;
 
 import android.os.Build;
 import android.view.WindowManager;

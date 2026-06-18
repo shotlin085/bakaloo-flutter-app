@@ -14,7 +14,7 @@ if (keystorePropertiesFile.exists()) {
 }
 
 android {
-    namespace = "com.bakaloo.bakaloo_flutter_app"
+    namespace = "com.bakaloo.india"
     compileSdk = 36
     ndkVersion = flutter.ndkVersion
 
