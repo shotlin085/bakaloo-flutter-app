@@ -5,7 +5,6 @@ import 'package:bakaloo_flutter_app/shared/widgets/app_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:go_router/go_router.dart';
-import 'package:phosphor_flutter/phosphor_flutter.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import 'package:bakaloo_flutter_app/core/constants/api_constants.dart';
@@ -283,161 +282,197 @@ class _HeroSeasonalDealTile extends StatelessWidget {
     final defaultHeroTileTheme = HeroTileTheme.defaults();
     final resolvedHeroTileTheme = heroTileTheme ?? defaultHeroTileTheme;
     final borderRadius = BorderRadius.circular(28.r);
+
+    // When the dashboard has a custom uploaded image_url, show it as a single
+    // centered image (no duplication, no rotation). Only use the animated
+    // 3-product-artwork stack for auto-picked catalog images.
+    final String? configuredImageUrl =
+        resolvedHeroTileTheme.imageUrl?.trim().isNotEmpty == true
+            ? resolvedHeroTileTheme.imageUrl
+            : null;
+
+    final BoxDecoration tileBg = BoxDecoration(
+      gradient: LinearGradient(
+        begin: Alignment.topCenter,
+        end: Alignment.bottomCenter,
+        colors: gradient,
+      ),
+      borderRadius: borderRadius,
+      boxShadow: const <BoxShadow>[
+        BoxShadow(
+          color: Color(0x12000000),
+          blurRadius: 18,
+          offset: Offset(0, 8),
+        ),
+      ],
+    );
+
+    // ── Custom uploaded image: one image, centred, clean ─────────────────
+    if (configuredImageUrl != null) {
+      return Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: () => resolveMosaicTap(context, action, product.id),
+          borderRadius: borderRadius,
+          child: ClipRRect(
+            borderRadius: borderRadius,
+            child: Ink(
+              decoration: tileBg,
+              child: LayoutBuilder(
+                builder: (context, constraints) {
+                  final burstSize = constraints.maxWidth * 0.54;
+                  return Stack(
+                    clipBehavior: Clip.hardEdge,
+                    children: <Widget>[
+                      // Single image — centred, fills the lower 75% of the tile
+                      Positioned(
+                        left: 0,
+                        right: 0,
+                        bottom: 0,
+                        top: constraints.maxHeight * 0.22,
+                        child: AppImage(
+                          imageUrl: configuredImageUrl,
+                          fit: BoxFit.contain,
+                          alignment: Alignment.bottomCenter,
+                          memCacheWidth: 280,
+                          memCacheHeight: 520,
+                          filterQuality: FilterQuality.low,
+                          errorWidget: const SizedBox.shrink(),
+                        ),
+                      ),
+                      // Title
+                      Positioned(
+                        top: constraints.maxHeight * 0.055,
+                        left: constraints.maxWidth * 0.07,
+                        right: constraints.maxWidth * 0.07,
+                        child: Text(
+                          title,
+                          textAlign: TextAlign.center,
+                          maxLines: 3,
+                          style: AppTextStyles.h2.copyWith(
+                            color: Colors.white,
+                            fontSize: 19.sp,
+                            fontWeight: FontWeight.w900,
+                            height: 1.02,
+                            letterSpacing: -0.65,
+                            shadows: const <Shadow>[
+                              Shadow(
+                                color: Color(0x18000000),
+                                blurRadius: 4,
+                                offset: Offset(0, 2),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                      // Badge
+                      Positioned(
+                        right: constraints.maxWidth * 0.09,
+                        bottom: constraints.maxHeight * 0.07,
+                        child: Transform.rotate(
+                          angle: -0.04,
+                          child: _DealBurstBadge(
+                            size: burstSize,
+                            text: resolvedHeroTileTheme.badgeText,
+                            gradient: resolvedHeroTileTheme.badgeGradient,
+                          ),
+                        ),
+                      ),
+                    ],
+                  );
+                },
+              ),
+            ),
+          ),
+        ),
+      );
+    }
+
+    // ── No uploaded image: render the single catalog image, centred ──────
+    // The API provides one product image for this tile. Show it once, centred
+    // and large — no duplicated/rotated copies and no "+" overlay.
     final optimizedImage = ApiConstants.optimizedMedia(
       _firstRenderableImage(product),
       profile: CustomerImageProfile.seasonalHeroArtwork,
     );
+    final String? singleImageUrl =
+        optimizedImage.url?.trim().isNotEmpty == true ? optimizedImage.url : null;
 
     return Material(
       color: Colors.transparent,
       child: InkWell(
         onTap: () => resolveMosaicTap(context, action, product.id),
         borderRadius: borderRadius,
-        child: Ink(
-          decoration: BoxDecoration(
-            gradient: LinearGradient(
-              begin: Alignment.topCenter,
-              end: Alignment.bottomCenter,
-              colors: gradient,
+        child: ClipRRect(
+          borderRadius: borderRadius,
+          child: Ink(
+            decoration: tileBg,
+            child: LayoutBuilder(
+              builder: (context, constraints) {
+                final burstSize = constraints.maxWidth * 0.54;
+                return Stack(
+                  clipBehavior: Clip.hardEdge,
+                  children: <Widget>[
+                    // Single image — centred, larger, fills the lower portion
+                    Positioned(
+                      left: 0,
+                      right: 0,
+                      bottom: 0,
+                      top: constraints.maxHeight * 0.18,
+                      child: singleImageUrl == null
+                          ? const SizedBox.shrink()
+                          : AppImage(
+                              imageUrl: singleImageUrl,
+                              fit: BoxFit.contain,
+                              alignment: Alignment.bottomCenter,
+                              memCacheWidth: optimizedImage.memCacheWidth,
+                              memCacheHeight: optimizedImage.memCacheHeight,
+                              filterQuality: FilterQuality.low,
+                              errorWidget: const SizedBox.shrink(),
+                            ),
+                    ),
+                    // Title
+                    Positioned(
+                      top: constraints.maxHeight * 0.055,
+                      left: constraints.maxWidth * 0.07,
+                      right: constraints.maxWidth * 0.07,
+                      child: Text(
+                        title,
+                        textAlign: TextAlign.center,
+                        maxLines: 3,
+                        style: AppTextStyles.h2.copyWith(
+                          color: Colors.white,
+                          fontSize: 19.sp,
+                          fontWeight: FontWeight.w900,
+                          height: 1.02,
+                          letterSpacing: -0.65,
+                          shadows: const <Shadow>[
+                            Shadow(
+                              color: Color(0x18000000),
+                              blurRadius: 4,
+                              offset: Offset(0, 2),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                    // Badge
+                    Positioned(
+                      right: constraints.maxWidth * 0.09,
+                      bottom: constraints.maxHeight * 0.07,
+                      child: Transform.rotate(
+                        angle: -0.04,
+                        child: _DealBurstBadge(
+                          size: burstSize,
+                          text: resolvedHeroTileTheme.badgeText,
+                          gradient: resolvedHeroTileTheme.badgeGradient,
+                        ),
+                      ),
+                    ),
+                  ],
+                );
+              },
             ),
-            borderRadius: borderRadius,
-            boxShadow: const <BoxShadow>[
-              BoxShadow(
-                color: Color(0x12000000),
-                blurRadius: 18,
-                offset: Offset(0, 8),
-              ),
-            ],
-          ),
-          child: LayoutBuilder(
-            builder: (context, constraints) {
-              final burstSize = constraints.maxWidth * 0.54;
-              final leftBottleWidth = constraints.maxWidth * 1.18;
-              final leftBottleHeight = constraints.maxHeight * 0.70;
-              final centerBottleWidth = constraints.maxWidth * 0.89;
-              final centerBottleHeight = constraints.maxHeight * 0.67;
-              final rightBottleWidth = constraints.maxWidth * 1.18;
-              final rightBottleHeight = constraints.maxHeight * 0.70;
-              final plusTop = constraints.maxHeight * 0.365;
-              final plusLeft = constraints.maxWidth * 0.53;
-
-              return Stack(
-                clipBehavior: Clip.hardEdge,
-                children: <Widget>[
-                  Positioned(
-                    left: constraints.maxWidth * 0.13,
-                    bottom: constraints.maxHeight * 0.17,
-                    child: Transform.rotate(
-                      angle: 0.18,
-                      child: SizedBox(
-                        width: leftBottleWidth,
-                        height: leftBottleHeight,
-                        child: _ProductArtwork(
-                          imageUrl: optimizedImage.url,
-                          fallbackSize: 54.sp,
-                          fit: BoxFit.contain,
-                          memCacheWidth: optimizedImage.memCacheWidth,
-                          memCacheHeight: optimizedImage.memCacheHeight,
-                        ),
-                      ),
-                    ),
-                  ),
-                  Positioned(
-                    top: plusTop,
-                    left: plusLeft,
-                    child: Text(
-                      '+',
-                      style: AppTextStyles.h2.copyWith(
-                        color: Colors.white.withValues(alpha: 0.9),
-                        fontSize: 24.sp,
-                        fontWeight: FontWeight.w900,
-                        letterSpacing: -0.8,
-                        shadows: const <Shadow>[
-                          Shadow(
-                            color: Color(0x1C000000),
-                            blurRadius: 4,
-                            offset: Offset(0, 2),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                  Positioned(
-                    right: constraints.maxWidth * 0.11,
-                    bottom: constraints.maxHeight * 0.17,
-                    child: Transform.rotate(
-                      angle: -0.18,
-                      child: SizedBox(
-                        width: rightBottleWidth,
-                        height: rightBottleHeight,
-                        child: _ProductArtwork(
-                          imageUrl: optimizedImage.url,
-                          fallbackSize: 54.sp,
-                          fit: BoxFit.contain,
-                          memCacheWidth: optimizedImage.memCacheWidth,
-                          memCacheHeight: optimizedImage.memCacheHeight,
-                        ),
-                      ),
-                    ),
-                  ),
-                  Positioned(
-                    left: 0,
-                    right: 0,
-                    bottom: constraints.maxHeight * 0.12,
-                    child: Align(
-                      alignment: Alignment.bottomCenter,
-                      child: SizedBox(
-                        width: centerBottleWidth,
-                        height: centerBottleHeight,
-                        child: _ProductArtwork(
-                          imageUrl: optimizedImage.url,
-                          fallbackSize: 54.sp,
-                          fit: BoxFit.cover,
-                          memCacheWidth: optimizedImage.memCacheWidth,
-                          memCacheHeight: optimizedImage.memCacheHeight,
-                        ),
-                      ),
-                    ),
-                  ),
-                  Positioned(
-                    top: constraints.maxHeight * 0.055,
-                    left: constraints.maxWidth * 0.07,
-                    right: constraints.maxWidth * 0.07,
-                    child: Text(
-                      title,
-                      textAlign: TextAlign.center,
-                      maxLines: 3,
-                      style: AppTextStyles.h2.copyWith(
-                        color: Colors.white,
-                        fontSize: 19.sp,
-                        fontWeight: FontWeight.w900,
-                        height: 1.02,
-                        letterSpacing: -0.65,
-                        shadows: const <Shadow>[
-                          Shadow(
-                            color: Color(0x18000000),
-                            blurRadius: 4,
-                            offset: Offset(0, 2),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                  Positioned(
-                    right: constraints.maxWidth * 0.09,
-                    bottom: constraints.maxHeight * 0.07,
-                    child: Transform.rotate(
-                      angle: -0.04,
-                      child: _DealBurstBadge(
-                        size: burstSize,
-                        text: resolvedHeroTileTheme.badgeText,
-                        gradient: resolvedHeroTileTheme.badgeGradient,
-                      ),
-                    ),
-                  ),
-                ],
-              );
-            },
           ),
         ),
       ),
@@ -638,50 +673,6 @@ class _BurstClipper extends CustomClipper<Path> {
 
   @override
   bool shouldReclip(covariant CustomClipper<Path> oldClipper) => false;
-}
-
-class _ProductArtwork extends StatelessWidget {
-  const _ProductArtwork({
-    required this.imageUrl,
-    required this.fallbackSize,
-    this.fit = BoxFit.contain,
-    this.memCacheWidth,
-    this.memCacheHeight,
-  });
-
-  final String? imageUrl;
-  final double fallbackSize;
-  final BoxFit fit;
-  final int? memCacheWidth;
-  final int? memCacheHeight;
-
-  @override
-  Widget build(BuildContext context) {
-    if (imageUrl == null || imageUrl!.isEmpty) {
-      return Center(
-        child: PhosphorIcon(
-          PhosphorIcons.imageSquare(PhosphorIconsStyle.duotone),
-          size: fallbackSize,
-          color: Colors.white.withValues(alpha: 0.8),
-        ),
-      );
-    }
-
-    return AppImage(
-      imageUrl: imageUrl!,
-      fit: fit,
-      memCacheWidth: memCacheWidth ?? 132,
-      memCacheHeight: memCacheHeight ?? 132,
-      filterQuality: FilterQuality.low,
-      errorWidget: Center(
-        child: PhosphorIcon(
-          PhosphorIcons.imageSquare(PhosphorIconsStyle.duotone),
-          size: fallbackSize,
-          color: Colors.white.withValues(alpha: 0.8),
-        ),
-      ),
-    );
-  }
 }
 
 class _SeasonalTileSpec {
