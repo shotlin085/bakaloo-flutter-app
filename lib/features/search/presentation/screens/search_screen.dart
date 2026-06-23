@@ -801,7 +801,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen>
         }
       },
       child: Scaffold(
-        backgroundColor: Colors.transparent,
+        backgroundColor: AppColors.bgPrimary,
         body: SafeArea(
           child: SlideTransition(
             position: _slideAnimation,

@@ -219,13 +219,21 @@ class _OrderDetailScreenState extends ConsumerState<OrderDetailScreen> {
               ),
               Gap(16.h),
               _SectionCard(
-                title: 'Payment',
-                child: _PaymentInfo(order: order),
-              ),
-              Gap(16.h),
-              _SectionCard(
                 title: 'Delivery address',
                 child: _AddressInfo(order: order),
+              ),
+              if (order.deliveryOtp != null &&
+                  order.deliveryOtp!.trim().isNotEmpty) ...<Widget>[
+                Gap(16.h),
+                _SectionCard(
+                  title: 'Delivery OTP',
+                  child: _DeliveryOtpRow(otp: order.deliveryOtp!.trim()),
+                ),
+              ],
+              Gap(16.h),
+              _SectionCard(
+                title: 'Payment',
+                child: _PaymentInfo(order: order),
               ),
               Gap(16.h),
               _OrderActions(
@@ -373,6 +381,73 @@ class _StatusHero extends StatelessWidget {
       OrderStatus.DELIVERED => 'assets/animations/order_delivered.json',
       OrderStatus.CANCELLED => 'assets/animations/order_cancelled.json',
     };
+  }
+}
+
+/// Shown inside the "Delivery OTP" section while a rider is actively
+/// assigned (ACCEPTED/IN_TRANSIT). The customer reads these digits out
+/// to the rider on arrival to confirm delivery.
+class _DeliveryOtpRow extends StatelessWidget {
+  const _DeliveryOtpRow({required this.otp});
+
+  final String otp;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: <Widget>[
+        Center(
+          child: Container(
+            padding: EdgeInsets.symmetric(horizontal: 24.w, vertical: 12.h),
+            decoration: BoxDecoration(
+              color: AppColors.primaryGreenLight,
+              borderRadius: BorderRadius.circular(16.r),
+            ),
+            child: Text(
+              otp,
+              style: AppTextStyles.h2.copyWith(
+                color: AppColors.primaryGreenDark,
+                letterSpacing: 8,
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+          ),
+        ),
+        Gap(12.h),
+        Container(
+          padding: EdgeInsets.all(12.w),
+          decoration: BoxDecoration(
+            color: AppColors.warningOrange.withValues(alpha: 0.08),
+            borderRadius: BorderRadius.circular(12.r),
+            border: Border.all(
+              color: AppColors.warningOrange.withValues(alpha: 0.3),
+            ),
+          ),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: <Widget>[
+              Icon(
+                Icons.info_outline,
+                size: 18.sp,
+                color: AppColors.warningOrange,
+              ),
+              Gap(8.w),
+              Expanded(
+                child: Text(
+                  "Don't share this code yet. Only tell it to your delivery "
+                  'partner when they arrive at your door — this confirms '
+                  'your order was delivered to you.',
+                  style: AppTextStyles.bodySmall.copyWith(
+                    color: AppColors.textSecondary,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
   }
 }
 

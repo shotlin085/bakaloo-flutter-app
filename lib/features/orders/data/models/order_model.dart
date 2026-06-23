@@ -31,6 +31,7 @@ class OrderModel {
     this.scheduledSlotLabel,
     this.scheduledSlotStart,
     this.scheduledSlotEnd,
+    this.deliveryOtp,
   });
 
   final String id;
@@ -57,6 +58,7 @@ class OrderModel {
   final String? scheduledSlotLabel;
   final DateTime? scheduledSlotStart;
   final DateTime? scheduledSlotEnd;
+  final String? deliveryOtp;
 
   factory OrderModel.fromJson(Map<String, dynamic> json) {
     final createdAt = _readDateTime(
@@ -148,6 +150,8 @@ class OrderModel {
         json, <String>['scheduledSlotStart', 'scheduled_slot_start'],),
       scheduledSlotEnd: _readDateTime(
         json, <String>['scheduledSlotEnd', 'scheduled_slot_end'],),
+      deliveryOtp: _readNullableString(
+        json, <String>['deliveryOtp', 'delivery_otp'],),
     );
   }
 
@@ -177,6 +181,7 @@ class OrderModel {
       scheduledSlotLabel: scheduledSlotLabel,
       scheduledSlotStart: scheduledSlotStart,
       scheduledSlotEnd: scheduledSlotEnd,
+      deliveryOtp: deliveryOtp,
     );
   }
 

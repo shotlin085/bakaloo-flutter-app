@@ -27,6 +27,16 @@ class SocketService {
   final Map<String, Set<void Function(dynamic)>> _externalListeners =
       <String, Set<void Function(dynamic)>>{};
 
+  // Order rooms the app has asked to track. Socket.IO room membership
+  // doesn't survive a disconnect — a network blip, the OS suspending
+  // the socket while backgrounded, or a token refresh all create a
+  // brand-new server-side connection. Without replaying these joins
+  // on every reconnect, a customer sitting on the live tracking
+  // screen would silently stop receiving rider-location updates after
+  // the first reconnect, with no error and no way to recover short of
+  // leaving and re-entering the screen.
+  final Set<String> _trackedOrderIds = <String>{};
+
   final _orderStatusController = StreamController<OrderStatusEvent>.broadcast();
   final _riderLocationController =
       StreamController<RiderLocationEvent>.broadcast();
@@ -80,6 +90,7 @@ class SocketService {
       ..onConnect((_) {
         _statusController.add(SocketStatus.connected);
         _setupEventListeners();
+        _replayTrackedOrders();
       })
       ..onDisconnect((_) {
         _statusController.add(SocketStatus.disconnected);
@@ -175,17 +186,31 @@ class SocketService {
   }
 
   void startTracking(String orderId) {
-    if (orderId.trim().isEmpty) {
+    final trimmed = orderId.trim();
+    if (trimmed.isEmpty) {
       return;
     }
-    _socket?.emit(SocketEvents.orderTrack, orderId);
+    _trackedOrderIds.add(trimmed);
+    _socket?.emit(SocketEvents.orderTrack, trimmed);
   }
 
   void stopTracking(String orderId) {
-    if (orderId.trim().isEmpty) {
+    final trimmed = orderId.trim();
+    if (trimmed.isEmpty) {
       return;
     }
-    _socket?.emit(SocketEvents.orderUntrack, orderId);
+    _trackedOrderIds.remove(trimmed);
+    _socket?.emit(SocketEvents.orderUntrack, trimmed);
+  }
+
+  /// Re-joins every order room the app is currently tracking. Called
+  /// on every `connect` event (initial connect AND every reconnect)
+  /// so room membership — which Socket.IO ties to the connection, not
+  /// the user — survives transparently across drops.
+  void _replayTrackedOrders() {
+    for (final orderId in _trackedOrderIds) {
+      _socket?.emit(SocketEvents.orderTrack, orderId);
+    }
   }
 
   void reconnect(String newToken) {
@@ -208,6 +233,7 @@ class SocketService {
 
   void disconnect() {
     _disposeSocketOnly();
+    _trackedOrderIds.clear();
     _statusController.add(SocketStatus.disconnected);
   }
 

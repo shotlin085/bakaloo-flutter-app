@@ -27,6 +27,7 @@ abstract class BillSummaryEntity with _$BillSummaryEntity {
     @Default(FreeDeliveryInfo()) FreeDeliveryInfo freeDelivery,
     @Default(0) double totalPayable,
     @Default(<FeeLine>[]) List<FeeLine> fees,
+    @Default(PaymentMethodsInfo()) PaymentMethodsInfo paymentMethods,
   }) = _BillSummaryEntity;
 
   factory BillSummaryEntity.fromJson(Map<String, dynamic> json) =>
@@ -162,4 +163,46 @@ abstract class FeeLine with _$FeeLine {
 
   factory FeeLine.fromJson(Map<String, dynamic> json) =>
       _$FeeLineFromJson(json);
+}
+
+/// Cash-on-Delivery availability for the current bill (backend-computed —
+/// `enabled` reflects the admin toggle, `available` additionally factors in
+/// the live bill total vs. the configured min/max amount).
+@freezed
+abstract class CodPaymentInfo with _$CodPaymentInfo {
+  const factory CodPaymentInfo({
+    @Default(true) bool enabled,
+    @Default(true) bool available,
+    @Default(0) double minAmount,
+    double? maxAmount,
+    String? reason,
+  }) = _CodPaymentInfo;
+
+  factory CodPaymentInfo.fromJson(Map<String, dynamic> json) =>
+      _$CodPaymentInfoFromJson(json);
+}
+
+/// Simple enable/disable availability for a payment method (Razorpay / Wallet).
+@freezed
+abstract class MethodAvailability with _$MethodAvailability {
+  const factory MethodAvailability({
+    @Default(true) bool enabled,
+  }) = _MethodAvailability;
+
+  factory MethodAvailability.fromJson(Map<String, dynamic> json) =>
+      _$MethodAvailabilityFromJson(json);
+}
+
+/// Per-method payment availability for the current bill — drives which
+/// payment cards the checkout screen shows/hides/greys out.
+@freezed
+abstract class PaymentMethodsInfo with _$PaymentMethodsInfo {
+  const factory PaymentMethodsInfo({
+    @Default(CodPaymentInfo()) CodPaymentInfo cod,
+    @Default(MethodAvailability()) MethodAvailability razorpay,
+    @Default(MethodAvailability()) MethodAvailability wallet,
+  }) = _PaymentMethodsInfo;
+
+  factory PaymentMethodsInfo.fromJson(Map<String, dynamic> json) =>
+      _$PaymentMethodsInfoFromJson(json);
 }

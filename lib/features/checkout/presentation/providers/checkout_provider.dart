@@ -23,6 +23,7 @@ import 'package:bakaloo_flutter_app/features/checkout/domain/usecases/place_orde
 import 'package:bakaloo_flutter_app/features/checkout/presentation/providers/coupon_provider.dart';
 import 'package:bakaloo_flutter_app/features/payments/presentation/providers/payment_provider.dart';
 import 'package:bakaloo_flutter_app/features/wallet/presentation/providers/wallet_provider.dart';
+import 'package:bakaloo_flutter_app/routing/app_router.dart';
 
 part 'checkout_provider.freezed.dart';
 part 'checkout_provider.g.dart';
@@ -359,6 +360,14 @@ class CheckoutNotifier extends _$CheckoutNotifier {
         );
       }
       handedOffToPayment = true;
+    }
+
+    if (selectedPaymentMethod == PaymentMethod.cod) {
+      // COD has no payment-gateway handoff — clear the cart and navigate to
+      // the order success screen ourselves, mirroring what payment_provider
+      // does for wallet/online once their gateway confirms success.
+      ref.invalidate(cartProvider);
+      ref.read(appRouterProvider).go('/orders/success/${order.id}');
     }
 
     state = state.copyWith(

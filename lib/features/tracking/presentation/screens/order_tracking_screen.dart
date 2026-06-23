@@ -957,6 +957,11 @@ class _TrackingBottomSheet extends StatelessWidget {
                 onTap: onRetryRoute,
               ),
             if (mapMessage != null) Gap(12.h),
+            if (order.deliveryOtp != null &&
+                order.deliveryOtp!.trim().isNotEmpty) ...<Widget>[
+              _DeliveryOtpCard(otp: order.deliveryOtp!.trim()),
+              Gap(14.h),
+            ],
             Text('Rider', style: AppTextStyles.labelLarge),
             Gap(6.h),
             Text(
@@ -1024,6 +1029,80 @@ class _TrackingBottomSheet extends StatelessWidget {
               ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+/// Shown while the rider's delivery assignment is ACCEPTED/IN_TRANSIT.
+/// The customer reads these digits out to the rider to confirm delivery.
+class _DeliveryOtpCard extends StatelessWidget {
+  const _DeliveryOtpCard({required this.otp});
+
+  final String otp;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: EdgeInsets.all(14.w),
+      decoration: BoxDecoration(
+        color: AppColors.primaryGreenLight,
+        borderRadius: BorderRadius.circular(22.r),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: <Widget>[
+          Row(
+            children: <Widget>[
+              Icon(
+                Icons.lock_clock_rounded,
+                color: AppColors.primaryGreenDark,
+                size: 28.sp,
+              ),
+              Gap(12.w),
+              Expanded(
+                child: Text(
+                  'Delivery OTP',
+                  style: AppTextStyles.labelLarge.copyWith(
+                    color: AppColors.primaryGreenDark,
+                  ),
+                ),
+              ),
+              Gap(10.w),
+              Text(
+                otp,
+                style: AppTextStyles.h2.copyWith(
+                  color: AppColors.primaryGreenDark,
+                  letterSpacing: 4,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+            ],
+          ),
+          Gap(10.h),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: <Widget>[
+              Icon(
+                Icons.info_outline,
+                size: 16.sp,
+                color: AppColors.primaryGreenDark,
+              ),
+              Gap(6.w),
+              Expanded(
+                child: Text(
+                  "Don't share this code yet. Only tell it to your delivery "
+                  'partner when they arrive at your door to confirm '
+                  'delivery.',
+                  style: AppTextStyles.bodySmall.copyWith(
+                    color: AppColors.primaryGreenDark,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ],
       ),
     );
   }

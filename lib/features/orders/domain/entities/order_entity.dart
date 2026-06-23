@@ -35,6 +35,9 @@ abstract class OrderEntity with _$OrderEntity {
     String? scheduledSlotLabel,
     DateTime? scheduledSlotStart,
     DateTime? scheduledSlotEnd,
+    // 4-digit code the customer reads out to the rider on delivery.
+    // Only present while the assignment is ACCEPTED/IN_TRANSIT.
+    String? deliveryOtp,
   }) = _OrderEntity;
 
   List<OrderTimelineEntity> get statusHistory => timeline;

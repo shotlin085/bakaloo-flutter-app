@@ -14,6 +14,7 @@ const String _kLocationPromptShownKey = 'location_prompt_shown_v1';
 /// Returns true if the one-time location prompt should be shown:
 ///   - User is authenticated
 ///   - Never shown before
+///   - Device location services are OFF (already on = no need to nag)
 ///   - Location permission is NOT already granted (already granted = no need)
 final locationPromptShouldShowProvider = FutureProvider<bool>((ref) async {
   // Only show to authenticated users
@@ -33,6 +34,12 @@ final locationPromptShouldShowProvider = FutureProvider<bool>((ref) async {
     await prefs.setBool(_kLocationPromptShownKey, true);
     return false;
   }
+
+  // Only nag when the device's location service is actually off.
+  // If it's already on, the OS permission dialog (triggered elsewhere) is
+  // enough — this sheet is specifically for the "location is off" nudge.
+  final serviceEnabled = await Geolocator.isLocationServiceEnabled();
+  if (serviceEnabled) return false;
 
   return true;
 });

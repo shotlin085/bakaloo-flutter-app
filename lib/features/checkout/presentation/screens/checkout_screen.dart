@@ -176,6 +176,8 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
     final address = checkoutState.selectedAddress;
     final shortfall = summary.total - walletBalance;
     final selectedMethod = checkoutState.paymentMethod;
+    final paymentMethods = billSummary?.paymentMethods ?? const PaymentMethodsInfo();
+    final cod = paymentMethods.cod;
 
     return ListView(
       padding: EdgeInsets.fromLTRB(16.w, 16.h, 16.w, 100.h),
@@ -222,36 +224,54 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
           ),
         ),
 
-        // ── Wallet Card ─────────────────────────────────────────────
-        _WalletPaymentCard(
-          balance: walletBalance,
+        // ── Cash on Delivery Card ────────────────────────────────────
+        _CodPaymentCard(
           total: summary.total,
-          isLoading: walletLoading,
-          hasError: walletError,
-          shortfall: shortfall > 0 ? shortfall : 0,
-          selected: selectedMethod == PaymentMethod.wallet,
-          onSelect: walletLoading ? null : () => ref
+          available: cod.available,
+          reason: cod.reason,
+          selected: selectedMethod == PaymentMethod.cod,
+          onSelect: () => ref
               .read(checkoutProvider.notifier)
-              .selectPaymentMethod(PaymentMethod.wallet),
-          onPay: () => _handlePayment(PaymentMethod.wallet),
-          onAddMoney: _goToTopup,
-          isPlacingOrder: checkoutState.paymentMethod == PaymentMethod.wallet &&
+              .selectPaymentMethod(PaymentMethod.cod),
+          onPlaceOrder: () => _handlePayment(PaymentMethod.cod),
+          isPlacingOrder: checkoutState.paymentMethod == PaymentMethod.cod &&
               checkoutState.isPlacingOrder,
         ),
 
         Gap(12.h),
 
-        // ── Razorpay Card ───────────────────────────────────────────
-        _RazorpayPaymentCard(
-          total: summary.total,
-          selected: selectedMethod == PaymentMethod.online,
-          onSelect: () => ref
-              .read(checkoutProvider.notifier)
-              .selectPaymentMethod(PaymentMethod.online),
-          onPay: () => _handlePayment(PaymentMethod.online),
-          isPlacingOrder: checkoutState.paymentMethod == PaymentMethod.online &&
-              checkoutState.isPlacingOrder,
-        ),
+        // ── Wallet Card — hidden entirely when the admin disables it ──
+        if (paymentMethods.wallet.enabled) ...<Widget>[
+          _WalletPaymentCard(
+            balance: walletBalance,
+            total: summary.total,
+            isLoading: walletLoading,
+            hasError: walletError,
+            shortfall: shortfall > 0 ? shortfall : 0,
+            selected: selectedMethod == PaymentMethod.wallet,
+            onSelect: walletLoading ? null : () => ref
+                .read(checkoutProvider.notifier)
+                .selectPaymentMethod(PaymentMethod.wallet),
+            onPay: () => _handlePayment(PaymentMethod.wallet),
+            onAddMoney: _goToTopup,
+            isPlacingOrder: checkoutState.paymentMethod == PaymentMethod.wallet &&
+                checkoutState.isPlacingOrder,
+          ),
+          Gap(12.h),
+        ],
+
+        // ── Razorpay Card — hidden entirely when the admin disables it ─
+        if (paymentMethods.razorpay.enabled)
+          _RazorpayPaymentCard(
+            total: summary.total,
+            selected: selectedMethod == PaymentMethod.online,
+            onSelect: () => ref
+                .read(checkoutProvider.notifier)
+                .selectPaymentMethod(PaymentMethod.online),
+            onPay: () => _handlePayment(PaymentMethod.online),
+            isPlacingOrder: checkoutState.paymentMethod == PaymentMethod.online &&
+                checkoutState.isPlacingOrder,
+          ),
 
         Gap(18.h),
 
@@ -1062,42 +1082,47 @@ class _PaymentCardShell extends StatelessWidget {
     required this.selected,
     required this.onSelect,
     required this.child,
+    this.disabled = false,
   });
 
   final bool selected;
   final VoidCallback onSelect;
   final Widget child;
+  final bool disabled;
 
   @override
   Widget build(BuildContext context) {
-    return AnimatedContainer(
-      duration: const Duration(milliseconds: 180),
-      curve: Curves.easeOut,
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(AppDimensions.radiusLg),
-        border: Border.all(
-          color: selected ? AppColors.primaryGreen : AppColors.borderLight,
-          width: selected ? 1.5 : 1,
+    return Opacity(
+      opacity: disabled ? 0.55 : 1,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 180),
+        curve: Curves.easeOut,
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(AppDimensions.radiusLg),
+          border: Border.all(
+            color: selected ? AppColors.primaryGreen : AppColors.borderLight,
+            width: selected ? 1.5 : 1,
+          ),
+          boxShadow: <BoxShadow>[
+            if (selected)
+              BoxShadow(
+                color: AppColors.primaryGreen.withValues(alpha: 0.10),
+                blurRadius: 16,
+                offset: const Offset(0, 6),
+              )
+            else
+              AppShadows.cardShadow,
+          ],
         ),
-        boxShadow: <BoxShadow>[
-          if (selected)
-            BoxShadow(
-              color: AppColors.primaryGreen.withValues(alpha: 0.10),
-              blurRadius: 16,
-              offset: const Offset(0, 6),
-            )
-          else
-            AppShadows.cardShadow,
-        ],
-      ),
-      child: Material(
-        color: Colors.transparent,
-        borderRadius: BorderRadius.circular(AppDimensions.radiusLg),
-        clipBehavior: Clip.antiAlias,
-        child: InkWell(
-          onTap: onSelect,
-          child: child,
+        child: Material(
+          color: Colors.transparent,
+          borderRadius: BorderRadius.circular(AppDimensions.radiusLg),
+          clipBehavior: Clip.antiAlias,
+          child: InkWell(
+            onTap: disabled ? null : onSelect,
+            child: child,
+          ),
         ),
       ),
     );
@@ -1435,6 +1460,135 @@ class _RazorpayBadge extends StatelessWidget {
           letterSpacing: 0.3,
         ),
       ),
+    );
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Cash on Delivery Card  (minimal, selectable — greys out + shows a reason
+// when the live bill total is outside the admin-configured COD range)
+// ═══════════════════════════════════════════════════════════════════════════
+
+class _CodPaymentCard extends StatelessWidget {
+  const _CodPaymentCard({
+    required this.total,
+    required this.available,
+    required this.reason,
+    required this.selected,
+    required this.onSelect,
+    required this.onPlaceOrder,
+    required this.isPlacingOrder,
+  });
+
+  final double total;
+  final bool available;
+  final String? reason;
+  final bool selected;
+  final VoidCallback onSelect;
+  final VoidCallback onPlaceOrder;
+  final bool isPlacingOrder;
+
+  @override
+  Widget build(BuildContext context) {
+    final isSelected = selected && available;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: <Widget>[
+        _PaymentCardShell(
+          selected: isSelected,
+          disabled: !available,
+          onSelect: onSelect,
+          child: Padding(
+            padding: EdgeInsets.all(16.w),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: <Widget>[
+                Row(
+                  children: <Widget>[
+                    const _PaymentIconTile(
+                      icon: Icons.payments_outlined,
+                      background: Color(0xFFFFF3E0),
+                      foreground: Color(0xFFB45309),
+                    ),
+                    Gap(12.w),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: <Widget>[
+                          Text(
+                            'Cash on Delivery',
+                            style: AppTextStyles.labelLarge.copyWith(
+                              fontWeight: FontWeight.w700,
+                              fontSize: 15.sp,
+                            ),
+                          ),
+                          Gap(2.h),
+                          Text(
+                            'Pay when your order arrives',
+                            style: AppTextStyles.bodySmall.copyWith(
+                              color: AppColors.textSecondary,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    Gap(8.w),
+                    _SelectionRadio(selected: isSelected),
+                  ],
+                ),
+                AnimatedSize(
+                  duration: const Duration(milliseconds: 200),
+                  curve: Curves.easeOutCubic,
+                  alignment: Alignment.topCenter,
+                  child: isSelected
+                      ? Padding(
+                          padding: EdgeInsets.only(top: 14.h),
+                          child: _PaymentActionButton(
+                            label: 'Place Order (Pay on Delivery)',
+                            icon: Icons.lock_rounded,
+                            isLoading: isPlacingOrder,
+                            onPressed: isPlacingOrder ? null : onPlaceOrder,
+                          ),
+                        )
+                      : const SizedBox(width: double.infinity),
+                ),
+              ],
+            ),
+          ),
+        ),
+        if (!available && reason != null) ...<Widget>[
+          Gap(8.h),
+          Container(
+            width: double.infinity,
+            padding: EdgeInsets.symmetric(horizontal: 12.w, vertical: 10.h),
+            decoration: BoxDecoration(
+              color: AppColors.errorRed.withValues(alpha: 0.08),
+              borderRadius: BorderRadius.circular(AppDimensions.radiusMd),
+              border: Border.all(color: AppColors.errorRed.withValues(alpha: 0.25)),
+            ),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: <Widget>[
+                Icon(
+                  Icons.error_outline_rounded,
+                  color: AppColors.errorRed,
+                  size: 16.sp,
+                ),
+                Gap(8.w),
+                Expanded(
+                  child: Text(
+                    reason!,
+                    style: AppTextStyles.bodySmall.copyWith(
+                      color: AppColors.errorRed,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ],
     );
   }
 }
