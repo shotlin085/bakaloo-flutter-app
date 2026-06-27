@@ -689,8 +689,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
                                         ),
                                         onAddressTap: () =>
                                             showAddressSheet(context),
-                                        onProfileTap: () =>
-                                            context.go(RouteNames.profile),
+                                        onNotificationTap: () =>
+                                            context.go(RouteNames.notifications),
                                         onWalletTap: () =>
                                             context.go(RouteNames.wallet),
                                         topBarTheme: topBarTheme,

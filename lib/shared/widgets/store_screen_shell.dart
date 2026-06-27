@@ -280,8 +280,8 @@ class _StoreScreenShellState extends ConsumerState<StoreScreenShell>
                                   addressText: addressText,
                                   onAddressTap: () =>
                                       showAddressSheet(context),
-                                  onProfileTap: () =>
-                                      context.go(RouteNames.profile),
+                                  onNotificationTap: () =>
+                                      context.go(RouteNames.notifications),
                                   onWalletTap: () =>
                                       context.go(RouteNames.wallet),
                                   topBarTheme: chromeTheme.topBarTheme,
