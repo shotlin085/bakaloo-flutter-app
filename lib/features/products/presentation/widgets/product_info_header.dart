@@ -150,53 +150,23 @@ class _ProductInfoHeaderState extends State<ProductInfoHeader>
                     ),
                   ),
                 SizedBox(height: 12.h),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  crossAxisAlignment: CrossAxisAlignment.center,
+                Wrap(
+                  crossAxisAlignment: WrapCrossAlignment.center,
+                  spacing: 8.w,
+                  runSpacing: 6.h,
                   children: <Widget>[
-                    Expanded(
-                      child: Wrap(
-                        crossAxisAlignment: WrapCrossAlignment.center,
-                        spacing: 8.w,
-                        runSpacing: 6.h,
-                        children: <Widget>[
-                          RetroPriceBadge(price: product.effectivePrice),
-                          if (product.discountPercent > 0)
-                            Text(
-                              '${product.discountPercent}% Off',
-                              style: TextStyle(
-                                fontFamily: 'Inter',
-                                fontSize: 13.sp,
-                                fontWeight: FontWeight.w600,
-                                color: const Color(0xFF0C831F),
-                                height: 1.2,
-                              ),
-                            ),
-                        ],
-                      ),
-                    ),
-                    SizedBox(width: 12.w),
-                    Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: <Widget>[
-                        PhosphorIcon(
-                          PhosphorIcons.lightning(PhosphorIconsStyle.fill),
-                          size: 14.sp,
+                    RetroPriceBadge(price: product.effectivePrice),
+                    if (product.discountPercent > 0)
+                      Text(
+                        '${product.discountPercent}% Off',
+                        style: TextStyle(
+                          fontFamily: 'Inter',
+                          fontSize: 13.sp,
+                          fontWeight: FontWeight.w600,
                           color: const Color(0xFF0C831F),
+                          height: 1.2,
                         ),
-                        SizedBox(width: 4.w),
-                        Text(
-                          '17 mins',
-                          style: TextStyle(
-                            fontFamily: 'Inter',
-                            fontSize: 13.sp,
-                            fontWeight: FontWeight.w700,
-                            color: const Color(0xFF0C831F),
-                            height: 1.2,
-                          ),
-                        ),
-                      ],
-                    ),
+                      ),
                   ],
                 ),
                 if (product.isOnSale) ...<Widget>[

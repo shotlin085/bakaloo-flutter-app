@@ -144,14 +144,6 @@ class _CartScreenState extends ConsumerState<CartScreen> {
         child: Divider(height: 1, thickness: 1, color: Color(0xFFF0F0F0)),
       ),
       actions: <Widget>[
-        IconButton(
-          onPressed: () => context.push(RouteNames.wishlist),
-          icon: Icon(
-            Icons.favorite_border_rounded,
-            size: 22.sp,
-            color: const Color(0xFF222222),
-          ),
-        ),
         if (itemCount > 0)
           TextButton(
             onPressed: () => _clearCart(context),
@@ -235,8 +227,6 @@ class _CartScreenState extends ConsumerState<CartScreen> {
     if (hasAddress) {
       widgets.add(const CartSectionDivider());
       widgets.add(const RepaintBoundary(child: CartOrderingFor()));
-      widgets.add(const CartSectionDivider());
-      widgets.add(const RepaintBoundary(child: CartGstInvoice()));
       widgets.add(const CartSectionDivider());
       widgets.add(const RepaintBoundary(child: CartCancellationPolicy()));
     }

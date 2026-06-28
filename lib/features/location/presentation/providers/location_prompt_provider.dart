@@ -1,54 +1,29 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:geocoding/geocoding.dart';
 import 'package:geolocator/geolocator.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:bakaloo_flutter_app/features/addresses/domain/repositories/address_repository.dart';
 import 'package:bakaloo_flutter_app/features/addresses/presentation/providers/address_provider.dart';
 import 'package:bakaloo_flutter_app/features/auth/presentation/providers/auth_notifier.dart';
 import 'package:bakaloo_flutter_app/features/auth/presentation/providers/auth_state.dart';
 
-// ── Key stored in shared_prefs to remember we've shown the prompt ────────────
-const String _kLocationPromptShownKey = 'location_prompt_shown_v1';
-
-/// Returns true if the one-time location prompt should be shown:
+/// Returns true if the location prompt should be shown right now:
 ///   - User is authenticated
-///   - Never shown before
-///   - Device location services are OFF (already on = no need to nag)
-///   - Location permission is NOT already granted (already granted = no need)
+///   - Location permission is NOT already granted
+///   - Device location services are currently OFF
 final locationPromptShouldShowProvider = FutureProvider<bool>((ref) async {
-  // Only show to authenticated users
   final authState = ref.watch(authStateProvider);
   if (authState is! AuthAuthenticated) return false;
 
-  // Only show once
-  final prefs = await SharedPreferences.getInstance();
-  final alreadyShown = prefs.getBool(_kLocationPromptShownKey) ?? false;
-  if (alreadyShown) return false;
-
-  // If permission already granted, no need to prompt
   final permission = await Geolocator.checkPermission();
   if (permission == LocationPermission.always ||
       permission == LocationPermission.whileInUse) {
-    // Already granted — mark as shown so we never prompt again
-    await prefs.setBool(_kLocationPromptShownKey, true);
     return false;
   }
 
-  // Only nag when the device's location service is actually off.
-  // If it's already on, the OS permission dialog (triggered elsewhere) is
-  // enough — this sheet is specifically for the "location is off" nudge.
   final serviceEnabled = await Geolocator.isLocationServiceEnabled();
-  if (serviceEnabled) return false;
-
-  return true;
+  return !serviceEnabled;
 });
-
-/// Call this to mark the prompt as shown (so it never appears again).
-Future<void> markLocationPromptShown() async {
-  final prefs = await SharedPreferences.getInstance();
-  await prefs.setBool(_kLocationPromptShownKey, true);
-}
 
 /// Result of attempting to detect and save the user's location.
 enum LocationAutoDetectResult {
