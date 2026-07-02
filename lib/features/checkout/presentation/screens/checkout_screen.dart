@@ -78,7 +78,9 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
     // Backend bill summary is the source of truth for the amount charged.
     // Use it for every money display + the wallet sufficiency check so the
     // checkout total always matches what the backend actually charges.
-    final billSummary = ref.watch(billSummaryProvider).asData?.value;
+    final billSummaryAsync = ref.watch(billSummaryProvider);
+    final billSummary = billSummaryAsync.asData?.value;
+    final billSummaryLoading = billSummaryAsync.isLoading && billSummary == null;
     final effectiveSummary = billSummary != null
         ? summary.copyWith(total: billSummary.payable)
         : summary;
@@ -120,6 +122,7 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
             checkoutState: checkoutState,
             summary: effectiveSummary,
             billSummary: billSummary,
+            billSummaryLoading: billSummaryLoading,
             walletBalance: walletBalance ?? 0.0,
             walletLoading: walletLoading,
             walletError: walletAsync.hasError,
@@ -167,6 +170,7 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
     required CheckoutState checkoutState,
     required CheckoutSummaryEntity summary,
     required BillSummaryEntity? billSummary,
+    required bool billSummaryLoading,
     required double walletBalance,
     required bool walletLoading,
     required bool walletError,
@@ -191,6 +195,7 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
         _BillAccordion(
           summary: summary,
           billSummary: billSummary,
+          billSummaryLoading: billSummaryLoading,
           expanded: _billExpanded,
           onToggle: () => setState(() => _billExpanded = !_billExpanded),
         ),
@@ -378,14 +383,27 @@ class _BillAccordion extends StatelessWidget {
   const _BillAccordion({
     required this.summary,
     required this.billSummary,
+    required this.billSummaryLoading,
     required this.expanded,
     required this.onToggle,
   });
 
   final CheckoutSummaryEntity summary;
   final BillSummaryEntity? billSummary;
+  final bool billSummaryLoading;
   final bool expanded;
   final VoidCallback onToggle;
+
+  /// Fee codes already rendered via dedicated rows above — anything else in
+  /// `billSummary.fees` (e.g. SURGE_FEE / rain fee, PACKAGING_FEE) is
+  /// rendered generically so a new admin-configured fee type never silently
+  /// disappears from checkout.
+  static const Set<String> _dedicatedFeeCodes = <String>{
+    'DELIVERY_FEE',
+    'HANDLING_FEE',
+    'PLATFORM_FEE',
+    'SMALL_CART_FEE',
+  };
 
   double get _payable => billSummary?.payable ?? summary.total;
 
@@ -399,13 +417,35 @@ class _BillAccordion extends StatelessWidget {
     );
 
     if (bs == null) {
+      // While the real bill is still loading, never show the hardcoded
+      // fallback fee amounts (AppConstants.standardDeliveryFee / platformFee)
+      // as if they were authoritative — admin-configured fees (or a fee
+      // toggled off entirely) could differ, and a stale-looking flash of
+      // wrong numbers is exactly the "fee changes don't show up" complaint.
+      // Show a loading placeholder instead until the backend responds.
+      if (billSummaryLoading) {
+        return Column(
+          children: <Widget>[
+            _BillRow(label: 'Items total', value: summary.subtotal),
+            Gap(8.h),
+            const _FeeRowSkeleton(),
+            Gap(8.h),
+            const _FeeRowSkeleton(),
+            divider,
+            const _FeeRowSkeleton(),
+          ],
+        );
+      }
+      // The backend fetch failed (not merely loading) — fall back to a
+      // locally-estimated total so checkout isn't blocked, but label it
+      // clearly as an estimate rather than presenting it as the real charge.
       return Column(
         children: <Widget>[
           _BillRow(label: 'Items total', value: summary.subtotal),
           Gap(8.h),
-          _BillRow(label: 'Delivery fee', value: summary.deliveryFee),
+          _BillRow(label: 'Delivery fee (estimated)', value: summary.deliveryFee),
           Gap(8.h),
-          _BillRow(label: 'Platform fee', value: summary.platformFee),
+          _BillRow(label: 'Platform fee (estimated)', value: summary.platformFee),
           if (summary.discount > 0) ...<Widget>[
             Gap(8.h),
             _BillRow(
@@ -417,10 +457,18 @@ class _BillAccordion extends StatelessWidget {
           ],
           divider,
           _BillRow(
-            label: 'Total',
+            label: 'Total (estimated)',
             value: summary.total,
             valueStyle:
                 AppTextStyles.h3.copyWith(fontWeight: FontWeight.w800),
+          ),
+          Gap(6.h),
+          Text(
+            "Couldn't load the latest fees — showing an estimate.",
+            style: AppTextStyles.bodySmall.copyWith(
+              color: AppColors.textSecondary,
+              fontSize: 11.sp,
+            ),
           ),
         ],
       );
@@ -483,6 +531,16 @@ class _BillAccordion extends StatelessWidget {
       rows
         ..add(Gap(8.h))
         ..add(_BillRow(label: 'Small cart fee', value: bs.smallCartFee.amount));
+    }
+    // Other dynamic fees (rain/surge, packaging, etc.) — these only arrive
+    // via the generic `fees` list; the codes above already have dedicated
+    // rows so they're excluded here to avoid double-counting.
+    for (final FeeLine fee in bs.fees.where(
+      (FeeLine f) => !_dedicatedFeeCodes.contains(f.code) && f.amount > 0 && !f.waived,
+    )) {
+      rows
+        ..add(Gap(8.h))
+        ..add(_BillRow(label: fee.label.isNotEmpty ? fee.label : 'Fee', value: fee.amount));
     }
     if (bs.couponDiscount > 0) {
       rows
@@ -632,6 +690,37 @@ class _BillRow extends StatelessWidget {
                     : (valueColor ?? AppColors.textPrimary),
                 fontWeight: FontWeight.w600,
               ),
+        ),
+      ],
+    );
+  }
+}
+
+/// Lightweight placeholder row shown while the real fee breakdown is
+/// loading, instead of the hardcoded local-estimate amounts.
+class _FeeRowSkeleton extends StatelessWidget {
+  const _FeeRowSkeleton();
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: <Widget>[
+        Container(
+          width: 90.w,
+          height: 12.h,
+          decoration: BoxDecoration(
+            color: AppColors.divider,
+            borderRadius: BorderRadius.circular(4.r),
+          ),
+        ),
+        const Spacer(),
+        Container(
+          width: 48.w,
+          height: 12.h,
+          decoration: BoxDecoration(
+            color: AppColors.divider,
+            borderRadius: BorderRadius.circular(4.r),
+          ),
         ),
       ],
     );

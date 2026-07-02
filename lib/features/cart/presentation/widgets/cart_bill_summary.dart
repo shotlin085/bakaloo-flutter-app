@@ -22,6 +22,17 @@ class CartBillSummary extends StatelessWidget {
   static const Color _green = Color(0xFF0AC26B);
   static const Color _divider = Color(0xFFF0F0F0);
 
+  /// Fee codes already rendered via dedicated typed fields above — anything
+  /// else in `summary.fees` (e.g. SURGE_FEE / rain fee, PACKAGING_FEE) is
+  /// rendered generically so a new admin-configured fee type never silently
+  /// disappears from the bill again.
+  static const Set<String> _dedicatedFeeCodes = <String>{
+    'DELIVERY_FEE',
+    'HANDLING_FEE',
+    'PLATFORM_FEE',
+    'SMALL_CART_FEE',
+  };
+
   @override
   Widget build(BuildContext context) {
     final delivery = summary.deliveryFee;
@@ -184,6 +195,30 @@ class CartBillSummary extends StatelessWidget {
                     'Small cart fee',
                     'Applied to smaller orders. Add a few more items to avoid this fee.',
                   ),
+                ),
+                Gap(14.h),
+              ],
+
+              // ── Other dynamic fees (rain/surge, packaging, etc.) ─
+              // These arrive only in the generic `fees` list — DELIVERY_FEE,
+              // HANDLING_FEE, PLATFORM_FEE and SMALL_CART_FEE already have
+              // dedicated rows above, so skip those codes here to avoid
+              // double-counting.
+              for (final FeeLine fee in summary.fees.where(
+                (FeeLine f) => !_dedicatedFeeCodes.contains(f.code) &&
+                    f.amount > 0 &&
+                    !f.waived,
+              )) ...<Widget>[
+                _BillRow(
+                  label: fee.label.isNotEmpty ? fee.label : 'Fee',
+                  amount: fee.amount,
+                  onInfo: fee.description.isNotEmpty
+                      ? () => _showInfoSheet(
+                            context,
+                            fee.label.isNotEmpty ? fee.label : 'Fee',
+                            fee.description,
+                          )
+                      : null,
                 ),
                 Gap(14.h),
               ],
