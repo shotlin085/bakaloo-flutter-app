@@ -569,10 +569,15 @@ class _CategoryProductPaneState extends ConsumerState<_CategoryProductPane> {
         ? widget.selectedParent.name
         : widget.highlightedCategory.name;
 
+    // Show the category's true total, not how many items have loaded
+    // into the list so far — the first page lands at the page size
+    // (e.g. 20), so the header used to read "20 products" until the
+    // user scrolled far enough to fetch the rest and it happened to
+    // catch up to the real total.
     final loadedCount = productListAsync.asData?.value.items.length ?? 0;
     final totalCount = widget.selectedParent.productCount;
     final countLabel =
-        loadedCount == 0 ? '$totalCount products' : '$loadedCount products';
+        totalCount > 0 ? '$totalCount products' : '$loadedCount products';
 
     return CustomScrollView(
       key: widget.key,
