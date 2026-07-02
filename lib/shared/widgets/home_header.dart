@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:gap/gap.dart';
+import 'package:phosphor_flutter/phosphor_flutter.dart';
 
 import 'package:bakaloo_flutter_app/core/providers/store_provider.dart';
 import 'package:bakaloo_flutter_app/core/theme/remote_theme_model.dart';
@@ -12,7 +13,7 @@ class HomeHeader extends ConsumerWidget {
   const HomeHeader({
     required this.addressText,
     required this.onAddressTap,
-    required this.onProfileTap,
+    required this.onNotificationTap,
     this.onWalletTap,
     this.topBarTheme,
     this.searchZoneColor,
@@ -21,7 +22,7 @@ class HomeHeader extends ConsumerWidget {
 
   final String addressText;
   final VoidCallback onAddressTap;
-  final VoidCallback onProfileTap;
+  final VoidCallback onNotificationTap;
   final VoidCallback? onWalletTap;
   final TopBarTheme? topBarTheme;
   /// Color used by the curved bottom strip so it matches the search zone
@@ -134,7 +135,7 @@ class HomeHeader extends ConsumerWidget {
                     Gap(10.w),
                     _HeaderActions(
                       onWalletTap: onWalletTap,
-                      onProfileTap: onProfileTap,
+                      onNotificationTap: onNotificationTap,
                     ),
                   ],
                   ),
@@ -186,11 +187,11 @@ class _HeaderBottomCurveClipper extends CustomClipper<Path> {
 class _HeaderActions extends StatelessWidget {
   const _HeaderActions({
     required this.onWalletTap,
-    required this.onProfileTap,
+    required this.onNotificationTap,
   });
 
   final VoidCallback? onWalletTap;
-  final VoidCallback onProfileTap;
+  final VoidCallback onNotificationTap;
 
   @override
   Widget build(BuildContext context) {
@@ -216,11 +217,9 @@ class _HeaderActions extends StatelessWidget {
                   onTap: onWalletTap,
                 ),
                 Gap(gap),
-                _CircleIconButton(
-                  asset: 'assets/icon/profile_icon.png',
+                _CircleNotificationButton(
                   size: circle,
-                  iconSize: 38.w,
-                  onTap: onProfileTap,
+                  onTap: onNotificationTap,
                 ),
               ],
             ),
@@ -290,6 +289,50 @@ class _WalletPill extends ConsumerWidget {
     }
     if (rest.isNotEmpty) groups.insert(0, rest);
     return '${groups.join(',')},$lastThree';
+  }
+}
+
+class _CircleNotificationButton extends StatelessWidget {
+  const _CircleNotificationButton({
+    required this.size,
+    required this.onTap,
+  });
+
+  final double size;
+  final VoidCallback? onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      behavior: HitTestBehavior.opaque,
+      child: Container(
+        width: size,
+        height: size,
+        decoration: const BoxDecoration(
+          shape: BoxShape.circle,
+          boxShadow: <BoxShadow>[
+            BoxShadow(
+              color: Color(0x242A1A47),
+              blurRadius: 12,
+              offset: Offset(0, 4),
+            ),
+          ],
+        ),
+        child: ClipOval(
+          child: ColoredBox(
+            color: Colors.white,
+            child: Center(
+              child: PhosphorIcon(
+                PhosphorIcons.bell(PhosphorIconsStyle.regular),
+                size: 22.sp,
+                color: const Color(0xFF2A1A47),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
   }
 }
 

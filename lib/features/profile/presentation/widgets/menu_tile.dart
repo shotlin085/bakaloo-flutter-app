@@ -49,7 +49,7 @@ class MenuTile extends StatelessWidget {
                   child: Center(
                     child: PhosphorIcon(
                       icon,
-                      size: 18.sp,
+                      size: 19.sp,
                       color: iconColor,
                     ),
                   ),
@@ -60,7 +60,7 @@ class MenuTile extends StatelessWidget {
                     label,
                     style: AppTextStyles.bodyLarge.copyWith(
                       fontSize: 14.5.sp,
-                      fontWeight: FontWeight.w500,
+                      fontWeight: FontWeight.w600,
                       color: labelColor,
                     ),
                   ),

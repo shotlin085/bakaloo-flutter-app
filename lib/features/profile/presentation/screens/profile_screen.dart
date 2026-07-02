@@ -140,20 +140,20 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                     title: 'MY ACTIVITY',
                     children: <Widget>[
                       MenuTile(
-                        icon: PhosphorIcons.package(),
+                        icon: PhosphorIcons.package(PhosphorIconsStyle.light),
                         label: 'Orders',
                         onTap: () => context.push(RouteNames.orders),
                       ),
                       _divider(),
                       MenuTile(
-                        icon: PhosphorIcons.mapPin(),
+                        icon: PhosphorIcons.mapPin(PhosphorIconsStyle.light),
                         label: 'Addresses',
                         onTap: () =>
                             context.push('${RouteNames.profile}/addresses'),
                       ),
                       _divider(),
                       MenuTile(
-                        icon: PhosphorIcons.heart(),
+                        icon: PhosphorIcons.heart(PhosphorIconsStyle.light),
                         label: 'Wishlist',
                         onTap: () => context.push(RouteNames.wishlist),
                       ),
@@ -164,7 +164,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                     title: 'PAYMENTS',
                     children: <Widget>[
                       MenuTile(
-                        icon: PhosphorIcons.wallet(),
+                        icon: PhosphorIcons.wallet(PhosphorIconsStyle.light),
                         label: 'Wallet',
                         trailing: _WalletPill(label: _walletLabel(walletAsync)),
                         onTap: () =>
@@ -172,7 +172,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                       ),
                       _divider(),
                       MenuTile(
-                        icon: PhosphorIcons.ticket(),
+                        icon: PhosphorIcons.ticket(PhosphorIconsStyle.light),
                         label: 'Coupons',
                         onTap: () {
                           Navigator.of(context).push(
@@ -184,7 +184,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                       ),
                       _divider(),
                       MenuTile(
-                        icon: PhosphorIcons.creditCard(),
+                        icon: PhosphorIcons.creditCard(PhosphorIconsStyle.light),
                         label: 'Payment settings',
                         onTap: () {
                           AppToast.show(context, '🚀 Coming soon!', type: ToastType.info);
@@ -197,7 +197,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                     title: 'ACCOUNT SETTINGS',
                     children: <Widget>[
                       MenuTile(
-                        icon: PhosphorIcons.bellRinging(),
+                        icon: PhosphorIcons.bellRinging(PhosphorIconsStyle.light),
                         label: 'Notification preferences',
                         onTap: () => context.push(
                           '${RouteNames.profile}/notifications/preferences',
@@ -205,7 +205,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                       ),
                       _divider(),
                       MenuTile(
-                        icon: PhosphorIcons.shieldCheck(),
+                        icon: PhosphorIcons.shieldCheck(PhosphorIconsStyle.light),
                         label: 'Privacy',
                         onTap: () {
                           AppToast.show(context, '🚀 Coming soon!', type: ToastType.info);
@@ -218,13 +218,13 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                     title: 'HELP & ABOUT',
                     children: <Widget>[
                       MenuTile(
-                        icon: PhosphorIcons.question(),
+                        icon: PhosphorIcons.question(PhosphorIconsStyle.light),
                         label: 'Support',
                         onTap: _showSupportSheet,
                       ),
                       _divider(),
                       MenuTile(
-                        icon: PhosphorIcons.shareFat(),
+                        icon: PhosphorIcons.shareFat(PhosphorIconsStyle.light),
                         label: 'Share the app',
                         onTap: () {
                           Share.share(
@@ -234,13 +234,13 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                       ),
                       _divider(),
                       MenuTile(
-                        icon: PhosphorIcons.star(),
+                        icon: PhosphorIcons.star(PhosphorIconsStyle.light),
                         label: 'Rate us',
                         onTap: _rateApp,
                       ),
                       _divider(),
                       MenuTile(
-                        icon: PhosphorIcons.info(),
+                        icon: PhosphorIcons.info(PhosphorIconsStyle.light),
                         label: 'About us',
                         onTap: _showAbout,
                       ),
@@ -251,14 +251,14 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                     title: 'DANGER ZONE',
                     children: <Widget>[
                       MenuTile(
-                        icon: PhosphorIcons.signOut(),
+                        icon: PhosphorIcons.signOut(PhosphorIconsStyle.light),
                         label: 'Log out',
                         isDanger: true,
                         onTap: () => LogoutSheet.show(context),
                       ),
                       _divider(),
                       MenuTile(
-                        icon: PhosphorIcons.trash(),
+                        icon: PhosphorIcons.trash(PhosphorIconsStyle.light),
                         label: 'Delete account',
                         isDanger: true,
                         onTap: _deleteAccount,

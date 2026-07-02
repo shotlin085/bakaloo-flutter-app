@@ -228,21 +228,6 @@ class _CartTipSectionState extends ConsumerState<CartTipSection> {
               ),
             ),
           ),
-          SizedBox(width: 10.w),
-          _TipChip(
-            emoji: '🛵',
-            label: selectedIndex == visiblePresets.length && _draftTipAmount > 0
-                ? '₹${_draftTipAmount.toStringAsFixed(0)}'
-                : 'Custom',
-            selected: selectedIndex == visiblePresets.length,
-            onTap: () async {
-              final amount = await _showCustomTipSheet(context);
-              if (amount == null) {
-                return;
-              }
-              _setTipAmount(amount);
-            },
-          ),
         ],
       ),
     );

@@ -19,9 +19,10 @@ Future<void> showLocationPromptSheet(BuildContext context) async {
     context: context,
     useRootNavigator: true,
     isScrollControlled: true,
-    backgroundColor: Colors.transparent,
+    backgroundColor: Colors.white,
     isDismissible: true,
     enableDrag: true,
+    shape: const RoundedRectangleBorder(borderRadius: BorderRadius.zero),
     builder: (_) => const _LocationPromptSheet(),
   );
 }
@@ -111,17 +112,8 @@ class _LocationPromptSheetState extends ConsumerState<_LocationPromptSheet> {
 
     return SafeArea(
       child: Container(
-        margin: EdgeInsets.symmetric(horizontal: 12.w),
-        decoration: BoxDecoration(
+        decoration: const BoxDecoration(
           color: Colors.white,
-          borderRadius: BorderRadius.circular(28.r),
-          boxShadow: <BoxShadow>[
-            BoxShadow(
-              color: Colors.black.withValues(alpha: 0.16),
-              blurRadius: 40,
-              offset: const Offset(0, -8),
-            ),
-          ],
         ),
         child: Column(
           mainAxisSize: MainAxisSize.min,
@@ -164,7 +156,7 @@ class _LocationPromptSheetState extends ConsumerState<_LocationPromptSheet> {
             ),
 
             Padding(
-              padding: EdgeInsets.fromLTRB(24.w, 16.h, 24.w, 24.h),
+              padding: EdgeInsets.fromLTRB(24.w, 16.h, 24.w, 36.h),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 mainAxisSize: MainAxisSize.min,

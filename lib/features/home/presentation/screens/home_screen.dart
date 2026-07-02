@@ -113,6 +113,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
   final ValueNotifier<List<Widget>> _cachedStagedSlivers =
       ValueNotifier<List<Widget>>(const <Widget>[]);
   int _lastRenderedStage = -1;
+  bool _locationPromptShownThisSession = false;
 
   double get _stickyRevealStartDistance => 48.h;
   double get _stickyRevealEndDistance => 24.h;
@@ -247,16 +248,19 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
     }
   }
 
-  /// Shows the one-time location permission prompt if conditions are met.
+  /// Shows the location prompt if location is currently off.
+  /// Runs on every cold start and every app resume, but at most once per
+  /// process lifetime (_locationPromptShownThisSession gate).
   Future<void> _maybeShowLocationPrompt() async {
-    if (!mounted) return;
+    if (!mounted || _locationPromptShownThisSession) return;
     try {
+      // Invalidate so we always get a live location-service check, not cache.
+      ref.invalidate(locationPromptShouldShowProvider);
       final shouldShow =
           await ref.read(locationPromptShouldShowProvider.future);
       if (!mounted || !shouldShow) return;
-      // Mark as shown BEFORE displaying so rapid re-triggers don't double-show
-      await markLocationPromptShown();
-      if (!mounted) return;
+      // Set flag before awaiting the sheet so a rapid resume can't double-show.
+      _locationPromptShownThisSession = true;
       await showLocationPromptSheet(context);
     } catch (_) {
       // Non-critical — silently ignore
@@ -309,6 +313,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.resumed) {
       unawaited(_refreshThemeDrivenLayout());
+      unawaited(_maybeShowLocationPrompt());
     }
   }
 
@@ -689,8 +694,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
                                         ),
                                         onAddressTap: () =>
                                             showAddressSheet(context),
-                                        onProfileTap: () =>
-                                            context.go(RouteNames.profile),
+                                        onNotificationTap: () =>
+                                            context.go(RouteNames.notifications),
                                         onWalletTap: () =>
                                             context.go(RouteNames.wallet),
                                         topBarTheme: topBarTheme,

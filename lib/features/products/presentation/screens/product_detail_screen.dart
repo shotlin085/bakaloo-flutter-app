@@ -22,7 +22,6 @@ import 'package:bakaloo_flutter_app/features/products/presentation/widgets/produ
 import 'package:bakaloo_flutter_app/features/products/presentation/widgets/product_details_section.dart';
 import 'package:bakaloo_flutter_app/features/products/presentation/widgets/product_image_gallery.dart';
 import 'package:bakaloo_flutter_app/features/products/presentation/widgets/product_info_header.dart';
-import 'package:bakaloo_flutter_app/features/products/presentation/widgets/product_promo_banner.dart';
 import 'package:bakaloo_flutter_app/features/products/presentation/widgets/product_recommendation_wrappers.dart';
 import 'package:bakaloo_flutter_app/features/products/presentation/widgets/product_store_row.dart';
 import 'package:bakaloo_flutter_app/features/products/presentation/widgets/product_trust_badges.dart';
@@ -158,11 +157,6 @@ class _ProductDetailScreenState extends ConsumerState<ProductDetailScreen> {
                   ),
                   onHighlightsToggle: () => _logProductHighlightsView(
                     effectiveProduct,
-                  ),
-                ),
-                SliverToBoxAdapter(
-                  child: RepaintBoundary(
-                    child: ProductPromoBanner(scrollOffset: _scrollOffset),
                   ),
                 ),
                 SliverToBoxAdapter(
