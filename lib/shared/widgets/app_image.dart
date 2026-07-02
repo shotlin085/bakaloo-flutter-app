@@ -12,7 +12,7 @@ class AppImage extends StatefulWidget {
     required this.memCacheHeight,
     super.key,
     this.fit = BoxFit.cover,
-    this.filterQuality = FilterQuality.low,
+    this.filterQuality = FilterQuality.high,
     this.alignment = Alignment.center,
     this.placeholder = const ColoredBox(
       color: Color(0xFFF5F5F5),

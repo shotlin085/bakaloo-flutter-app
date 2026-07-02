@@ -165,7 +165,7 @@ class _ProductImageGalleryState extends State<ProductImageGallery> {
                                   memCacheWidth: 520,
                                   memCacheHeight: 520,
                                   fadeInDuration: Duration.zero,
-                                  filterQuality: FilterQuality.low,
+                                  filterQuality: FilterQuality.high,
                                   placeholder: (context, url) =>
                                       const ColoredBox(
                                     color: Color(0xFFF2F2F2),

@@ -5,6 +5,7 @@ import 'package:bakaloo_flutter_app/core/network/api_client.dart';
 import 'package:bakaloo_flutter_app/features/payments/data/models/razorpay_order_model.dart';
 import 'package:bakaloo_flutter_app/features/wallet/data/models/transaction_model.dart';
 import 'package:bakaloo_flutter_app/features/wallet/data/models/wallet_model.dart';
+import 'package:bakaloo_flutter_app/features/wallet/data/models/wallet_recipient_model.dart';
 import 'package:bakaloo_flutter_app/features/wallet/domain/entities/transaction_entity.dart';
 import 'package:bakaloo_flutter_app/features/wallet/domain/repositories/wallet_repository.dart';
 import 'package:bakaloo_flutter_app/shared/entities/pagination_entity.dart';
@@ -99,6 +100,21 @@ class WalletRemoteDataSource {
   Future<WalletModel> transfer(WalletTransferParams params) async {
     final response = await _apiClient.transferWallet(params.toJson());
     return _parseWalletFromMutation(response.data, ApiConstants.walletTransfer);
+  }
+
+  Future<List<WalletRecipientModel>> searchRecipient(String q) async {
+    final response = await _apiClient.searchWalletRecipient(q);
+    final payload =
+        _parsePayload(response.data, ApiConstants.walletRecipientSearch);
+    final listData = payload['data'];
+
+    if (listData is! List) {
+      return const <WalletRecipientModel>[];
+    }
+
+    return listData.whereType<Map>().map((item) {
+      return WalletRecipientModel.fromJson(Map<String, dynamic>.from(item));
+    }).toList(growable: false);
   }
 
   WalletModel _parseWalletFromMutation(dynamic raw, String path) {

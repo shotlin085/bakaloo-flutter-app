@@ -11,6 +11,7 @@ import 'package:package_info_plus/package_info_plus.dart';
 import 'package:phosphor_flutter/phosphor_flutter.dart';
 import 'package:share_plus/share_plus.dart';
 
+import 'package:bakaloo_flutter_app/core/constants/api_constants.dart';
 import 'package:bakaloo_flutter_app/core/theme/app_colors.dart';
 import 'package:bakaloo_flutter_app/core/utils/app_toast.dart';
 import 'package:bakaloo_flutter_app/core/theme/app_dimensions.dart';
@@ -228,7 +229,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                         label: 'Share the app',
                         onTap: () {
                           Share.share(
-                            'Order groceries on Bakaloo: https://bakaloo.app',
+                            'Order groceries on Bakaloo: ${ApiConstants.webBaseUrl}',
                           );
                         },
                       ),

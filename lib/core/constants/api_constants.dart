@@ -52,6 +52,18 @@ class ApiConstants {
         dotenv.env['SOCKET_URL'] ?? '',
       );
 
+  /// Public-facing marketing/web domain used for user-shareable links
+  /// (product share, "share the app", etc). Deliberately separate from
+  /// [baseUrl], which points at the API host (api.bakaloo.in) — that host
+  /// should never appear in a link shown to another person.
+  static String get webBaseUrl {
+    final configured = dotenv.env['WEB_BASE_URL']?.trim();
+    if (configured != null && configured.isNotEmpty) {
+      return configured;
+    }
+    return 'https://bakaloo.in';
+  }
+
   static const sendOtp = '/auth/send-otp';
   static const verifyOtp = '/auth/verify-otp';
   static const refreshToken = '/auth/refresh-token';
@@ -114,6 +126,7 @@ class ApiConstants {
   static const walletTopupVerify = '/wallet/topup/verify';
   static const walletPay = '/wallet/pay';
   static const walletTransfer = '/wallet/transfer';
+  static const walletRecipientSearch = '/wallet/recipient/search';
 
   static const wishlist = '/wishlist';
   static const wishlistItems = '/wishlist/items';
@@ -253,7 +266,7 @@ class ApiConstants {
     final transforms = <String>[
       'f_auto',
       'q_auto',
-      'dpr_auto',
+      'dpr_2',
       'c_$crop',
       'w_$width',
       if (height != null) 'h_$height',
@@ -343,7 +356,7 @@ class ApiConstants {
     final transforms = <String>[
       'f_auto',
       'q_auto',
-      'dpr_auto',
+      'dpr_2',
       'c_$crop',
       'w_$width',
       if (height != null) 'h_$height',
@@ -372,8 +385,8 @@ class ApiConstants {
         );
       case CustomerImageProfile.categoryTile:
         return const _ImageProfileConfig(
-          width: 72,
-          height: 72,
+          width: 160,
+          height: 160,
           crop: 'fill',
         );
       case CustomerImageProfile.homeProduct:
@@ -384,14 +397,14 @@ class ApiConstants {
         );
       case CustomerImageProfile.seasonalHeroArtwork:
         return const _ImageProfileConfig(
-          width: 280,
-          height: 280,
+          width: 500,
+          height: 500,
           crop: 'fit',
         );
       case CustomerImageProfile.listProduct:
         return const _ImageProfileConfig(
-          width: 168,
-          height: 168,
+          width: 320,
+          height: 320,
           crop: 'fit',
         );
       case CustomerImageProfile.detailGallery:

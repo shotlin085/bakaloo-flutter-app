@@ -5,6 +5,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:gap/gap.dart';
+import 'package:geolocator/geolocator.dart';
 import 'package:go_router/go_router.dart';
 import 'package:phosphor_flutter/phosphor_flutter.dart';
 
@@ -113,7 +114,12 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
   final ValueNotifier<List<Widget>> _cachedStagedSlivers =
       ValueNotifier<List<Widget>>(const <Widget>[]);
   int _lastRenderedStage = -1;
+  // Suppresses re-showing the prompt while the service stays disabled (e.g.
+  // the user dismissed it without turning location on); reset to false the
+  // moment the service flips back to enabled so a later disable in the same
+  // session can prompt again. See _locationServiceStatusSub.
   bool _locationPromptShownThisSession = false;
+  StreamSubscription<ServiceStatus>? _locationServiceStatusSub;
 
   double get _stickyRevealStartDistance => 48.h;
   double get _stickyRevealEndDistance => 24.h;
@@ -177,10 +183,23 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
       if (mounted) {
         _updateStickyHeaderTriggerOffset();
         _handleHomeScroll();
-        // One-time location prompt — slight delay so home UI settles first
+        // Initial check — slight delay so home UI settles first
         Future<void>.delayed(const Duration(milliseconds: 800), () {
           if (mounted) _maybeShowLocationPrompt();
         });
+      }
+    });
+    // Live-listen for the user toggling device location on/off while the
+    // app stays in the foreground (e.g. via the quick-settings shade) —
+    // on many Android versions this does NOT trigger didChangeAppLifecycleState,
+    // so without this stream the prompt would only ever reappear after a full
+    // background/foreground cycle.
+    _locationServiceStatusSub =
+        Geolocator.getServiceStatusStream().listen((status) {
+      if (status == ServiceStatus.enabled) {
+        _locationPromptShownThisSession = false;
+      } else if (status == ServiceStatus.disabled) {
+        unawaited(_maybeShowLocationPrompt());
       }
     });
     SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
@@ -248,9 +267,10 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
     }
   }
 
-  /// Shows the location prompt if location is currently off.
-  /// Runs on every cold start and every app resume, but at most once per
-  /// process lifetime (_locationPromptShownThisSession gate).
+  /// Shows the location prompt if location is currently off. Runs on cold
+  /// start, app resume, and every live service-status-disabled event: at
+  /// most once per disabled streak (_locationPromptShownThisSession is reset
+  /// when the service is re-enabled, so a later disable can prompt again).
   Future<void> _maybeShowLocationPrompt() async {
     if (!mounted || _locationPromptShownThisSession) return;
     try {
@@ -290,6 +310,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
+    _locationServiceStatusSub?.cancel();
     _themeSocketSub.close();
     _sectionSocketSub.close();
     _themeRefreshTimerSub.close();
@@ -1214,7 +1235,7 @@ class _HeroPromoCard extends StatelessWidget {
                       fit: BoxFit.cover,
                       memCacheWidth: optimizedImage.memCacheWidth,
                       memCacheHeight: optimizedImage.memCacheHeight,
-                      filterQuality: FilterQuality.low,
+                      filterQuality: FilterQuality.high,
                       placeholder: const _FallbackHeroArt(),
                       errorWidget: const _FallbackHeroArt(),
                     ),

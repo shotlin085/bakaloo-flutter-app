@@ -15,6 +15,7 @@ class RouteNames {
   static const profile = '/profile';
   static const wallet = '/profile/wallet';
   static const topup = '/profile/wallet/topup';
+  static const walletSend = '/profile/wallet/send';
   static const wishlist = '/profile/wishlist';
   static const addresses = '/profile/addresses';
   static const addAddress = '/profile/addresses/add';

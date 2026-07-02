@@ -321,8 +321,13 @@ class _ProductDetailScreenState extends ConsumerState<ProductDetailScreen> {
   }
 
   Future<void> _shareProduct(ProductEntity product) async {
-    final shareUri = Uri.tryParse(ApiConstants.baseUrl)?.replace(
-      path: '/product/${product.id}',
+    // Must match bakaloo-customer-web's actual route shape
+    // (src/app/(shop)/products/[slug]/page.tsx) — plural "products", by
+    // slug, not the app's own internal /product/:id route — or the link
+    // 404s for anyone without the app installed (e.g. a WhatsApp preview
+    // or a desktop click).
+    final shareUri = Uri.tryParse(ApiConstants.webBaseUrl)?.replace(
+      path: '/products/${product.slug}',
       queryParameters: null,
     );
     final message = shareUri == null

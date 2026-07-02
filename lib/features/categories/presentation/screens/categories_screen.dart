@@ -465,7 +465,9 @@ class _CategoryThumb extends StatelessWidget {
       child: hasImage
           ? CachedNetworkImage(
               imageUrl: imageUrl!,
-              memCacheWidth: 160,
+              memCacheWidth: 200,
+              memCacheHeight: 200,
+              filterQuality: FilterQuality.high,
               fit: BoxFit.cover,
               placeholder: (context, url) =>
                   const SkeletonLoader(height: 46, radius: 14),

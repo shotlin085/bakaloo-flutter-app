@@ -221,6 +221,11 @@ abstract class ApiClient {
     @Body() Map<String, dynamic> body,
   );
 
+  @GET(ApiConstants.walletRecipientSearch)
+  Future<HttpResponse<dynamic>> searchWalletRecipient(
+    @Query('q') String q,
+  );
+
   @GET(ApiConstants.tipPresets)
   Future<ApiResponse<List<TipPresetEntity>>> getTipPresets();
 

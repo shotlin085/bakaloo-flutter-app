@@ -13,6 +13,7 @@ import 'package:bakaloo_flutter_app/features/wallet/domain/entities/wallet_entit
 import 'package:bakaloo_flutter_app/features/wallet/domain/repositories/wallet_repository.dart';
 import 'package:bakaloo_flutter_app/features/wallet/domain/usecases/get_transactions.dart';
 import 'package:bakaloo_flutter_app/features/wallet/domain/usecases/get_wallet.dart';
+import 'package:bakaloo_flutter_app/features/wallet/domain/usecases/search_recipient.dart';
 import 'package:bakaloo_flutter_app/features/wallet/domain/usecases/topup.dart';
 import 'package:bakaloo_flutter_app/features/wallet/domain/usecases/topup_verify.dart';
 import 'package:bakaloo_flutter_app/features/wallet/domain/usecases/transfer.dart';
@@ -90,6 +91,11 @@ final walletTopupVerifyUseCaseProvider =
 
 final walletTransferUseCaseProvider = Provider<TransferUseCase>((Ref ref) {
   return TransferUseCase(ref.watch(walletRepositoryProvider));
+});
+
+final searchRecipientUseCaseProvider =
+    Provider<SearchRecipientUseCase>((Ref ref) {
+  return SearchRecipientUseCase(ref.watch(walletRepositoryProvider));
 });
 
 @Riverpod(keepAlive: true)

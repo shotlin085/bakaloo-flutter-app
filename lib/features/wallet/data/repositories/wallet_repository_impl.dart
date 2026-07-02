@@ -7,6 +7,7 @@ import 'package:bakaloo_flutter_app/features/payments/domain/entities/razorpay_o
 import 'package:bakaloo_flutter_app/features/wallet/data/datasources/wallet_remote_datasource.dart';
 import 'package:bakaloo_flutter_app/features/wallet/domain/entities/transaction_entity.dart';
 import 'package:bakaloo_flutter_app/features/wallet/domain/entities/wallet_entity.dart';
+import 'package:bakaloo_flutter_app/features/wallet/domain/entities/wallet_recipient_entity.dart';
 import 'package:bakaloo_flutter_app/features/wallet/domain/repositories/wallet_repository.dart';
 
 class WalletRepositoryImpl implements WalletRepository {
@@ -103,6 +104,26 @@ class WalletRepositoryImpl implements WalletRepository {
     } catch (_) {
       return const Left(
         UnknownFailure(message: 'Unable to transfer money right now.'),
+      );
+    }
+  }
+
+  @override
+  Future<Either<Failure, List<WalletRecipientEntity>>> searchRecipient(
+    String q,
+  ) async {
+    try {
+      final results = await _remoteDataSource.searchRecipient(q);
+      return Right(
+        results
+            .map((recipient) => recipient.toEntity())
+            .toList(growable: false),
+      );
+    } on DioException catch (error) {
+      return Left(handleDioError(error));
+    } catch (_) {
+      return const Left(
+        UnknownFailure(message: 'Unable to search for a recipient right now.'),
       );
     }
   }

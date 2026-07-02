@@ -293,7 +293,7 @@ class _ProductRecommendationCardState extends State<ProductRecommendationCard> {
                                 memCacheWidth: 168,
                                 memCacheHeight: 168,
                                 fadeInDuration: Duration.zero,
-                                filterQuality: FilterQuality.low,
+                                filterQuality: FilterQuality.high,
                                 placeholder: (context, url) => const ColoredBox(
                                   color: Color(0xFFFAFAFA),
                                   child: SizedBox.expand(),

@@ -107,10 +107,10 @@ class AnimatedBannerSection extends StatelessWidget {
                       child: feeStripImageUrl != null
                           ? AppImage(
                               imageUrl: feeStripImageUrl,
-                              memCacheWidth: 750,
-                              memCacheHeight: 120,
+                              memCacheWidth: 1200,
+                              memCacheHeight: 192,
                               fit: BoxFit.fill,
-                              filterQuality: FilterQuality.low,
+                              filterQuality: FilterQuality.high,
                               placeholder: const SizedBox.expand(),
                               errorWidget: const SizedBox.expand(),
                             )
@@ -251,7 +251,7 @@ class _NetworkUploadedAnimation extends StatelessWidget {
           frameRate: FrameRate.composition,
           renderCache: RenderCache.drawingCommands,
           addRepaintBoundary: true,
-          filterQuality: FilterQuality.low,
+          filterQuality: FilterQuality.high,
           imageProviderFactory: (LottieImageAsset asset) {
             final Uint8List? bytes = _dotLottieImageBytes(
               loaded.dotLottie,
@@ -294,7 +294,7 @@ class _AssetDotLottieAnimation extends StatelessWidget {
       frameRate: FrameRate.composition,
       renderCache: RenderCache.drawingCommands,
       addRepaintBoundary: true,
-      filterQuality: FilterQuality.low,
+      filterQuality: FilterQuality.high,
       decoder: _decodeUploadedLottie,
     );
   }

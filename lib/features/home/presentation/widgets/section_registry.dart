@@ -1026,11 +1026,11 @@ class _ManifestFeeStripState extends State<_ManifestFeeStrip> {
               color: widget.containerColor,
               child: AppImage(
                 imageUrl: _resolvedImageUrl!,
-                memCacheWidth: 720,
-                memCacheHeight: 200,
+                memCacheWidth: 1200,
+                memCacheHeight: 333,
                 fit: BoxFit.contain,
                 alignment: Alignment.center,
-                filterQuality: FilterQuality.low,
+                filterQuality: FilterQuality.high,
                 placeholder: ColoredBox(
                   color: widget.containerColor,
                   child: const SizedBox.expand(),
@@ -1227,7 +1227,7 @@ class _CategoryArtwork extends StatelessWidget {
       fit: BoxFit.cover,
       memCacheWidth: optimizedImage.memCacheWidth,
       memCacheHeight: optimizedImage.memCacheHeight,
-      filterQuality: FilterQuality.low,
+      filterQuality: FilterQuality.high,
       placeholder: const ColoredBox(
         color: Color(0xFFF3F6E7),
         child: SizedBox.expand(),
@@ -1650,8 +1650,8 @@ class _ManifestBankOffersRow extends StatelessWidget {
                       imageUrl: resolvedImage,
                       fit: BoxFit.contain,
                       alignment: Alignment.centerLeft,
-                      memCacheWidth: 1008,
-                      memCacheHeight: 222,
+                      memCacheWidth: 1440,
+                      memCacheHeight: 317,
                       filterQuality: FilterQuality.high,
                       placeholder: const ColoredBox(
                         color: Color(0xFFF2F8FF),
@@ -1984,8 +1984,8 @@ class _ManifestArchedProductSection extends StatelessWidget {
               ? AppImage(
                   imageUrl: resolvedUrl,
                   fit: BoxFit.cover,
-                  memCacheWidth: 480,
-                  memCacheHeight: 216,
+                  memCacheWidth: 800,
+                  memCacheHeight: 360,
                 )
               : null,
         ),
@@ -2056,8 +2056,8 @@ class _ManifestArchedProductSection extends StatelessWidget {
                                     ApiConstants.resolveMediaUrl(imageUrl) ??
                                         '',
                                 fit: BoxFit.cover,
-                                memCacheWidth: 72,
-                                memCacheHeight: 72,
+                                memCacheWidth: 160,
+                                memCacheHeight: 160,
                                 errorWidget: Icon(
                                   PhosphorIcons.package(
                                     PhosphorIconsStyle.duotone,

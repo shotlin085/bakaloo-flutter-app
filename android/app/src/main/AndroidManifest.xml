@@ -53,6 +53,19 @@
                 <action android:name="FLUTTER_NOTIFICATION_CLICK" />
                 <category android:name="android.intent.category.DEFAULT" />
             </intent-filter>
+            <!-- Android App Links: opens shared https://bakaloo.in links
+                 directly in the app instead of a browser. autoVerify requires
+                 https://bakaloo.in/.well-known/assetlinks.json (and the same
+                 file at www.bakaloo.in) to list this app's signing certificate
+                 SHA-256 fingerprint, or the OS falls back to normal browser
+                 handling. go_router already has a matching /product/:id route. -->
+            <intent-filter android:autoVerify="true">
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="https" android:host="bakaloo.in" />
+                <data android:scheme="https" android:host="www.bakaloo.in" />
+            </intent-filter>
         </activity>
 
         <meta-data

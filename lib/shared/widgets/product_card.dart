@@ -695,7 +695,7 @@ class _ProductCardImageArea extends StatelessWidget {
                           memCacheWidth: optimizedImage.memCacheWidth,
                           memCacheHeight: optimizedImage.memCacheHeight,
                           fit: BoxFit.cover,
-                          filterQuality: FilterQuality.low,
+                          filterQuality: FilterQuality.high,
                           placeholder: const ColoredBox(
                             color: Colors.white,
                             child: SizedBox.expand(),

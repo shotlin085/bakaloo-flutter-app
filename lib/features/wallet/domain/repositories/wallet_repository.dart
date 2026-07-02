@@ -4,6 +4,7 @@ import 'package:bakaloo_flutter_app/core/errors/failure.dart';
 import 'package:bakaloo_flutter_app/features/payments/domain/entities/razorpay_order_entity.dart';
 import 'package:bakaloo_flutter_app/features/wallet/domain/entities/transaction_entity.dart';
 import 'package:bakaloo_flutter_app/features/wallet/domain/entities/wallet_entity.dart';
+import 'package:bakaloo_flutter_app/features/wallet/domain/entities/wallet_recipient_entity.dart';
 import 'package:bakaloo_flutter_app/shared/entities/pagination_entity.dart';
 
 class WalletTransactionsResult {
@@ -76,5 +77,9 @@ abstract class WalletRepository {
 
   Future<Either<Failure, WalletEntity>> transfer(
     WalletTransferParams params,
+  );
+
+  Future<Either<Failure, List<WalletRecipientEntity>>> searchRecipient(
+    String q,
   );
 }

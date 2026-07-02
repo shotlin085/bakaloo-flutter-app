@@ -346,7 +346,7 @@ class _ArchedProductCardState extends State<ArchedProductCard> {
                               memCacheWidth: optimizedImage.memCacheWidth,
                               memCacheHeight: optimizedImage.memCacheHeight,
                               fit: BoxFit.contain,
-                              filterQuality: FilterQuality.low,
+                              filterQuality: FilterQuality.high,
                               placeholder: const SizedBox.expand(),
                               errorWidget: Center(
                                 child: PhosphorIcon(

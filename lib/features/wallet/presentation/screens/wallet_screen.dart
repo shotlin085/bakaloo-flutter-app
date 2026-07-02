@@ -19,7 +19,6 @@ import 'package:bakaloo_flutter_app/core/utils/extensions/datetime_extensions.da
 import 'package:bakaloo_flutter_app/core/utils/extensions/double_extensions.dart';
 import 'package:bakaloo_flutter_app/features/wallet/domain/entities/transaction_entity.dart';
 import 'package:bakaloo_flutter_app/features/wallet/domain/entities/wallet_entity.dart';
-import 'package:bakaloo_flutter_app/features/wallet/domain/repositories/wallet_repository.dart';
 import 'package:bakaloo_flutter_app/features/wallet/presentation/providers/wallet_provider.dart';
 import 'package:bakaloo_flutter_app/routing/route_names.dart';
 
@@ -132,32 +131,6 @@ class _WalletScreenState extends ConsumerState<WalletScreen> {
     }
   }
 
-  Future<bool> _authenticateForTransfer() async {
-    try {
-      final isSupported = await _localAuth.isDeviceSupported();
-      if (!isSupported) {
-        return true;
-      }
-
-      final canCheckBiometrics = await _localAuth.canCheckBiometrics;
-      final availableBiometrics = await _localAuth.getAvailableBiometrics();
-      return await _localAuth.authenticate(
-        localizedReason: 'Authenticate to transfer money',
-        options: AuthenticationOptions(
-          biometricOnly: canCheckBiometrics && availableBiometrics.isNotEmpty,
-          stickyAuth: true,
-          sensitiveTransaction: true,
-        ),
-      );
-    } on PlatformException catch (error) {
-      _showSnack(_friendlyAuthMessage(error.code));
-      return false;
-    } catch (_) {
-      _showSnack('Authentication failed. Please try again.');
-      return false;
-    }
-  }
-
   Future<void> _openTopup() async {
     final completed = await context.push<bool>(RouteNames.topup);
     if (!mounted || completed != true) {
@@ -168,55 +141,14 @@ class _WalletScreenState extends ConsumerState<WalletScreen> {
     _pagingController.refresh();
   }
 
-  Future<void> _openTransferSheet() async {
-    final result = await showModalBottomSheet<String>(
-      context: context,
-      isScrollControlled: true,
-      showDragHandle: true,
-      builder: (context) => _TransferSheet(
-        onSubmit: (
-          String phone,
-          double amount,
-          String? description,
-        ) async {
-          final didAuthenticate = await _authenticateForTransfer();
-          if (!didAuthenticate) {
-            return 'Biometric authentication required.';
-          }
-
-          final transferResult =
-              await ref.read(walletProvider.notifier).transfer(
-                    WalletTransferParams(
-                      phone: phone,
-                      amount: amount,
-                      description: description,
-                    ),
-                  );
-
-          if (!transferResult.isSuccess) {
-            return transferResult.failure!.message;
-          }
-
-          _pagingController.refresh();
-          return null;
-        },
-      ),
-    );
-
-    if (!mounted || result == null) {
+  Future<void> _openSendMoney() async {
+    final completed = await context.push<bool>(RouteNames.walletSend);
+    if (!mounted || completed != true) {
       return;
     }
 
-    final isSuccess = result.isEmpty;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(
-          isSuccess ? 'Money transferred successfully.' : result,
-        ),
-        backgroundColor:
-            isSuccess ? AppColors.successGreen : AppColors.outOfStockRed,
-      ),
-    );
+    await ref.read(walletProvider.notifier).refreshWallet();
+    _pagingController.refresh();
   }
 
   Future<void> _refreshAll() async {
@@ -292,12 +224,12 @@ class _WalletScreenState extends ConsumerState<WalletScreen> {
                 isAuthenticating: _isAuthenticating,
                 onUnlock: _authenticateForBalance,
                 onAddMoney: _openTopup,
-                onTransfer: _openTransferSheet,
+                onTransfer: _openSendMoney,
               ),
               Gap(14.h),
               _QuickActionRow(
                 onAddMoney: _openTopup,
-                onTransfer: _openTransferSheet,
+                onTransfer: _openSendMoney,
                 onHistory: _pagingController.refresh,
               ),
               Gap(14.h),
@@ -771,166 +703,6 @@ class _TransactionTile extends StatelessWidget {
             style: AppTextStyles.h3.copyWith(color: color),
           ),
         ],
-      ),
-    );
-  }
-}
-
-class _TransferSheet extends StatefulWidget {
-  const _TransferSheet({
-    required this.onSubmit,
-  });
-
-  final Future<String?> Function(
-    String phone,
-    double amount,
-    String? description,
-  ) onSubmit;
-
-  @override
-  State<_TransferSheet> createState() => _TransferSheetState();
-}
-
-class _TransferSheetState extends State<_TransferSheet> {
-  final TextEditingController _phoneController = TextEditingController();
-  final TextEditingController _amountController = TextEditingController();
-  final TextEditingController _descriptionController = TextEditingController();
-  final GlobalKey<FormState> _formKey = GlobalKey<FormState>();
-
-  bool _submitting = false;
-
-  @override
-  void dispose() {
-    _phoneController.dispose();
-    _amountController.dispose();
-    _descriptionController.dispose();
-    super.dispose();
-  }
-
-  Future<void> _handleSubmit() async {
-    if (!_formKey.currentState!.validate()) {
-      return;
-    }
-
-    final amount = double.parse(_amountController.text.trim());
-    final description = _descriptionController.text.trim().isEmpty
-        ? null
-        : _descriptionController.text.trim();
-
-    setState(() {
-      _submitting = true;
-    });
-
-    final error = await widget.onSubmit(
-      _phoneController.text.trim(),
-      amount,
-      description,
-    );
-
-    if (!mounted) {
-      return;
-    }
-
-    setState(() {
-      _submitting = false;
-    });
-
-    if (error == null) {
-      Navigator.of(context).pop('');
-      return;
-    }
-
-    Navigator.of(context).pop(error);
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: EdgeInsets.fromLTRB(
-        16.w,
-        8.h,
-        16.w,
-        MediaQuery.of(context).viewInsets.bottom + 16.h,
-      ),
-      child: Form(
-        key: _formKey,
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: <Widget>[
-            Text('Transfer money', style: AppTextStyles.h2),
-            Gap(10.h),
-            TextFormField(
-              controller: _phoneController,
-              keyboardType: TextInputType.phone,
-              maxLength: 10,
-              decoration: const InputDecoration(
-                labelText: 'Recipient phone',
-                prefixText: '+91 ',
-                counterText: '',
-              ),
-              validator: (value) {
-                final normalized = value?.trim() ?? '';
-                if (normalized.length != 10) {
-                  return 'Enter a valid 10-digit number';
-                }
-                return null;
-              },
-            ),
-            Gap(8.h),
-            TextFormField(
-              controller: _amountController,
-              keyboardType:
-                  const TextInputType.numberWithOptions(decimal: true),
-              decoration: const InputDecoration(
-                labelText: 'Amount',
-                prefixText: '₹ ',
-              ),
-              validator: (value) {
-                final parsed = double.tryParse(value?.trim() ?? '');
-                if (parsed == null || parsed <= 0) {
-                  return 'Enter a valid amount';
-                }
-                return null;
-              },
-            ),
-            Gap(8.h),
-            TextFormField(
-              controller: _descriptionController,
-              maxLength: 80,
-              decoration: const InputDecoration(
-                labelText: 'Description (optional)',
-              ),
-            ),
-            Gap(8.h),
-            SizedBox(
-              width: double.infinity,
-              child: FilledButton(
-                onPressed: _submitting ? null : _handleSubmit,
-                style: FilledButton.styleFrom(
-                  backgroundColor: AppColors.orderViolet,
-                  minimumSize: Size.fromHeight(48.h),
-                ),
-                child: _submitting
-                    ? const SizedBox(
-                        width: 18,
-                        height: 18,
-                        child: CircularProgressIndicator(
-                          strokeWidth: 2,
-                          valueColor:
-                              AlwaysStoppedAnimation<Color>(Colors.white),
-                        ),
-                      )
-                    : Text(
-                        'Transfer',
-                        style: AppTextStyles.buttonMedium.copyWith(
-                          color: Colors.white,
-                        ),
-                      ),
-              ),
-            ),
-          ],
-        ),
       ),
     );
   }

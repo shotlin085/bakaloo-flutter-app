@@ -34,6 +34,7 @@ import 'package:bakaloo_flutter_app/features/auth/presentation/providers/auth_st
 import 'package:bakaloo_flutter_app/features/search/presentation/screens/search_screen.dart';
 import 'package:bakaloo_flutter_app/features/splash/splash_screen.dart';
 import 'package:bakaloo_flutter_app/features/tracking/presentation/screens/order_tracking_screen.dart';
+import 'package:bakaloo_flutter_app/features/wallet/presentation/screens/send_money_screen.dart';
 import 'package:bakaloo_flutter_app/features/wallet/presentation/screens/topup_screen.dart';
 import 'package:bakaloo_flutter_app/features/wallet/presentation/screens/wallet_screen.dart';
 import 'package:bakaloo_flutter_app/features/wishlist/presentation/screens/wishlist_screen.dart';
@@ -146,6 +147,19 @@ GoRouter appRouter(Ref ref) {
         builder: (BuildContext context, GoRouterState state) {
           return ProductDetailScreen(
             id: state.pathParameters['productId'] ?? '',
+          );
+        },
+      ),
+      // Matches bakaloo-customer-web's real product URL shape
+      // (/products/:slug, plural, slug-based) so App Links opened from a
+      // shared product link resolve here. The backend's GET /products/:id
+      // already auto-detects UUID vs slug, so ProductDetailScreen needs no
+      // changes — it just receives the slug string as `id`.
+      GoRoute(
+        path: '/products/:slug',
+        builder: (BuildContext context, GoRouterState state) {
+          return ProductDetailScreen(
+            id: state.pathParameters['slug'] ?? '',
           );
         },
       ),
@@ -308,6 +322,12 @@ GoRouter appRouter(Ref ref) {
                         path: 'topup',
                         builder: (BuildContext context, GoRouterState state) {
                           return const TopupScreen();
+                        },
+                      ),
+                      GoRoute(
+                        path: 'send',
+                        builder: (BuildContext context, GoRouterState state) {
+                          return const SendMoneyScreen();
                         },
                       ),
                     ],
