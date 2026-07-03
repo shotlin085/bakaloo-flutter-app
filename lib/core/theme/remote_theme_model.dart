@@ -825,12 +825,17 @@ class TabThemesResponse {
     required this.etag,
     required this.tabs,
     required this.tabMap,
+    this.deliveryEtaMinutes,
   });
 
   final String storeKey;
   final String? etag;
   final List<TabThemeEntry> tabs;
   final Map<String, TabThemeEntry> tabMap;
+
+  /// Admin-set delivery-time badge shown on the home screen header (e.g.
+  /// "⚡ 45 mins delivery"). Plain display value, not a computed ETA.
+  final int? deliveryEtaMinutes;
 
   factory TabThemesResponse.fromJson(Map<String, dynamic> json) {
     final List<dynamic> tabsRaw = json['tabs'] as List<dynamic>? ?? <dynamic>[];
@@ -855,6 +860,7 @@ class TabThemesResponse {
       etag: _parseNullableString(json['etag']),
       tabs: tabsList,
       tabMap: tabMap,
+      deliveryEtaMinutes: (json['delivery_eta_minutes'] as num?)?.toInt(),
     );
   }
 
@@ -892,5 +898,6 @@ class TabThemesResponse {
         'store_key': storeKey,
         'etag': etag,
         'tabs': tabs.map((TabThemeEntry tab) => tab.toJson()).toList(),
+        'delivery_eta_minutes': deliveryEtaMinutes,
       };
 }

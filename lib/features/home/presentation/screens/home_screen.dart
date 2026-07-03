@@ -640,6 +640,11 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
       ),
     );
     final homeAsync = ref.watch(homeProvider);
+    final deliveryEtaMinutes = ref.watch(
+      tabThemesProvider.select(
+        (tabThemesAsync) => tabThemesAsync.asData?.value.deliveryEtaMinutes,
+      ),
+    );
     final topInset = MediaQuery.paddingOf(context).top;
 
     return ValueListenableBuilder<bool>(
@@ -724,6 +729,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
                                         topBarTheme: topBarTheme,
                                         searchZoneColor: searchZoneTheme
                                             .backgroundColor,
+                                        deliveryEtaMinutes: deliveryEtaMinutes,
                                       );
                                     },
                                   ),

@@ -276,6 +276,12 @@ class _StoreScreenShellState extends ConsumerState<StoreScreenShell>
                                   isLoggedIn: currentUser != null,
                                   addresses: addresses,
                                 );
+                                final deliveryEtaMinutes = ref.watch(
+                                  tabThemesProvider.select(
+                                    (tabThemesAsync) => tabThemesAsync
+                                        .asData?.value.deliveryEtaMinutes,
+                                  ),
+                                );
                                 return HomeHeader(
                                   addressText: addressText,
                                   onAddressTap: () =>
@@ -286,6 +292,7 @@ class _StoreScreenShellState extends ConsumerState<StoreScreenShell>
                                       context.go(RouteNames.wallet),
                                   topBarTheme: chromeTheme.topBarTheme,
                                   searchZoneColor: chromeTheme.searchZoneColor,
+                                  deliveryEtaMinutes: deliveryEtaMinutes,
                                 );
                               },
                             ),

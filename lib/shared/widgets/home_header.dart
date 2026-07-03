@@ -17,6 +17,7 @@ class HomeHeader extends ConsumerWidget {
     this.onWalletTap,
     this.topBarTheme,
     this.searchZoneColor,
+    this.deliveryEtaMinutes,
     super.key,
   });
 
@@ -28,6 +29,10 @@ class HomeHeader extends ConsumerWidget {
   /// Color used by the curved bottom strip so it matches the search zone
   /// background beneath it. Defaults to white when not provided.
   final Color? searchZoneColor;
+  /// Admin-set delivery-time badge (e.g. 45 → "⚡ 45 mins delivery"), shown
+  /// only on the main Zepto store front in place of its static "6 mins"
+  /// tagline. Other store fronts keep their own static taglines.
+  final int? deliveryEtaMinutes;
 
   static const Color _lavenderTop = Color(0xFFEDE4FB);
   static const Color _lavenderBottom = Color(0xFFF6F1FD);
@@ -82,7 +87,9 @@ class HomeHeader extends ConsumerWidget {
                         mainAxisSize: MainAxisSize.min,
                         children: <Widget>[
                           Text(
-                            store.subtitle,
+                            (deliveryEtaMinutes != null && store.id == 'zepto')
+                                ? '⚡ $deliveryEtaMinutes mins delivery'
+                                : store.subtitle,
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                             style: TextStyle(
