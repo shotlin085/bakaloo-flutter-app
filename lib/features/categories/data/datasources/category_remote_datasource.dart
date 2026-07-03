@@ -73,6 +73,7 @@ class CategoryRemoteDataSource {
       sortOrder: (json['sort_order'] as num?)?.toInt() ?? 0,
       isActive: json['is_active'] as bool? ?? true,
       productCount: (json['product_count'] as num?)?.toInt() ?? 0,
+      categoryType: json['category_type']?.toString() ?? 'STANDARD',
     );
   }
 }

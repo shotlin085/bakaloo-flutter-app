@@ -423,7 +423,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
 
   void _recomputeHomeData(HomeScreenData data) {
     final sorted = data.categories
-        .where((category) => category.isActive)
+        // BUNDLE categories are promo-only groupings surfaced via a banner
+        // deep-link — never shown in the home category strip.
+        .where((category) => category.isActive && !category.isBundle)
         .toList(growable: false)
       ..sort((a, b) => a.sortOrder.compareTo(b.sortOrder));
     final parents = _buildParentCategories(sorted);

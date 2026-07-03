@@ -216,6 +216,7 @@ class CategoryRepositoryImpl implements CategoryRepository {
       sortOrder: (json['sort_order'] as num?)?.toInt() ?? 0,
       isActive: json['is_active'] as bool? ?? true,
       productCount: (json['product_count'] as num?)?.toInt() ?? 0,
+      categoryType: json['category_type']?.toString() ?? 'STANDARD',
     );
   }
 
@@ -229,11 +230,18 @@ class CategoryRepositoryImpl implements CategoryRepository {
       'sort_order': category.sortOrder,
       'is_active': category.isActive,
       'product_count': category.productCount,
+      'category_type': category.categoryType,
     };
   }
 
+  /// BUNDLE categories are promo-only groupings reachable only via a
+  /// banner deep-link — they must never appear in normal category
+  /// browsing (list screens, home strip), so they're filtered out here
+  /// alongside the existing isActive check.
   List<CategoryEntity> _sanitizeCategories(List<CategoryEntity> categories) {
-    final sanitized = categories.where((category) => category.isActive).toList()
+    final sanitized = categories
+        .where((category) => category.isActive && !category.isBundle)
+        .toList()
       ..sort((a, b) {
         final sortOrder = a.sortOrder.compareTo(b.sortOrder);
         if (sortOrder != 0) {

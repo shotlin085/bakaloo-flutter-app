@@ -71,7 +71,9 @@ class _CategoriesScreenState extends ConsumerState<CategoriesScreen> {
     }
 
     final sorted = <CategoryEntity>[
-      ...categories.where((category) => category.isActive),
+      // BUNDLE categories are promo-only groupings surfaced via a banner
+      // deep-link — never shown in normal category browsing.
+      ...categories.where((category) => category.isActive && !category.isBundle),
     ]..sort((a, b) {
         final sortOrder = a.sortOrder.compareTo(b.sortOrder);
         if (sortOrder != 0) {
