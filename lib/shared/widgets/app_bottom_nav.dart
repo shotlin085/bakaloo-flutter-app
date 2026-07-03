@@ -11,6 +11,7 @@ import 'package:bakaloo_flutter_app/core/notifications/notification_router.dart'
 import 'package:bakaloo_flutter_app/core/theme/app_colors.dart';
 import 'package:bakaloo_flutter_app/core/theme/app_text_styles.dart';
 import 'package:bakaloo_flutter_app/features/auth/presentation/providers/auth_gate_controller.dart';
+import 'package:bakaloo_flutter_app/features/cart/domain/entities/bill_summary_entity.dart';
 import 'package:bakaloo_flutter_app/features/cart/presentation/providers/cart_enhancement_providers.dart';
 import 'package:bakaloo_flutter_app/features/cart/presentation/providers/cart_provider.dart';
 import 'package:bakaloo_flutter_app/features/notifications/presentation/providers/notification_provider.dart';
@@ -283,24 +284,32 @@ class _SmartBarState {
   })  : kind = _SmartBarStateKind.orderTracking,
         cartCount = 0,
         amountToUnlock = 0,
-        progress = 0;
+        progress = 0,
+        ladder = const <CartMilestoneLadderStep>[];
 
   /// [message] is fully pre-rendered by the caller — either the
   /// free-delivery default ("Add ₹X more to unlock FREE DELIVERY") or an
   /// admin-authored cart-milestone message ("Add ₹200 more to get ₹20
-  /// cashback"), whichever tier is closer to being unlocked.
+  /// cashback"), whichever tier is closer to being unlocked. [ladder] is
+  /// the full merged sequence of checkpoints (free delivery + every
+  /// eligible milestone tier) so the bar can render one continuous
+  /// segmented progress track instead of resetting to 0% per tier.
   const _SmartBarState.milestone({
     required this.cartCount,
     required this.amountToUnlock,
     required this.progress,
     required this.message,
+    this.ladder = const <CartMilestoneLadderStep>[],
   }) : kind = _SmartBarStateKind.milestoneProgress,
        orderId = null;
 
   /// [message] is the reward that was actually unlocked — "Free delivery
   /// unlocked" or an admin-authored message like "₹100 cashback unlocked".
-  const _SmartBarState.unlocked({required this.cartCount, required this.message})
-      : kind = _SmartBarStateKind.unlocked,
+  const _SmartBarState.unlocked({
+    required this.cartCount,
+    required this.message,
+    this.ladder = const <CartMilestoneLadderStep>[],
+  })  : kind = _SmartBarStateKind.unlocked,
         orderId = null,
         amountToUnlock = 0,
         progress = 1;
@@ -310,12 +319,14 @@ class _SmartBarState {
         orderId = null,
         message = null,
         amountToUnlock = 0,
-        progress = 0;
+        progress = 0,
+        ladder = const <CartMilestoneLadderStep>[];
 
   final _SmartBarStateKind kind;
   final String? orderId;
   final String? message;
   final int cartCount;
+  final List<CartMilestoneLadderStep> ladder;
   final double amountToUnlock;
   final double progress;
 }
@@ -381,6 +392,7 @@ class _CartPillHost extends ConsumerWidget {
       final free = billSummary?.freeDelivery;
       final nextTier = billSummary?.cartMilestone.next;
       final unlockedTier = billSummary?.cartMilestone.unlocked;
+      final rewardLadder = billSummary?.cartMilestone.ladder ?? const <CartMilestoneLadderStep>[];
 
       final freeDeliveryAmount =
           (free != null && free.enabled && !free.unlocked && free.amountToUnlock > 0)
@@ -404,6 +416,7 @@ class _CartPillHost extends ConsumerWidget {
           message: nextTier.message.isNotEmpty
               ? nextTier.message
               : 'Add ₹${nextTier.amountToUnlock.toStringAsFixed(0)} more to unlock ${nextTier.name}',
+          ladder: rewardLadder,
         );
       } else if (freeDeliveryAmount != null) {
         final threshold = free?.threshold ?? 0;
@@ -415,14 +428,20 @@ class _CartPillHost extends ConsumerWidget {
           amountToUnlock: freeDeliveryAmount,
           progress: progress,
           message: 'Add ₹${freeDeliveryAmount.toStringAsFixed(0)} more to unlock FREE DELIVERY',
+          ladder: rewardLadder,
         );
       } else if (unlockedTier != null) {
         state = _SmartBarState.unlocked(
           cartCount: cartCount,
           message: unlockedTier.message.isNotEmpty ? unlockedTier.message : '${unlockedTier.name} unlocked',
+          ladder: rewardLadder,
         );
       } else if (free != null && free.unlocked) {
-        state = _SmartBarState.unlocked(cartCount: cartCount, message: 'Free delivery unlocked');
+        state = _SmartBarState.unlocked(
+          cartCount: cartCount,
+          message: 'Free delivery unlocked',
+          ladder: rewardLadder,
+        );
       } else {
         state = _SmartBarState.plainCart(cartCount: cartCount);
       }
@@ -550,9 +569,12 @@ class _SmartBottomBar extends StatelessWidget {
                   ),
                 ],
               ),
-              if (state.kind == _SmartBarStateKind.milestoneProgress) ...<Widget>[
+              if (!isTracking &&
+                  state.kind != _SmartBarStateKind.plainCart) ...<Widget>[
                 Gap(10.h),
-                _ProgressLine(progress: state.progress),
+                state.ladder.isNotEmpty
+                    ? _RewardLadderTrack(steps: state.ladder)
+                    : _ProgressLine(progress: state.progress),
               ],
             ],
           ),
@@ -687,9 +709,77 @@ class _SmartBottomBar extends StatelessWidget {
   }
 }
 
+/// Segmented progress track — one segment per checkpoint in the merged
+/// reward ladder (free delivery + every eligible cart-milestone tier),
+/// each with its own small gap marking the tier boundary. An already-passed
+/// segment stays fully filled; the current segment fills proportionally
+/// within its own span; segments further ahead sit visibly empty so the
+/// customer can always see there's more to unlock, instead of the bar
+/// resetting to 0% (and looking "finished") every time a tier is crossed.
+/// Once every segment is achieved the whole track reads as one continuous
+/// filled line, save for the thin boundary gaps.
+class _RewardLadderTrack extends StatelessWidget {
+  const _RewardLadderTrack({required this.steps});
+
+  final List<CartMilestoneLadderStep> steps;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: <Widget>[
+        for (int i = 0; i < steps.length; i++) ...<Widget>[
+          if (i > 0) Gap(4.w),
+          Expanded(child: _LadderSegment(progress: steps[i].segmentProgress)),
+        ],
+      ],
+    );
+  }
+}
+
+class _LadderSegment extends StatelessWidget {
+  const _LadderSegment({required this.progress});
+
+  final double progress;
+
+  @override
+  Widget build(BuildContext context) {
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(4.r),
+      child: TweenAnimationBuilder<double>(
+        tween: Tween<double>(begin: 0, end: progress.clamp(0.0, 1.0)),
+        duration: const Duration(milliseconds: 450),
+        curve: Curves.easeOutCubic,
+        builder: (context, value, _) {
+          return Stack(
+            children: <Widget>[
+              Container(height: 5.h, color: Colors.white.withValues(alpha: 0.25)),
+              FractionallySizedBox(
+                widthFactor: value,
+                child: Container(
+                  height: 5.h,
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(4.r),
+                    boxShadow: <BoxShadow>[
+                      BoxShadow(color: Colors.white.withValues(alpha: 0.6), blurRadius: 4),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          );
+        },
+      ),
+    );
+  }
+}
+
 /// Thin rounded progress track shown under the milestone message — a
 /// lightweight, bottom-bar-specific indicator (the fuller bill-summary
 /// progress widget on the cart screen has different sizing/styling needs).
+/// Fallback for when the backend hasn't returned a reward ladder (older
+/// payload shape, or truly nothing configured) — a single bar is still
+/// better than nothing.
 class _ProgressLine extends StatelessWidget {
   const _ProgressLine({required this.progress});
 

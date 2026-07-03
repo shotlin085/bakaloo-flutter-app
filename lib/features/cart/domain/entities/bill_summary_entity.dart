@@ -169,6 +169,26 @@ abstract class CartMilestoneTier with _$CartMilestoneTier {
       _$CartMilestoneTierFromJson(json);
 }
 
+/// A single checkpoint in the merged reward ladder (free delivery + every
+/// eligible cart-milestone tier, in one ascending sequence). `segmentProgress`
+/// is self-contained to this checkpoint's own span — 0 at the previous
+/// checkpoint's amount, 1 once this one is reached — so the app can render
+/// one continuous segmented progress track instead of a bar that resets to
+/// 0% every time a tier is crossed.
+@freezed
+abstract class CartMilestoneLadderStep with _$CartMilestoneLadderStep {
+  const factory CartMilestoneLadderStep({
+    @Default('') String id,
+    @Default('') String label,
+    @Default(0) double minAmount,
+    @Default(false) bool achieved,
+    @Default(0) double segmentProgress,
+  }) = _CartMilestoneLadderStep;
+
+  factory CartMilestoneLadderStep.fromJson(Map<String, dynamic> json) =>
+      _$CartMilestoneLadderStepFromJson(json);
+}
+
 /// Cart-milestone progress for the customer-facing Smart Bottom Bar —
 /// admin-defined cashback/discount/coupon-unlock tiers, independent of the
 /// free-delivery threshold above.
@@ -177,6 +197,7 @@ abstract class CartMilestoneProgress with _$CartMilestoneProgress {
   const factory CartMilestoneProgress({
     CartMilestoneTier? unlocked,
     CartMilestoneTier? next,
+    @Default(<CartMilestoneLadderStep>[]) List<CartMilestoneLadderStep> ladder,
   }) = _CartMilestoneProgress;
 
   factory CartMilestoneProgress.fromJson(Map<String, dynamic> json) =>
