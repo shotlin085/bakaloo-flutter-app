@@ -81,6 +81,7 @@ Widget _buildAnimatedBanner(
     // lottie/image URL, the banner renders only the gradient background.
     assetPath: _readString(entry.config['fallback_asset']) ?? '',
     height: entry.height ?? 120,
+    linkUrl: _readString(entry.config['link_url']),
     bannerTheme: BannerAnimationTheme(
       imageUrl: entry.imageUrl ?? fallback.imageUrl,
       lottieUrl: entry.lottieUrl ?? fallback.lottieUrl,
@@ -494,9 +495,19 @@ List<ProductEntity> _resolveProducts(
   // the ordered, stock-filtered product objects in `entry.products`. Preferring
   // them guarantees hand-picked grids render exactly what the dashboard pinned,
   // even when those products are not part of the home feed's product pool.
+  //
+  // Only clamp when the admin explicitly configured a limit for THIS
+  // section (`entry.productLimit`). Falling back to the generic
+  // `fallbackLimit` here — as this used to do — silently re-truncated an
+  // already-complete, backend-resolved list, which was the root cause of
+  // "some products in a category-linked section don't show up": the
+  // backend correctly sent every product, but this widget only rendered
+  // the first 6-12 of them.
   final List<ProductEntity> resolvedFromManifest = _parseManifestProducts(entry);
   if (resolvedFromManifest.isNotEmpty) {
-    return resolvedFromManifest.take(limit).toList(growable: false);
+    return entry.productLimit != null
+        ? resolvedFromManifest.take(entry.productLimit!).toList(growable: false)
+        : resolvedFromManifest;
   }
 
   final source = _readString(binding['source']) ?? 'category';

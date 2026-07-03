@@ -1,11 +1,10 @@
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
-import 'package:go_router/go_router.dart';
 import 'package:phosphor_flutter/phosphor_flutter.dart';
-import 'package:url_launcher/url_launcher.dart';
 
 import 'package:bakaloo_flutter_app/core/constants/api_constants.dart';
+import 'package:bakaloo_flutter_app/shared/utils/link_tap_handler.dart';
 import 'package:bakaloo_flutter_app/shared/widgets/app_image.dart';
 
 class CustomBannerSection extends StatefulWidget {
@@ -125,7 +124,7 @@ class _CustomBannerSectionState extends State<CustomBannerSection> {
       child: GestureDetector(
         onTap: widget.linkUrl == null || widget.linkUrl!.trim().isEmpty
             ? null
-            : () => _handleTap(context, widget.linkUrl!.trim()),
+            : () => handleLinkTap(context, widget.linkUrl!.trim()),
         child: ClipRRect(
           borderRadius: BorderRadius.circular(widget.borderRadius.r),
           child: AspectRatio(
@@ -180,18 +179,4 @@ class _CustomBannerSectionState extends State<CustomBannerSection> {
       ),
     );
   }
-}
-
-Future<void> _handleTap(BuildContext context, String target) async {
-  final uri = Uri.tryParse(target);
-  if (uri != null && uri.hasScheme && uri.host.isNotEmpty) {
-    await launchUrl(uri, mode: LaunchMode.externalApplication);
-    return;
-  }
-
-  if (!context.mounted) {
-    return;
-  }
-
-  context.push(target.startsWith('/') ? target : '/$target');
 }

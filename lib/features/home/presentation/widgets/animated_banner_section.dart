@@ -11,6 +11,7 @@ import 'package:lottie/lottie.dart';
 import 'package:bakaloo_flutter_app/core/constants/api_constants.dart';
 import 'package:bakaloo_flutter_app/core/theme/remote_animation_loader.dart';
 import 'package:bakaloo_flutter_app/core/theme/remote_theme_model.dart';
+import 'package:bakaloo_flutter_app/shared/utils/link_tap_handler.dart';
 import 'package:bakaloo_flutter_app/shared/widgets/app_image.dart';
 
 class AnimatedBannerSection extends StatelessWidget {
@@ -20,12 +21,14 @@ class AnimatedBannerSection extends StatelessWidget {
     this.height = 120,
     this.bannerTheme,
     this.feeStripTheme,
+    this.linkUrl,
   });
 
   final String assetPath;
   final double height;
   final BannerAnimationTheme? bannerTheme;
   final FeeStripTheme? feeStripTheme;
+  final String? linkUrl;
 
   @override
   Widget build(BuildContext context) {
@@ -44,7 +47,11 @@ class AnimatedBannerSection extends StatelessWidget {
     final double feeStripHorizontalInset = 5.w;
     final double feeStripImageYOffset = -2.h;
 
-    return RepaintBoundary(
+    return GestureDetector(
+      onTap: linkUrl == null || linkUrl!.trim().isEmpty
+          ? null
+          : () => handleLinkTap(context, linkUrl!.trim()),
+      child: RepaintBoundary(
       child: DecoratedBox(
         decoration: BoxDecoration(
           color: containerColor,
@@ -122,6 +129,7 @@ class AnimatedBannerSection extends StatelessWidget {
             ],
           ],
         ),
+      ),
       ),
     );
   }
