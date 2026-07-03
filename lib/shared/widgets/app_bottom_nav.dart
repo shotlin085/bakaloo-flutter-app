@@ -11,9 +11,12 @@ import 'package:bakaloo_flutter_app/core/notifications/notification_router.dart'
 import 'package:bakaloo_flutter_app/core/theme/app_colors.dart';
 import 'package:bakaloo_flutter_app/core/theme/app_text_styles.dart';
 import 'package:bakaloo_flutter_app/features/auth/presentation/providers/auth_gate_controller.dart';
+import 'package:bakaloo_flutter_app/features/cart/presentation/providers/cart_enhancement_providers.dart';
 import 'package:bakaloo_flutter_app/features/cart/presentation/providers/cart_provider.dart';
 import 'package:bakaloo_flutter_app/features/notifications/presentation/providers/notification_provider.dart';
 import 'package:bakaloo_flutter_app/features/notifications/presentation/providers/unread_count_provider.dart';
+import 'package:bakaloo_flutter_app/features/orders/domain/entities/order_timeline_entity.dart';
+import 'package:bakaloo_flutter_app/features/orders/presentation/providers/active_order_provider.dart';
 import 'package:bakaloo_flutter_app/features/orders/presentation/providers/order_live_sync_provider.dart';
 import 'package:bakaloo_flutter_app/features/tracking/presentation/providers/order_status_stream_provider.dart';
 import 'package:bakaloo_flutter_app/routing/route_access.dart';
@@ -183,7 +186,7 @@ class _AppShellState extends ConsumerState<AppShell>
               selectedIndex: selectedIndex,
               navAnimation: _navAnimation,
               bottomInset: bottomInset,
-              onTap: () {
+              onTapCart: () {
                 HapticFeedback.lightImpact();
                 if (!authGate.isAuthenticated && context.mounted) {
                   authGate.protectRoute(
@@ -264,20 +267,86 @@ class _AppShellState extends ConsumerState<AppShell>
   }
 }
 
+/// The states the Smart Bottom Bar can be in, in priority order (first
+/// matching state wins — see [_resolveSmartBarState]).
+enum _SmartBarStateKind {
+  orderTracking,
+  milestoneProgress,
+  freeDeliveryUnlocked,
+  plainCart,
+}
+
+class _SmartBarState {
+  const _SmartBarState.orderTracking({
+    required this.orderId,
+    required this.message,
+  })  : kind = _SmartBarStateKind.orderTracking,
+        cartCount = 0,
+        amountToUnlock = 0,
+        progress = 0;
+
+  const _SmartBarState.milestone({
+    required this.cartCount,
+    required this.amountToUnlock,
+    required this.progress,
+  })  : kind = _SmartBarStateKind.milestoneProgress,
+        orderId = null,
+        message = null;
+
+  const _SmartBarState.freeDeliveryUnlocked({required this.cartCount})
+      : kind = _SmartBarStateKind.freeDeliveryUnlocked,
+        orderId = null,
+        message = null,
+        amountToUnlock = 0,
+        progress = 1;
+
+  const _SmartBarState.plainCart({required this.cartCount})
+      : kind = _SmartBarStateKind.plainCart,
+        orderId = null,
+        message = null,
+        amountToUnlock = 0,
+        progress = 0;
+
+  final _SmartBarStateKind kind;
+  final String? orderId;
+  final String? message;
+  final int cartCount;
+  final double amountToUnlock;
+  final double progress;
+}
+
+/// Maps an active order's status to the short message shown in the bar.
+String _orderTrackingMessage(OrderStatus status) {
+  switch (status) {
+    case OrderStatus.PENDING:
+    case OrderStatus.CONFIRMED:
+      return 'Your order is confirmed';
+    case OrderStatus.PREPARING:
+      return 'Your order is being packed';
+    case OrderStatus.PACKED:
+      return 'Your order is packed and ready';
+    case OrderStatus.OUT_FOR_DELIVERY:
+      return 'Rider is on the way';
+    case OrderStatus.DELIVERED:
+    case OrderStatus.CANCELLED:
+      return '';
+  }
+}
+
 class _CartPillHost extends ConsumerWidget {
   const _CartPillHost({
     required this.selectedIndex,
     required this.navAnimation,
     required this.bottomInset,
-    required this.onTap,
+    required this.onTapCart,
   });
 
   final int selectedIndex;
   final Animation<double> navAnimation;
   final double bottomInset;
-  final VoidCallback onTap;
+  final VoidCallback onTapCart;
 
-  /// The cart pill should only appear on product-related tabs:
+  /// The bar should only appear on product-related tabs:
   /// 0 = Home (includes search, product detail sub-routes)
   /// 2 = Categories (includes category product pages)
   /// NOT on Orders (1) or Profile (3) or address/settings sub-pages.
@@ -286,17 +355,49 @@ class _CartPillHost extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final cartCount = ref.watch(cartCountProvider);
-    // Pill sits just above the bottom nav (≈12dp gap), centred horizontally,
-    // and spans ~60% of the screen width — never full-width, never mid-screen.
-    final screenWidth = MediaQuery.sizeOf(context).width;
-    final pillWidth = (screenWidth * 0.60).clamp(220.0, 360.0);
-    // When the footer nav is hidden the body grows to the screen edge, so the
-    // pill must keep a comfortable gap above the bottom safe area instead of
-    // dropping under the home indicator. The body's bottom reference moves with
-    // the nav's SizeTransition, so we add back just enough to (a) keep an 8.h
-    // gap above the nav when shown, and (b) clear the safe area when hidden —
-    // letting the pill glide down with the nav without ever clipping.
+    final activeOrderAsync = ref.watch(activeOrderProvider);
+    final billSummaryAsync =
+        cartCount > 0 ? ref.watch(billSummaryProvider) : null;
+
+    final activeOrder = activeOrderAsync.value;
+    final billSummary = billSummaryAsync?.value;
+
+    _SmartBarState? state;
+    if (activeOrder != null && activeOrder.status.isActive) {
+      final message = _orderTrackingMessage(activeOrder.status);
+      if (message.isNotEmpty) {
+        state = _SmartBarState.orderTracking(
+          orderId: activeOrder.id,
+          message: message,
+        );
+      }
+    }
+    if (state == null && cartCount > 0) {
+      final free = billSummary?.freeDelivery;
+      if (free != null && free.enabled && !free.unlocked && free.amountToUnlock > 0) {
+        final threshold = free.threshold ?? 0;
+        final progress = threshold > 0
+            ? (1 - (free.amountToUnlock / threshold)).clamp(0.0, 1.0)
+            : 0.0;
+        state = _SmartBarState.milestone(
+          cartCount: cartCount,
+          amountToUnlock: free.amountToUnlock,
+          progress: progress,
+        );
+      } else if (free != null && free.unlocked) {
+        state = _SmartBarState.freeDeliveryUnlocked(cartCount: cartCount);
+      } else {
+        state = _SmartBarState.plainCart(cartCount: cartCount);
+      }
+    }
+
+    // Full-width bar with a comfortable side margin, sitting just above the
+    // bottom nav. When the footer nav is hidden the body grows to the screen
+    // edge, so we keep a comfortable gap above the safe area instead of
+    // dropping under the home indicator — the bar glides down with the nav
+    // without ever clipping.
     final hiddenGap = bottomInset > 0 ? bottomInset : 10.h;
+    final horizontalMargin = 12.w;
 
     return ValueListenableBuilder<bool>(
       valueListenable: productOptionSheetVisible,
@@ -304,44 +405,49 @@ class _CartPillHost extends ConsumerWidget {
         return ValueListenableBuilder<bool>(
           valueListenable: addressSheetVisible,
           builder: (context, isAddressSheetOpen, _) {
-            final showCartPill = cartCount > 0 &&
+            final showBar = state != null &&
                 !isProductSheetOpen &&
                 !isAddressSheetOpen &&
                 _isProductTab(selectedIndex);
             return AnimatedBuilder(
               animation: navAnimation,
               builder: (context, child) {
-                // navAnimation: 1 = nav visible, 0 = nav hidden.
                 final bottomOffset =
                     8.h + hiddenGap * (1 - navAnimation.value);
                 return Positioned(
                   bottom: bottomOffset,
-                  left: 0,
-                  right: 0,
+                  left: horizontalMargin,
+                  right: horizontalMargin,
                   child: child!,
                 );
               },
               child: IgnorePointer(
-                ignoring: !showCartPill,
-                child: Center(
-                  child: RepaintBoundary(
-                    child: AnimatedSlide(
-                      offset:
-                          showCartPill ? Offset.zero : const Offset(0, 1.5),
-                      duration: const Duration(milliseconds: 280),
-                      curve: Curves.easeOutCubic,
-                      child: AnimatedOpacity(
-                        opacity: showCartPill ? 1.0 : 0.0,
-                        duration: const Duration(milliseconds: 220),
-                        curve: Curves.easeOut,
-                        child: SizedBox(
-                          width: pillWidth,
-                          child: _FloatingCartPill(
-                            cartCount: cartCount,
-                            onTap: onTap,
-                          ),
-                        ),
-                      ),
+                ignoring: !showBar,
+                child: RepaintBoundary(
+                  child: AnimatedSlide(
+                    offset: showBar ? Offset.zero : const Offset(0, 1.5),
+                    duration: const Duration(milliseconds: 280),
+                    curve: Curves.easeOutCubic,
+                    child: AnimatedOpacity(
+                      opacity: showBar ? 1.0 : 0.0,
+                      duration: const Duration(milliseconds: 220),
+                      curve: Curves.easeOut,
+                      child: state == null
+                          ? const SizedBox.shrink()
+                          : _SmartBottomBar(
+                              state: state,
+                              onTap: () {
+                                if (state!.kind ==
+                                        _SmartBarStateKind.orderTracking &&
+                                    state.orderId != null) {
+                                  context.push(
+                                    '/orders/${state.orderId}/track',
+                                  );
+                                } else {
+                                  onTapCart();
+                                }
+                              },
+                            ),
                     ),
                   ),
                 ),
@@ -354,94 +460,247 @@ class _CartPillHost extends ConsumerWidget {
   }
 }
 
-class _FloatingCartPill extends StatelessWidget {
-  const _FloatingCartPill({
-    required this.cartCount,
+class _SmartBottomBar extends StatelessWidget {
+  const _SmartBottomBar({
+    required this.state,
     required this.onTap,
   });
 
-  final int cartCount;
+  final _SmartBarState state;
   final VoidCallback onTap;
+
+  static const Color _barColor = Color(0xFF6C4DFF);
+  static const Color _successColor = Color(0xFF12B76A);
 
   @override
   Widget build(BuildContext context) {
-    const Color pillColor = Color(0xFF6C4DFF);
+    final bool isTracking = state.kind == _SmartBarStateKind.orderTracking;
+    final bool isUnlocked =
+        state.kind == _SmartBarStateKind.freeDeliveryUnlocked;
+    final Color barColor = isUnlocked ? _successColor : _barColor;
+
     return GestureDetector(
       onTap: onTap,
-      child: Container(
-        height: 56.h,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 220),
         decoration: BoxDecoration(
-          color: pillColor,
-          borderRadius: BorderRadius.circular(30.r),
+          color: barColor,
+          borderRadius: BorderRadius.circular(20.r),
           boxShadow: <BoxShadow>[
             BoxShadow(
-              color: Colors.black.withValues(alpha: 0.10),
-              blurRadius: 8,
-              offset: const Offset(0, 2),
+              color: barColor.withValues(alpha: 0.35),
+              blurRadius: 16,
+              offset: const Offset(0, 6),
             ),
           ],
         ),
         child: Padding(
-          padding: EdgeInsets.symmetric(horizontal: 14.w),
-          child: Row(
+          padding: EdgeInsets.fromLTRB(16.w, 12.h, 12.w, 12.h),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
             children: <Widget>[
-              // Leading cart icon in a soft translucent circle.
-              Container(
-                width: 34.w,
-                height: 34.w,
-                decoration: BoxDecoration(
-                  color: Colors.white.withValues(alpha: 0.22),
-                  shape: BoxShape.circle,
-                ),
-                alignment: Alignment.center,
-                child: PhosphorIcon(
-                  PhosphorIcons.basket(PhosphorIconsStyle.fill),
-                  size: 17.sp,
-                  color: Colors.white,
-                ),
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.center,
+                children: <Widget>[
+                  Expanded(child: _buildMessage(context)),
+                  Gap(10.w),
+                  if (!isTracking) _buildCartSummary(context),
+                  Gap(6.w),
+                  PhosphorIcon(
+                    PhosphorIcons.caretRight(PhosphorIconsStyle.bold),
+                    size: 18.sp,
+                    color: Colors.white,
+                  ),
+                ],
               ),
-              Gap(10.w),
-              Expanded(
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: <Widget>[
-                    Text(
-                      'View cart',
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontWeight: FontWeight.w800,
-                        fontSize: 15.sp,
-                        letterSpacing: 0.1,
-                        height: 1.1,
-                      ),
-                    ),
-                    Text(
-                      '$cartCount item${cartCount == 1 ? '' : 's'}',
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
-                        color: Colors.white.withValues(alpha: 0.9),
-                        fontWeight: FontWeight.w500,
-                        fontSize: 11.sp,
-                        height: 1.15,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              Gap(6.w),
-              PhosphorIcon(
-                PhosphorIcons.caretRight(PhosphorIconsStyle.bold),
-                size: 18.sp,
-                color: Colors.white,
-              ),
+              if (state.kind == _SmartBarStateKind.milestoneProgress) ...<Widget>[
+                Gap(10.h),
+                _ProgressLine(progress: state.progress),
+              ],
             ],
           ),
         ),
+      ),
+    );
+  }
+
+  Widget _buildMessage(BuildContext context) {
+    switch (state.kind) {
+      case _SmartBarStateKind.orderTracking:
+        return Row(
+          mainAxisSize: MainAxisSize.min,
+          children: <Widget>[
+            PhosphorIcon(
+              PhosphorIcons.moped(PhosphorIconsStyle.fill),
+              size: 18.sp,
+              color: Colors.white,
+            ),
+            Gap(8.w),
+            Flexible(
+              child: Text(
+                state.message ?? '',
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.w700,
+                  fontSize: 14.sp,
+                ),
+              ),
+            ),
+          ],
+        );
+      case _SmartBarStateKind.milestoneProgress:
+        return RichText(
+          maxLines: 2,
+          overflow: TextOverflow.ellipsis,
+          text: TextSpan(
+            style: TextStyle(
+              color: Colors.white,
+              fontWeight: FontWeight.w600,
+              fontSize: 13.sp,
+              height: 1.25,
+            ),
+            children: <InlineSpan>[
+              TextSpan(text: 'Add ₹${state.amountToUnlock.toStringAsFixed(0)} more to unlock '),
+              TextSpan(
+                text: 'FREE DELIVERY',
+                style: TextStyle(fontWeight: FontWeight.w800, fontSize: 13.sp),
+              ),
+            ],
+          ),
+        );
+      case _SmartBarStateKind.freeDeliveryUnlocked:
+        return Row(
+          mainAxisSize: MainAxisSize.min,
+          children: <Widget>[
+            PhosphorIcon(
+              PhosphorIcons.sealCheck(PhosphorIconsStyle.fill),
+              size: 18.sp,
+              color: Colors.white,
+            ),
+            Gap(8.w),
+            Flexible(
+              child: Text(
+                'Free delivery unlocked',
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.w700,
+                  fontSize: 14.sp,
+                ),
+              ),
+            ),
+          ],
+        );
+      case _SmartBarStateKind.plainCart:
+        return Text(
+          'View cart',
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: TextStyle(
+            color: Colors.white,
+            fontWeight: FontWeight.w800,
+            fontSize: 15.sp,
+          ),
+        );
+    }
+  }
+
+  Widget _buildCartSummary(BuildContext context) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: <Widget>[
+        Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.end,
+          children: <Widget>[
+            Text(
+              'CART',
+              style: TextStyle(
+                color: Colors.white,
+                fontWeight: FontWeight.w800,
+                fontSize: 11.sp,
+                letterSpacing: 0.4,
+                height: 1.1,
+              ),
+            ),
+            Text(
+              '${state.cartCount} ITEM${state.cartCount == 1 ? '' : 'S'}',
+              style: TextStyle(
+                color: Colors.white.withValues(alpha: 0.85),
+                fontWeight: FontWeight.w600,
+                fontSize: 9.5.sp,
+                letterSpacing: 0.2,
+                height: 1.1,
+              ),
+            ),
+          ],
+        ),
+        Gap(8.w),
+        Container(
+          width: 32.w,
+          height: 32.w,
+          decoration: BoxDecoration(
+            color: Colors.white.withValues(alpha: 0.22),
+            borderRadius: BorderRadius.circular(8.r),
+          ),
+          alignment: Alignment.center,
+          child: PhosphorIcon(
+            PhosphorIcons.basket(PhosphorIconsStyle.fill),
+            size: 16.sp,
+            color: Colors.white,
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+/// Thin rounded progress track shown under the milestone message — a
+/// lightweight, bottom-bar-specific indicator (the fuller bill-summary
+/// progress widget on the cart screen has different sizing/styling needs).
+class _ProgressLine extends StatelessWidget {
+  const _ProgressLine({required this.progress});
+
+  final double progress;
+
+  @override
+  Widget build(BuildContext context) {
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(4.r),
+      child: TweenAnimationBuilder<double>(
+        tween: Tween<double>(begin: 0, end: progress.clamp(0.0, 1.0)),
+        duration: const Duration(milliseconds: 450),
+        curve: Curves.easeOutCubic,
+        builder: (context, value, _) {
+          return Stack(
+            children: <Widget>[
+              Container(
+                height: 5.h,
+                color: Colors.white.withValues(alpha: 0.25),
+              ),
+              FractionallySizedBox(
+                widthFactor: value,
+                child: Container(
+                  height: 5.h,
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(4.r),
+                    boxShadow: <BoxShadow>[
+                      BoxShadow(
+                        color: Colors.white.withValues(alpha: 0.6),
+                        blurRadius: 4,
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          );
+        },
       ),
     );
   }
