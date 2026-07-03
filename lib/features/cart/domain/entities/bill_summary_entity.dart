@@ -28,6 +28,7 @@ abstract class BillSummaryEntity with _$BillSummaryEntity {
     @Default(0) double totalPayable,
     @Default(<FeeLine>[]) List<FeeLine> fees,
     @Default(PaymentMethodsInfo()) PaymentMethodsInfo paymentMethods,
+    @Default(CartMilestoneProgress()) CartMilestoneProgress cartMilestone,
   }) = _BillSummaryEntity;
 
   factory BillSummaryEntity.fromJson(Map<String, dynamic> json) =>
@@ -147,6 +148,39 @@ abstract class FreeDeliveryInfo with _$FreeDeliveryInfo {
 
   factory FreeDeliveryInfo.fromJson(Map<String, dynamic> json) =>
       _$FreeDeliveryInfoFromJson(json);
+}
+
+/// A single cart-milestone tier as returned by the progress endpoint —
+/// either the highest tier already unlocked by the current cart, or the
+/// next tier ahead (with `amountToUnlock` filled in for that case).
+@freezed
+abstract class CartMilestoneTier with _$CartMilestoneTier {
+  const factory CartMilestoneTier({
+    @Default('') String id,
+    @Default('') String name,
+    @Default('') String rewardType,
+    @Default(0) double minCartAmount,
+    @Default(0) double amountToUnlock,
+    @Default('') String message,
+    String? iconUrl,
+  }) = _CartMilestoneTier;
+
+  factory CartMilestoneTier.fromJson(Map<String, dynamic> json) =>
+      _$CartMilestoneTierFromJson(json);
+}
+
+/// Cart-milestone progress for the customer-facing Smart Bottom Bar —
+/// admin-defined cashback/discount/coupon-unlock tiers, independent of the
+/// free-delivery threshold above.
+@freezed
+abstract class CartMilestoneProgress with _$CartMilestoneProgress {
+  const factory CartMilestoneProgress({
+    CartMilestoneTier? unlocked,
+    CartMilestoneTier? next,
+  }) = _CartMilestoneProgress;
+
+  factory CartMilestoneProgress.fromJson(Map<String, dynamic> json) =>
+      _$CartMilestoneProgressFromJson(json);
 }
 
 /// One line in the canonical fee breakdown (delivery / handling / platform / …).

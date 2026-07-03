@@ -272,7 +272,7 @@ class _AppShellState extends ConsumerState<AppShell>
 enum _SmartBarStateKind {
   orderTracking,
   milestoneProgress,
-  freeDeliveryUnlocked,
+  unlocked,
   plainCart,
 }
 
@@ -285,18 +285,23 @@ class _SmartBarState {
         amountToUnlock = 0,
         progress = 0;
 
+  /// [message] is fully pre-rendered by the caller — either the
+  /// free-delivery default ("Add ₹X more to unlock FREE DELIVERY") or an
+  /// admin-authored cart-milestone message ("Add ₹200 more to get ₹20
+  /// cashback"), whichever tier is closer to being unlocked.
   const _SmartBarState.milestone({
     required this.cartCount,
     required this.amountToUnlock,
     required this.progress,
-  })  : kind = _SmartBarStateKind.milestoneProgress,
-        orderId = null,
-        message = null;
+    required this.message,
+  }) : kind = _SmartBarStateKind.milestoneProgress,
+       orderId = null;
 
-  const _SmartBarState.freeDeliveryUnlocked({required this.cartCount})
-      : kind = _SmartBarStateKind.freeDeliveryUnlocked,
+  /// [message] is the reward that was actually unlocked — "Free delivery
+  /// unlocked" or an admin-authored message like "₹100 cashback unlocked".
+  const _SmartBarState.unlocked({required this.cartCount, required this.message})
+      : kind = _SmartBarStateKind.unlocked,
         orderId = null,
-        message = null,
         amountToUnlock = 0,
         progress = 1;
 
@@ -374,18 +379,50 @@ class _CartPillHost extends ConsumerWidget {
     }
     if (state == null && cartCount > 0) {
       final free = billSummary?.freeDelivery;
-      if (free != null && free.enabled && !free.unlocked && free.amountToUnlock > 0) {
-        final threshold = free.threshold ?? 0;
+      final nextTier = billSummary?.cartMilestone.next;
+      final unlockedTier = billSummary?.cartMilestone.unlocked;
+
+      final freeDeliveryAmount =
+          (free != null && free.enabled && !free.unlocked && free.amountToUnlock > 0)
+              ? free.amountToUnlock
+              : null;
+
+      // Show whichever goal is closer — the more motivating "almost there"
+      // message — rather than always defaulting to free delivery.
+      final showMilestone = nextTier != null &&
+          (freeDeliveryAmount == null || nextTier.amountToUnlock <= freeDeliveryAmount);
+
+      if (showMilestone) {
+        final threshold = nextTier.minCartAmount;
         final progress = threshold > 0
-            ? (1 - (free.amountToUnlock / threshold)).clamp(0.0, 1.0)
+            ? (1 - (nextTier.amountToUnlock / threshold)).clamp(0.0, 1.0)
             : 0.0;
         state = _SmartBarState.milestone(
           cartCount: cartCount,
-          amountToUnlock: free.amountToUnlock,
+          amountToUnlock: nextTier.amountToUnlock,
           progress: progress,
+          message: nextTier.message.isNotEmpty
+              ? nextTier.message
+              : 'Add ₹${nextTier.amountToUnlock.toStringAsFixed(0)} more to unlock ${nextTier.name}',
+        );
+      } else if (freeDeliveryAmount != null) {
+        final threshold = free?.threshold ?? 0;
+        final progress = threshold > 0
+            ? (1 - (freeDeliveryAmount / threshold)).clamp(0.0, 1.0)
+            : 0.0;
+        state = _SmartBarState.milestone(
+          cartCount: cartCount,
+          amountToUnlock: freeDeliveryAmount,
+          progress: progress,
+          message: 'Add ₹${freeDeliveryAmount.toStringAsFixed(0)} more to unlock FREE DELIVERY',
+        );
+      } else if (unlockedTier != null) {
+        state = _SmartBarState.unlocked(
+          cartCount: cartCount,
+          message: unlockedTier.message.isNotEmpty ? unlockedTier.message : '${unlockedTier.name} unlocked',
         );
       } else if (free != null && free.unlocked) {
-        state = _SmartBarState.freeDeliveryUnlocked(cartCount: cartCount);
+        state = _SmartBarState.unlocked(cartCount: cartCount, message: 'Free delivery unlocked');
       } else {
         state = _SmartBarState.plainCart(cartCount: cartCount);
       }
@@ -475,8 +512,7 @@ class _SmartBottomBar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final bool isTracking = state.kind == _SmartBarStateKind.orderTracking;
-    final bool isUnlocked =
-        state.kind == _SmartBarStateKind.freeDeliveryUnlocked;
+    final bool isUnlocked = state.kind == _SmartBarStateKind.unlocked;
     final Color barColor = isUnlocked ? _successColor : _barColor;
 
     return GestureDetector(
@@ -552,26 +588,18 @@ class _SmartBottomBar extends StatelessWidget {
           ],
         );
       case _SmartBarStateKind.milestoneProgress:
-        return RichText(
+        return Text(
+          state.message ?? '',
           maxLines: 2,
           overflow: TextOverflow.ellipsis,
-          text: TextSpan(
-            style: TextStyle(
-              color: Colors.white,
-              fontWeight: FontWeight.w600,
-              fontSize: 13.sp,
-              height: 1.25,
-            ),
-            children: <InlineSpan>[
-              TextSpan(text: 'Add ₹${state.amountToUnlock.toStringAsFixed(0)} more to unlock '),
-              TextSpan(
-                text: 'FREE DELIVERY',
-                style: TextStyle(fontWeight: FontWeight.w800, fontSize: 13.sp),
-              ),
-            ],
+          style: TextStyle(
+            color: Colors.white,
+            fontWeight: FontWeight.w600,
+            fontSize: 13.sp,
+            height: 1.25,
           ),
         );
-      case _SmartBarStateKind.freeDeliveryUnlocked:
+      case _SmartBarStateKind.unlocked:
         return Row(
           mainAxisSize: MainAxisSize.min,
           children: <Widget>[
@@ -583,7 +611,7 @@ class _SmartBottomBar extends StatelessWidget {
             Gap(8.w),
             Flexible(
               child: Text(
-                'Free delivery unlocked',
+                state.message ?? '',
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 style: TextStyle(
