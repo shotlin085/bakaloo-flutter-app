@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
@@ -360,11 +362,12 @@ String _orderTrackingMessage(OrderStatus status) {
       return 'Rider is on the way';
     case OrderStatus.DELIVERED:
     case OrderStatus.CANCELLED:
+    case OrderStatus.REFUNDED:
       return '';
   }
 }
 
-class _CartPillHost extends ConsumerWidget {
+class _CartPillHost extends ConsumerStatefulWidget {
   const _CartPillHost({
     required this.selectedIndex,
     required this.navAnimation,
@@ -384,20 +387,74 @@ class _CartPillHost extends ConsumerWidget {
   static bool _isProductTab(int tabIndex) => tabIndex == 0 || tabIndex == 2;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    return ValueListenableBuilder<String?>(
-      valueListenable: _dismissedOrderTrackingId,
-      builder: (context, dismissedOrderId, _) {
-        return _buildContent(context, ref, dismissedOrderId);
-      },
-    );
+  ConsumerState<_CartPillHost> createState() => _CartPillHostState();
+}
+
+class _CartPillHostState extends ConsumerState<_CartPillHost> {
+  /// Every genuinely new order-status push gets its own full 5-second
+  /// window before the tracking bar auto-dismisses — not just the first
+  /// status for a given order.
+  static const _autoHideDelay = Duration(seconds: 5);
+  static const _dismissSlideDuration = Duration(milliseconds: 260);
+
+  Timer? _autoHideTimer;
+  bool _cartWasResolving = false;
+
+  /// `orderId::status` for whichever order-tracking message is currently
+  /// being tracked for auto-hide purposes. Used to detect a genuinely new
+  /// status push (vs. an unrelated rebuild, e.g. cart count changing)
+  /// so it gets a fresh 5-second window instead of the timer only ever
+  /// firing once per order.
+  String? _trackingKey;
+
+  /// The tracking key that has already been hidden — either the 5-second
+  /// timer fired, or the customer swiped it away. Reset back to null the
+  /// moment a *different* key (new status, or new order) shows up.
+  String? _hiddenTrackingKey;
+
+  /// True for the brief window between the auto-hide timer firing and the
+  /// bar actually being removed — drives the right-slide-out animation so
+  /// an automatic timeout reads the same way as the manual swipe-to-dismiss
+  /// gesture (both exit to the right) instead of just popping away.
+  bool _autoDismissing = false;
+
+  @override
+  void dispose() {
+    _autoHideTimer?.cancel();
+    super.dispose();
   }
 
-  Widget _buildContent(
-    BuildContext context,
-    WidgetRef ref,
-    String? dismissedOrderId,
-  ) {
+  void _trackStatus(String key) {
+    if (key == _trackingKey) return;
+    _trackingKey = key;
+    _hiddenTrackingKey = null;
+    _autoDismissing = false;
+    _autoHideTimer?.cancel();
+    _autoHideTimer = Timer(_autoHideDelay, () {
+      if (!mounted || _trackingKey != key) return;
+      setState(() => _autoDismissing = true);
+      Future<void>.delayed(_dismissSlideDuration, () {
+        if (!mounted || _trackingKey != key) return;
+        setState(() {
+          _hiddenTrackingKey = key;
+          _autoDismissing = false;
+        });
+      });
+    });
+  }
+
+  void _dismissBySwipe() {
+    final key = _trackingKey;
+    if (key == null) return;
+    _autoHideTimer?.cancel();
+    setState(() {
+      _hiddenTrackingKey = key;
+      _autoDismissing = false;
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final cartAsync = ref.watch(cartProvider);
     final cartCount = ref.watch(cartCountProvider);
     // On a cold start, `cartProvider` briefly sits in `AsyncLoading` before
@@ -413,8 +470,8 @@ class _CartPillHost extends ConsumerWidget {
     // frame where resolving just finished (this frame: false, previous
     // frame: true) is the one that needs the zero-duration pop-in; every
     // frame after that goes back to the normal animated slide.
-    final wasResolvingLastFrame = _cartWasResolving.value;
-    _cartWasResolving.value = cartStillResolving;
+    final wasResolvingLastFrame = _cartWasResolving;
+    _cartWasResolving = cartStillResolving;
     final activeOrderAsync = ref.watch(activeOrderProvider);
     final billSummaryAsync =
         cartCount > 0 ? ref.watch(billSummaryProvider) : null;
@@ -423,19 +480,21 @@ class _CartPillHost extends ConsumerWidget {
     final billSummary = billSummaryAsync?.value;
 
     _SmartBarState? state;
-    // A swipe-dismissed tracking bar stays hidden only for that specific
-    // order — a different order (or the same order's next status push,
-    // which is a fresh activeOrder object but same id, so this still holds
-    // until the order leaves the active set entirely) won't be affected.
-    if (activeOrder != null &&
-        activeOrder.status.isActive &&
-        activeOrder.id != dismissedOrderId) {
+    // Every new status push (a fresh `orderId::status` key) gets shown for
+    // its own 5-second window and slides away to the right automatically —
+    // it doesn't just stay up indefinitely until the customer swipes it, or
+    // stay hidden forever once one status has already been dismissed.
+    if (activeOrder != null && activeOrder.status.isActive) {
       final message = _orderTrackingMessage(activeOrder.status);
       if (message.isNotEmpty) {
-        state = _SmartBarState.orderTracking(
-          orderId: activeOrder.id,
-          message: message,
-        );
+        final trackingKey = '${activeOrder.id}::${activeOrder.status.name}';
+        _trackStatus(trackingKey);
+        if (trackingKey != _hiddenTrackingKey) {
+          state = _SmartBarState.orderTracking(
+            orderId: activeOrder.id,
+            message: message,
+          );
+        }
       }
     }
     if (state == null && cartCount > 0) {
@@ -502,7 +561,7 @@ class _CartPillHost extends ConsumerWidget {
     // edge, so we keep a comfortable gap above the safe area instead of
     // dropping under the home indicator — the bar glides down with the nav
     // without ever clipping.
-    final hiddenGap = bottomInset > 0 ? bottomInset : 10.h;
+    final hiddenGap = widget.bottomInset > 0 ? widget.bottomInset : 10.h;
     final horizontalMargin = 12.w;
 
     return ValueListenableBuilder<bool>(
@@ -514,7 +573,7 @@ class _CartPillHost extends ConsumerWidget {
             final showBar = state != null &&
                 !isProductSheetOpen &&
                 !isAddressSheetOpen &&
-                _isProductTab(selectedIndex);
+                _CartPillHost._isProductTab(widget.selectedIndex);
             // The cold-start resolving window (see `cartStillResolving`
             // above) is the one case where the bar transitions from
             // hidden to shown for a reason the user didn't cause — the
@@ -531,10 +590,10 @@ class _CartPillHost extends ConsumerWidget {
                 ? Duration.zero
                 : const Duration(milliseconds: 220);
             return AnimatedBuilder(
-              animation: navAnimation,
+              animation: widget.navAnimation,
               builder: (context, child) {
                 final bottomOffset =
-                    8.h + hiddenGap * (1 - navAnimation.value);
+                    8.h + hiddenGap * (1 - widget.navAnimation.value);
                 return Positioned(
                   bottom: bottomOffset,
                   left: horizontalMargin,
@@ -574,15 +633,19 @@ class _CartPillHost extends ConsumerWidget {
   /// the priority order already established elsewhere). Every other state
   /// is tappable but not swipeable — dismissing a milestone bar doesn't
   /// make sense since it would just reappear on the next rebuild.
+  ///
+  /// Tapping the order-tracking bar opens the order's details screen
+  /// (not the live map/tracking screen) — the customer wants to see what
+  /// they ordered and its status, not necessarily jump straight to the map.
   Widget _buildBarForState(_SmartBarState state, BuildContext context) {
     final bar = _SmartBottomBar(
       state: state,
       onTap: () {
         if (state.kind == _SmartBarStateKind.orderTracking &&
             state.orderId != null) {
-          context.push('/orders/${state.orderId}/track');
+          context.push('/orders/${state.orderId}');
         } else {
-          onTapCart();
+          widget.onTapCart();
         }
       },
     );
@@ -591,32 +654,29 @@ class _CartPillHost extends ConsumerWidget {
       return bar;
     }
 
+    // The automatic 5-second timeout slides the bar away to the right, the
+    // same direction as a manual swipe-to-dismiss, so both exits read the
+    // same way.
+    final slidingBar = AnimatedSlide(
+      offset: _autoDismissing ? const Offset(1.4, 0) : Offset.zero,
+      duration: _dismissSlideDuration,
+      curve: Curves.easeInCubic,
+      child: AnimatedOpacity(
+        opacity: _autoDismissing ? 0.0 : 1.0,
+        duration: _dismissSlideDuration,
+        curve: Curves.easeIn,
+        child: bar,
+      ),
+    );
+
     return Dismissible(
       key: ValueKey('order-tracking-${state.orderId}'),
       direction: DismissDirection.horizontal,
-      onDismissed: (_) {
-        _dismissedOrderTrackingId.value = state.orderId;
-      },
-      child: bar,
+      onDismissed: (_) => _dismissBySwipe(),
+      child: slidingBar,
     );
   }
 }
-
-/// Tracks the order id (if any) whose tracking bar the customer swiped
-/// away — module-level so it survives widget rebuilds, following the same
-/// pattern as [productOptionSheetVisible]/[addressSheetVisible] elsewhere
-/// in this file. Cleared implicitly whenever a *different* order becomes
-/// active (see the `activeOrder.id != dismissedOrderId` check above).
-final _dismissedOrderTrackingId = ValueNotifier<String?>(null);
-
-/// Tracks whether `cartProvider` was still resolving its first fetch on
-/// the previous build — module-level (not per-widget State) because
-/// `_CartPillHost` is a stateless `ConsumerWidget` rebuilt fresh each
-/// time, same rationale as [_dismissedOrderTrackingId] above. Used to
-/// give the Smart Bottom Bar's cold-start appearance a zero-duration
-/// pop-in instead of the normal animated slide-up, so it doesn't read as
-/// an unexplained jump right after launch (see `_buildContent`).
-final _cartWasResolving = ValueNotifier<bool>(false);
 
 class _SmartBottomBar extends StatelessWidget {
   const _SmartBottomBar({

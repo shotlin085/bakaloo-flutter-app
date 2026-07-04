@@ -325,6 +325,7 @@ class _OrderActions extends StatelessWidget {
         );
       case OrderStatus.DELIVERED:
       case OrderStatus.CANCELLED:
+      case OrderStatus.REFUNDED:
         return Row(
           children: <Widget>[
             Expanded(

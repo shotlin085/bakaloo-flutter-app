@@ -12,6 +12,7 @@ enum OrderStatus {
   OUT_FOR_DELIVERY,
   DELIVERED,
   CANCELLED,
+  REFUNDED,
 }
 
 enum OrderTimelineType {
@@ -24,6 +25,7 @@ enum OrderTimelineType {
   OUT_FOR_DELIVERY,
   DELIVERED,
   CANCELLED,
+  REFUNDED,
 }
 
 OrderStatus orderStatusFromRaw(String? raw) {
@@ -89,6 +91,8 @@ OrderStatus orderStatusForTimelineType(OrderTimelineType type) {
       return OrderStatus.DELIVERED;
     case OrderTimelineType.CANCELLED:
       return OrderStatus.CANCELLED;
+    case OrderTimelineType.REFUNDED:
+      return OrderStatus.REFUNDED;
   }
 }
 
@@ -108,6 +112,8 @@ OrderTimelineType orderTimelineTypeForStatus(OrderStatus status) {
       return OrderTimelineType.DELIVERED;
     case OrderStatus.CANCELLED:
       return OrderTimelineType.CANCELLED;
+    case OrderStatus.REFUNDED:
+      return OrderTimelineType.REFUNDED;
   }
 }
 
@@ -120,6 +126,7 @@ extension OrderStatusX on OrderStatus {
         OrderStatus.OUT_FOR_DELIVERY => 'Out for delivery',
         OrderStatus.DELIVERED => 'Delivered',
         OrderStatus.CANCELLED => 'Cancelled',
+        OrderStatus.REFUNDED => 'Refunded',
       };
 
   bool get isActive => switch (this) {
@@ -129,7 +136,10 @@ extension OrderStatusX on OrderStatus {
         OrderStatus.PACKED ||
         OrderStatus.OUT_FOR_DELIVERY =>
           true,
-        OrderStatus.DELIVERED || OrderStatus.CANCELLED => false,
+        OrderStatus.DELIVERED ||
+        OrderStatus.CANCELLED ||
+        OrderStatus.REFUNDED =>
+          false,
       };
 }
 
@@ -144,6 +154,7 @@ extension OrderTimelineTypeX on OrderTimelineType {
         OrderTimelineType.OUT_FOR_DELIVERY => 'Out for delivery',
         OrderTimelineType.DELIVERED => 'Delivered',
         OrderTimelineType.CANCELLED => 'Cancelled',
+        OrderTimelineType.REFUNDED => 'Refunded',
       };
 }
 

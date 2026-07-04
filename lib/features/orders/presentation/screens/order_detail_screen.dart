@@ -367,6 +367,7 @@ class _StatusHero extends StatelessWidget {
       OrderStatus.OUT_FOR_DELIVERY => 'Rider is on the way.',
       OrderStatus.DELIVERED => 'Order delivered successfully.',
       OrderStatus.CANCELLED => 'This order has been cancelled.',
+      OrderStatus.REFUNDED => 'Your refund has been processed.',
     };
   }
 
@@ -380,6 +381,9 @@ class _StatusHero extends StatelessWidget {
         'assets/animations/order_out_for_delivery.json',
       OrderStatus.DELIVERED => 'assets/animations/order_delivered.json',
       OrderStatus.CANCELLED => 'assets/animations/order_cancelled.json',
+      // No dedicated refund animation asset — reuse the cancelled one since
+      // both are terminal, non-fulfilled outcomes.
+      OrderStatus.REFUNDED => 'assets/animations/order_cancelled.json',
     };
   }
 }
@@ -496,9 +500,11 @@ class _TimelineStepper extends StatelessWidget {
 
     final currentType = order.status == OrderStatus.CANCELLED
         ? OrderTimelineType.CANCELLED
-        : order.timeline.isNotEmpty
-            ? order.timeline.last.type
-            : orderTimelineTypeForStatus(order.status);
+        : order.status == OrderStatus.REFUNDED
+            ? OrderTimelineType.REFUNDED
+            : order.timeline.isNotEmpty
+                ? order.timeline.last.type
+                : orderTimelineTypeForStatus(order.status);
     final currentIndex = statuses.indexOf(currentType);
     return Column(
       children: List<Widget>.generate(statuses.length, (index) {
@@ -582,6 +588,33 @@ class _TimelineStepper extends StatelessWidget {
       ];
     }
 
+    if (status == OrderStatus.REFUNDED) {
+      // A refund always follows either a cancelled or a delivered order —
+      // show whichever one actually happened (from the real timeline data)
+      // followed by the refund itself, rather than guessing a fixed path.
+      final wasCancelledFirst = order.timeline
+          .any((item) => item.type == OrderTimelineType.CANCELLED);
+      return wasCancelledFirst
+          ? const <OrderTimelineType>[
+              OrderTimelineType.PENDING,
+              OrderTimelineType.CONFIRMED,
+              OrderTimelineType.PREPARING,
+              OrderTimelineType.CANCELLED,
+              OrderTimelineType.REFUNDED,
+            ]
+          : const <OrderTimelineType>[
+              OrderTimelineType.PENDING,
+              OrderTimelineType.CONFIRMED,
+              OrderTimelineType.PREPARING,
+              OrderTimelineType.PACKED,
+              OrderTimelineType.RIDER_ACCEPTED,
+              OrderTimelineType.PICKED_UP,
+              OrderTimelineType.OUT_FOR_DELIVERY,
+              OrderTimelineType.DELIVERED,
+              OrderTimelineType.REFUNDED,
+            ];
+    }
+
     return const <OrderTimelineType>[
       OrderTimelineType.PENDING,
       OrderTimelineType.CONFIRMED,
@@ -604,6 +637,10 @@ class _TimelineStepper extends StatelessWidget {
     if (orderStatus == OrderStatus.CANCELLED) {
       return timelineMap.containsKey(status) &&
           status != OrderTimelineType.CANCELLED;
+    }
+    if (orderStatus == OrderStatus.REFUNDED) {
+      return timelineMap.containsKey(status) &&
+          status != OrderTimelineType.REFUNDED;
     }
     return timelineMap.containsKey(status) || index < currentIndex;
   }
@@ -1009,22 +1046,43 @@ class _OrderActions extends StatelessWidget {
           ],
         );
       case OrderStatus.CANCELLED:
-        return SizedBox(
-          width: double.infinity,
-          child: FilledButton(
-            onPressed: isReordering ? null : onReorder,
-            child: isReordering
-                ? SizedBox(
-                    width: 16.w,
-                    height: 16.w,
-                    child: const CircularProgressIndicator(
-                      strokeWidth: 2,
-                      valueColor:
-                          AlwaysStoppedAnimation<Color>(AppColors.textOnGreen),
-                    ),
-                  )
-                : const Text('Re-order'),
-          ),
+      case OrderStatus.REFUNDED:
+        return Column(
+          children: <Widget>[
+            SizedBox(
+              width: double.infinity,
+              child: OutlinedButton.icon(
+                onPressed: isDownloadingInvoice ? null : onDownloadInvoice,
+                icon: isDownloadingInvoice
+                    ? SizedBox(
+                        width: 16.w,
+                        height: 16.w,
+                        child: const CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : PhosphorIcon(PhosphorIcons.filePdf(), size: 16.sp),
+                label: const Text('Download Invoice'),
+              ),
+            ),
+            Gap(8.h),
+            SizedBox(
+              width: double.infinity,
+              child: FilledButton(
+                onPressed: isReordering ? null : onReorder,
+                child: isReordering
+                    ? SizedBox(
+                        width: 16.w,
+                        height: 16.w,
+                        child: const CircularProgressIndicator(
+                          strokeWidth: 2,
+                          valueColor: AlwaysStoppedAnimation<Color>(
+                            AppColors.textOnGreen,
+                          ),
+                        ),
+                      )
+                    : const Text('Re-order'),
+              ),
+            ),
+          ],
         );
       case OrderStatus.PACKED:
       case OrderStatus.OUT_FOR_DELIVERY:

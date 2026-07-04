@@ -73,6 +73,10 @@ class OrderStatusPill extends StatelessWidget {
           AppColors.orderStatusRed,
           AppColors.orderStatusRedBg,
         ),
+      OrderStatus.REFUNDED => const _StatusPalette(
+          AppColors.orderStatusRed,
+          AppColors.orderStatusRedBg,
+        ),
     };
   }
 }
