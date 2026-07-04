@@ -94,7 +94,7 @@ class HomeHeader extends ConsumerWidget {
                             overflow: TextOverflow.ellipsis,
                             style: TextStyle(
                               fontFamily: 'Poppins',
-                              fontSize: 22.sp,
+                              fontSize: 17.sp,
                               fontWeight: FontWeight.w700,
                               height: 1.05,
                               letterSpacing: -0.5,

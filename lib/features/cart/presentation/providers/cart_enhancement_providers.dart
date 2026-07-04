@@ -31,8 +31,20 @@ class BillSummaryNotifier extends _$BillSummaryNotifier {
     // applies or removes a coupon, without requiring a separate refresh call.
     final appliedCoupon = ref.watch(checkoutProvider).appliedCoupon;
 
-    final result =
-        await ref.read(cartEnhancementsDataSourceProvider).getCartSummary();
+    // Watch the confirmed Quick Delivery selection so the bill (and the
+    // surcharge line + faster delivery estimate that come with it) rebuild
+    // the moment the customer confirms it in the schedule sheet — this was
+    // previously never sent to the backend at all, so the surcharge silently
+    // never applied to the total.
+    final quickDeliverySelected = ref.watch(
+      checkoutProvider.select(
+        (s) => s.selectedDeliverySlot?.quickDeliverySelected ?? false,
+      ),
+    );
+
+    final result = await ref
+        .read(cartEnhancementsDataSourceProvider)
+        .getCartSummary(quickDeliverySelected: quickDeliverySelected);
 
     return result.fold(
       (failure) => throw StateError(failure.message),

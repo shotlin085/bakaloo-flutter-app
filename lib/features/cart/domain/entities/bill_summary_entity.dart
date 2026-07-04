@@ -273,6 +273,9 @@ abstract class QuickDeliveryInfo with _$QuickDeliveryInfo {
     @Default(false) bool enabled,
     @Default(0) double amount,
     @Default('Quick delivery fee') String label,
+    /// Promised delivery time once the customer opts in — distinct from
+    /// the normal always-shown [DeliveryEstimate].
+    @Default(0) int etaMinutes,
   }) = _QuickDeliveryInfo;
 
   factory QuickDeliveryInfo.fromJson(Map<String, dynamic> json) =>

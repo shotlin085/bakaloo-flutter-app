@@ -32,6 +32,7 @@ import 'package:bakaloo_flutter_app/shared/widgets/category_tabs_row.dart';
 import 'package:bakaloo_flutter_app/shared/widgets/error_state.dart';
 import 'package:bakaloo_flutter_app/shared/widgets/home_header.dart';
 import 'package:bakaloo_flutter_app/shared/widgets/home_search_bar.dart';
+import 'package:bakaloo_flutter_app/shared/widgets/store_closed_banner.dart';
 import 'package:bakaloo_flutter_app/shared/widgets/product_card.dart';
 import 'package:bakaloo_flutter_app/shared/widgets/skeleton_loader.dart';
 import 'package:bakaloo_flutter_app/features/products/presentation/widgets/show_product_options.dart';
@@ -823,6 +824,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
                               },
                             ),
                           ),
+                          const SliverToBoxAdapter(child: StoreClosedBanner()),
                           // PHASE 1 FIX: Never render old summer/campaign
                           // hardcoded widgets as a loading fallback.
                           // Show skeleton while manifest loads; show

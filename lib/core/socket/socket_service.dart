@@ -46,6 +46,8 @@ class SocketService {
       StreamController<Map<String, dynamic>>.broadcast();
   final _sectionUpdateController =
       StreamController<Map<String, dynamic>>.broadcast();
+  final _storeStatusUpdateController =
+      StreamController<Map<String, dynamic>>.broadcast();
   final _statusController = StreamController<SocketStatus>.broadcast();
 
   Stream<OrderStatusEvent> get orderStatusStream =>
@@ -58,6 +60,8 @@ class SocketService {
       _themeUpdateController.stream;
   Stream<Map<String, dynamic>> get sectionUpdateStream =>
       _sectionUpdateController.stream;
+  Stream<Map<String, dynamic>> get storeStatusUpdateStream =>
+      _storeStatusUpdateController.stream;
   Stream<SocketStatus> get statusStream => _statusController.stream;
 
   bool get isConnected => _socket?.connected ?? false;
@@ -115,7 +119,8 @@ class SocketService {
         ..off(SocketEvents.riderLocationUpdate)
         ..off(SocketEvents.notification)
         ..off(SocketEvents.themeUpdate)
-        ..off(SocketEvents.sectionUpdate);
+        ..off(SocketEvents.sectionUpdate)
+        ..off(SocketEvents.storeStatusUpdate);
       for (final event in _externalListeners.keys) {
         socket.off(event);
       }
@@ -151,6 +156,12 @@ class SocketService {
         final payload = _toJson(data);
         if (payload != null) {
           _sectionUpdateController.add(payload);
+        }
+      })
+      ..on(SocketEvents.storeStatusUpdate, (dynamic data) {
+        final payload = _toJson(data);
+        if (payload != null) {
+          _storeStatusUpdateController.add(payload);
         }
       });
 
@@ -244,6 +255,7 @@ class SocketService {
     _notificationController.close();
     _themeUpdateController.close();
     _sectionUpdateController.close();
+    _storeStatusUpdateController.close();
     _statusController.close();
   }
 

@@ -8,12 +8,17 @@ class StoreStatusEntity {
     required this.source,
     this.reason,
     this.next7Days = const [],
+    this.closedBannerImageUrl,
   });
 
   final bool isOpen;
   final String source; // 'MANUAL_OVERRIDE' | 'WEEKLY_SCHEDULE' | 'DEFAULT'
   final String? reason;
   final List<StoreDayAvailability> next7Days;
+  /// Admin-uploaded "we are closed" banner (Store Hours settings) shown at
+  /// the top of the home screen while [isOpen] is false. Null when the
+  /// admin has never uploaded one.
+  final String? closedBannerImageUrl;
 
   factory StoreStatusEntity.fromJson(Map<String, dynamic> json) {
     final rawDays = json['next7Days'] as List<dynamic>?;
@@ -26,6 +31,7 @@ class StoreStatusEntity {
           : rawDays
               .map((d) => StoreDayAvailability.fromJson(d as Map<String, dynamic>))
               .toList(),
+      closedBannerImageUrl: json['closedBannerImageUrl'] as String?,
     );
   }
 

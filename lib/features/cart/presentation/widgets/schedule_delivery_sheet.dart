@@ -62,6 +62,13 @@ class _ScheduleDeliverySheetState
     final billSummary = ref.watch(billSummaryProvider).asData?.value;
     final etaMinutes = billSummary?.deliveryEstimate.minutes ?? 30;
     final quickDelivery = billSummary?.quickDelivery ?? const QuickDeliveryInfo();
+    // Live preview of the promised delivery time as the customer flips the
+    // Quick Delivery toggle, before they even confirm — quickDelivery.etaMinutes
+    // is static admin config, already loaded, so this needs no extra network
+    // call to reflect immediately.
+    final displayEtaMinutes = !_isScheduled && _quickDeliverySelected && quickDelivery.enabled
+        ? quickDelivery.etaMinutes
+        : etaMinutes;
     // Fail-open while loading (StoreStatusEntity.open() default) — never
     // block ASAP just because this specific fetch hasn't resolved yet.
     final storeOpen = ref.watch(storeStatusProvider).asData?.value.isOpen ?? true;
@@ -184,7 +191,7 @@ class _ScheduleDeliverySheetState
                     _ModeCard(
                       icon: Icons.bolt_rounded,
                       title: 'ASAP',
-                      subtitle: storeOpen ? 'Deliver in $etaMinutes mins' : 'Unavailable — store closed',
+                      subtitle: storeOpen ? 'Deliver in $displayEtaMinutes mins' : 'Unavailable — store closed',
                       selected: !_isScheduled,
                       disabled: !storeOpen,
                       onTap: () => setState(() {
@@ -269,7 +276,7 @@ class _ScheduleDeliverySheetState
                         },
                       )
                     : _AsapContent(
-                        etaMinutes: etaMinutes,
+                        etaMinutes: displayEtaMinutes,
                         quickDelivery: quickDelivery,
                         quickDeliverySelected: _quickDeliverySelected,
                         onQuickDeliveryChanged: (value) =>
@@ -286,7 +293,7 @@ class _ScheduleDeliverySheetState
                   child: _ConfirmButton(
                     isScheduled: _isScheduled,
                     selectedSlot: _selectedSlot,
-                    etaMinutes: etaMinutes,
+                    etaMinutes: displayEtaMinutes,
                     selectedDayLabel: (_isScheduled &&
                             ref
                                     .read(deliverySlotsProvider)
@@ -502,7 +509,9 @@ class _AsapContent extends StatelessWidget {
                           ),
                         ),
                         Text(
-                          '+₹${quickDelivery.amount.toStringAsFixed(0)} for priority delivery',
+                          quickDelivery.etaMinutes > 0
+                              ? '+₹${quickDelivery.amount.toStringAsFixed(0)} • Delivered in ${quickDelivery.etaMinutes} mins'
+                              : '+₹${quickDelivery.amount.toStringAsFixed(0)} for priority delivery',
                           style: TextStyle(
                             fontSize: 12.sp,
                             color: _kGrey,

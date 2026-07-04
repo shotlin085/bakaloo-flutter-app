@@ -229,7 +229,7 @@ class _ProductCardState extends State<ProductCard> {
             Positioned.fill(
               child: Container(
                 decoration: BoxDecoration(
-                  color: AppColors.overlayLight,
+                  color: AppColors.overlayDark,
                   borderRadius:
                       BorderRadius.circular(AppDimensions.radiusMd),
                 ),
@@ -237,7 +237,7 @@ class _ProductCardState extends State<ProductCard> {
                 child: Text(
                   'Out of stock',
                   style: AppTextStyles.labelLarge.copyWith(
-                    color: AppColors.outOfStockRed,
+                    color: Colors.white,
                     fontWeight: FontWeight.w700,
                   ),
                 ),
@@ -550,12 +550,12 @@ class _ProductCardState extends State<ProductCard> {
             if (!product.inStock)
               Positioned.fill(
                 child: Container(
-                  color: AppColors.overlayLight,
+                  color: AppColors.overlayDark,
                   alignment: Alignment.center,
                   child: Text(
                     'Out of stock',
                     style: AppTextStyles.h3.copyWith(
-                      color: AppColors.outOfStockRed,
+                      color: Colors.white,
                       fontWeight: FontWeight.w700,
                     ),
                   ),

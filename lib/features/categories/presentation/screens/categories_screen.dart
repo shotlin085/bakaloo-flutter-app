@@ -579,7 +579,7 @@ class _CategoryProductPaneState extends ConsumerState<_CategoryProductPane> {
     // user scrolled far enough to fetch the rest and it happened to
     // catch up to the real total.
     final loadedCount = productListAsync.asData?.value.items.length ?? 0;
-    final totalCount = widget.selectedParent.productCount;
+    final totalCount = widget.highlightedCategory.productCount;
     final countLabel =
         totalCount > 0 ? '$totalCount products' : '$loadedCount products';
 

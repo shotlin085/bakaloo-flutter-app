@@ -8,4 +8,5 @@ class SocketEvents {
   static const notification = 'notification';
   static const themeUpdate = 'theme:update';
   static const sectionUpdate = 'section:update';
+  static const storeStatusUpdate = 'store:status:update';
 }

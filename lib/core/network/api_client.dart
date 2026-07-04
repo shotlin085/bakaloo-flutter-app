@@ -90,7 +90,9 @@ abstract class ApiClient {
   Future<HttpResponse<dynamic>> getCart();
 
   @GET(ApiConstants.cartSummary)
-  Future<ApiResponse<BillSummaryEntity>> getCartSummary();
+  Future<ApiResponse<BillSummaryEntity>> getCartSummary({
+    @Query('quickDeliverySelected') bool quickDeliverySelected = false,
+  });
 
   @POST(ApiConstants.cartItems)
   Future<HttpResponse<dynamic>> addCartItem(

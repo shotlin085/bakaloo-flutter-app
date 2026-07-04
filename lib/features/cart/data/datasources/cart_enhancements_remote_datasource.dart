@@ -13,9 +13,13 @@ class CartEnhancementsRemoteDataSource {
 
   final ApiClient _apiClient;
 
-  Future<Either<Failure, BillSummaryEntity>> getCartSummary() async {
+  Future<Either<Failure, BillSummaryEntity>> getCartSummary({
+    bool quickDeliverySelected = false,
+  }) async {
     try {
-      final response = await _apiClient.getCartSummary();
+      final response = await _apiClient.getCartSummary(
+        quickDeliverySelected: quickDeliverySelected,
+      );
       final data = response.data;
       if (data == null) {
         return const Left(
