@@ -13,6 +13,7 @@ class PlaceOrderParams {
     this.scheduledSlotStart,
     this.scheduledSlotEnd,
     this.scheduledSlotLabel,
+    this.quickDeliverySelected = false,
   });
 
   final String addressId;
@@ -24,6 +25,8 @@ class PlaceOrderParams {
   final String? scheduledSlotStart;
   final String? scheduledSlotEnd;
   final String? scheduledSlotLabel;
+  /// Explicit opt-in only — never implied by `deliveryMode == 'ASAP'` alone.
+  final bool quickDeliverySelected;
 
   Map<String, dynamic> toJson() {
     return <String, dynamic>{
@@ -42,6 +45,8 @@ class PlaceOrderParams {
         if (scheduledSlotEnd != null) 'scheduledSlotEnd': scheduledSlotEnd,
         if (scheduledSlotLabel != null) 'scheduledSlotLabel': scheduledSlotLabel,
       },
+      if (deliveryMode == 'ASAP' && quickDeliverySelected)
+        'quickDeliverySelected': true,
     };
   }
 }

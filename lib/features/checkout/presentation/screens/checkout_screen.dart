@@ -19,6 +19,8 @@ import 'package:bakaloo_flutter_app/features/cart/domain/entities/cart_item_enti
 import 'package:bakaloo_flutter_app/features/cart/domain/entities/bill_summary_entity.dart';
 import 'package:bakaloo_flutter_app/features/cart/presentation/providers/cart_enhancement_providers.dart';
 import 'package:bakaloo_flutter_app/features/cart/presentation/providers/cart_provider.dart';
+import 'package:bakaloo_flutter_app/features/cart/presentation/widgets/schedule_delivery_sheet.dart';
+import 'package:bakaloo_flutter_app/features/checkout/presentation/widgets/store_hours_sheet.dart';
 import 'package:bakaloo_flutter_app/features/checkout/domain/entities/checkout_summary_entity.dart';
 import 'package:bakaloo_flutter_app/features/checkout/domain/entities/delivery_slot_entity.dart';
 import 'package:bakaloo_flutter_app/features/checkout/presentation/providers/checkout_provider.dart';
@@ -209,6 +211,8 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
             itemCount: itemCount,
             selectedSlot: checkoutState.selectedDeliverySlot,
             onChangeAddress: () => _changeAddress(context),
+            onChangeSlot: () => _openScheduleSheet(context),
+            onViewHoursTap: () => StoreHoursSheet.show(context),
           )
         else
           _AddAddressCard(onTap: () => _changeAddress(context)),
@@ -361,6 +365,18 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
       return;
     }
     ref.read(checkoutProvider.notifier).selectAddress(selected);
+  }
+
+  // Reuses the exact same sheet the cart screen opens — checkout previously
+  // only displayed the chosen delivery slot read-only, with no way to
+  // change it without navigating back to the cart.
+  Future<void> _openScheduleSheet(BuildContext context) async {
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) => const ScheduleDeliverySheet(),
+    );
   }
 
   // ── Topup with refresh ──────────────────────────────────────────────
@@ -910,12 +926,20 @@ class _DeliveryInfoCard extends StatelessWidget {
     required this.itemCount,
     required this.onChangeAddress,
     this.selectedSlot,
+    this.onChangeSlot,
+    this.onViewHoursTap,
   });
 
   final AddressEntity address;
   final int itemCount;
   final VoidCallback onChangeAddress;
   final SelectedDeliverySlot? selectedSlot;
+  /// Opens the same schedule-delivery sheet the cart screen uses — checkout
+  /// previously only showed the chosen slot read-only, with no way to
+  /// change it without navigating back to the cart.
+  final VoidCallback? onChangeSlot;
+  /// Opens the "view store hours" sheet. Only rendered when provided.
+  final VoidCallback? onViewHoursTap;
 
   @override
   Widget build(BuildContext context) {
@@ -1016,31 +1040,99 @@ class _DeliveryInfoCard extends StatelessWidget {
               ),
             ],
           ),
-          // ── Scheduled delivery badge ──────────────────────────────
+          // ── Scheduled delivery badge (tap to change) ──────────────
           if (isScheduled) ...[
             Gap(10.h),
-            Container(
-              padding: EdgeInsets.symmetric(horizontal: 10.w, vertical: 7.h),
-              decoration: BoxDecoration(
-                color: const Color(0xFFF5F3FF),
-                borderRadius: BorderRadius.circular(8.r),
-                border: Border.all(color: const Color(0xFFDDD6FE)),
+            GestureDetector(
+              onTap: onChangeSlot,
+              behavior: HitTestBehavior.opaque,
+              child: Container(
+                padding: EdgeInsets.symmetric(horizontal: 10.w, vertical: 7.h),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFF5F3FF),
+                  borderRadius: BorderRadius.circular(8.r),
+                  border: Border.all(color: const Color(0xFFDDD6FE)),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(
+                      Icons.calendar_month_outlined,
+                      size: 14.sp,
+                      color: const Color(0xFF7C3AED),
+                    ),
+                    Gap(6.w),
+                    Expanded(
+                      child: Text(
+                        slot.slotLabel,
+                        style: TextStyle(
+                          fontSize: 12.sp,
+                          fontWeight: FontWeight.w600,
+                          color: const Color(0xFF7C3AED),
+                          fontFamily: 'Inter',
+                        ),
+                      ),
+                    ),
+                    if (onChangeSlot != null) ...[
+                      Gap(6.w),
+                      Icon(
+                        Icons.edit_calendar_outlined,
+                        size: 14.sp,
+                        color: const Color(0xFF7C3AED),
+                      ),
+                    ],
+                  ],
+                ),
               ),
+            ),
+          ] else if (onChangeSlot != null) ...[
+            // ── ASAP: link to schedule instead ─────────────────────
+            Gap(10.h),
+            GestureDetector(
+              onTap: onChangeSlot,
+              behavior: HitTestBehavior.opaque,
               child: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   Icon(
                     Icons.calendar_month_outlined,
                     size: 14.sp,
-                    color: const Color(0xFF7C3AED),
+                    color: AppColors.primaryGreen,
                   ),
                   Gap(6.w),
                   Text(
-                    slot.slotLabel,
+                    'Schedule for later instead',
                     style: TextStyle(
                       fontSize: 12.sp,
                       fontWeight: FontWeight.w600,
-                      color: const Color(0xFF7C3AED),
+                      color: AppColors.primaryGreen,
+                      fontFamily: 'Inter',
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+          if (onViewHoursTap != null) ...[
+            Gap(8.h),
+            GestureDetector(
+              onTap: onViewHoursTap,
+              behavior: HitTestBehavior.opaque,
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(
+                    Icons.info_outline_rounded,
+                    size: 13.sp,
+                    color: AppColors.textSecondary,
+                  ),
+                  Gap(5.w),
+                  Text(
+                    'Store hours',
+                    style: TextStyle(
+                      fontSize: 11.sp,
+                      fontWeight: FontWeight.w600,
+                      color: AppColors.textSecondary,
                       fontFamily: 'Inter',
                     ),
                   ),

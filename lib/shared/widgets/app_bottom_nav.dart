@@ -59,12 +59,27 @@ class _AppShellState extends ConsumerState<AppShell>
       curve: Curves.easeOutCubic,
       reverseCurve: Curves.easeInCubic,
     );
+    // AppShell is the single always-mounted root shell, so it's the one
+    // place that can reliably surface a cart-mutation failure even when
+    // the screen that triggered it (a product card's +/- button) has
+    // since been navigated away from — see cartMutationFailureNotifier.
+    cartMutationFailureNotifier.addListener(_handleCartMutationFailure);
   }
 
   @override
   void dispose() {
+    cartMutationFailureNotifier.removeListener(_handleCartMutationFailure);
     _navController.dispose();
     super.dispose();
+  }
+
+  void _handleCartMutationFailure() {
+    final failure = cartMutationFailureNotifier.value;
+    if (failure == null || !mounted) return;
+    showCartSnackBar(context, failure.message);
+    // Reset so the same failure doesn't re-fire on the next listener
+    // attach (e.g. after a hot navigation remounts AppShell in tests).
+    cartMutationFailureNotifier.value = null;
   }
 
   void _showNav() {
@@ -370,7 +385,36 @@ class _CartPillHost extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    return ValueListenableBuilder<String?>(
+      valueListenable: _dismissedOrderTrackingId,
+      builder: (context, dismissedOrderId, _) {
+        return _buildContent(context, ref, dismissedOrderId);
+      },
+    );
+  }
+
+  Widget _buildContent(
+    BuildContext context,
+    WidgetRef ref,
+    String? dismissedOrderId,
+  ) {
+    final cartAsync = ref.watch(cartProvider);
     final cartCount = ref.watch(cartCountProvider);
+    // On a cold start, `cartProvider` briefly sits in `AsyncLoading` before
+    // its first `GET /cart` resolves — during that window `cartCount` reads
+    // 0 (indistinguishable from "cart is genuinely empty"), which used to
+    // force the bar off-screen and then slide back in once the real count
+    // arrived, reading as an unexplained "jump" a moment after launch. Only
+    // trust a 0 count as "truly empty" once we have actual data (or the
+    // fetch failed) — while still loading with no prior value, hold off on
+    // deciding at all rather than flashing hidden→shown.
+    final cartStillResolving = cartAsync.isLoading && !cartAsync.hasValue;
+    // Read *last* frame's resolving state before overwriting it — the
+    // frame where resolving just finished (this frame: false, previous
+    // frame: true) is the one that needs the zero-duration pop-in; every
+    // frame after that goes back to the normal animated slide.
+    final wasResolvingLastFrame = _cartWasResolving.value;
+    _cartWasResolving.value = cartStillResolving;
     final activeOrderAsync = ref.watch(activeOrderProvider);
     final billSummaryAsync =
         cartCount > 0 ? ref.watch(billSummaryProvider) : null;
@@ -379,7 +423,13 @@ class _CartPillHost extends ConsumerWidget {
     final billSummary = billSummaryAsync?.value;
 
     _SmartBarState? state;
-    if (activeOrder != null && activeOrder.status.isActive) {
+    // A swipe-dismissed tracking bar stays hidden only for that specific
+    // order — a different order (or the same order's next status push,
+    // which is a fresh activeOrder object but same id, so this still holds
+    // until the order leaves the active set entirely) won't be affected.
+    if (activeOrder != null &&
+        activeOrder.status.isActive &&
+        activeOrder.id != dismissedOrderId) {
       final message = _orderTrackingMessage(activeOrder.status);
       if (message.isNotEmpty) {
         state = _SmartBarState.orderTracking(
@@ -465,6 +515,21 @@ class _CartPillHost extends ConsumerWidget {
                 !isProductSheetOpen &&
                 !isAddressSheetOpen &&
                 _isProductTab(selectedIndex);
+            // The cold-start resolving window (see `cartStillResolving`
+            // above) is the one case where the bar transitions from
+            // hidden to shown for a reason the user didn't cause — the
+            // cart fetch simply hadn't finished on the very first frame.
+            // Popping it in instantly there (vs. the normal slide-up
+            // used for genuine cart-becomes-non-empty transitions) avoids
+            // it reading as an unexplained jump right after launch.
+            final poppingInFromColdStart =
+                cartStillResolving || wasResolvingLastFrame;
+            final slideDuration = poppingInFromColdStart
+                ? Duration.zero
+                : const Duration(milliseconds: 280);
+            final fadeDuration = poppingInFromColdStart
+                ? Duration.zero
+                : const Duration(milliseconds: 220);
             return AnimatedBuilder(
               animation: navAnimation,
               builder: (context, child) {
@@ -482,28 +547,15 @@ class _CartPillHost extends ConsumerWidget {
                 child: RepaintBoundary(
                   child: AnimatedSlide(
                     offset: showBar ? Offset.zero : const Offset(0, 1.5),
-                    duration: const Duration(milliseconds: 280),
+                    duration: slideDuration,
                     curve: Curves.easeOutCubic,
                     child: AnimatedOpacity(
                       opacity: showBar ? 1.0 : 0.0,
-                      duration: const Duration(milliseconds: 220),
+                      duration: fadeDuration,
                       curve: Curves.easeOut,
                       child: state == null
                           ? const SizedBox.shrink()
-                          : _SmartBottomBar(
-                              state: state,
-                              onTap: () {
-                                if (state!.kind ==
-                                        _SmartBarStateKind.orderTracking &&
-                                    state.orderId != null) {
-                                  context.push(
-                                    '/orders/${state.orderId}/track',
-                                  );
-                                } else {
-                                  onTapCart();
-                                }
-                              },
-                            ),
+                          : _buildBarForState(state, context),
                     ),
                   ),
                 ),
@@ -514,7 +566,57 @@ class _CartPillHost extends ConsumerWidget {
       },
     );
   }
+
+  /// Wraps the bar in a swipe-to-dismiss gesture when it's showing order
+  /// tracking (Blinkit-style: the customer can swipe the "Rider is on the
+  /// way" bar away, after which the bar falls through to cart-milestone
+  /// progress / unlocked / plain-cart state for that same order, matching
+  /// the priority order already established elsewhere). Every other state
+  /// is tappable but not swipeable — dismissing a milestone bar doesn't
+  /// make sense since it would just reappear on the next rebuild.
+  Widget _buildBarForState(_SmartBarState state, BuildContext context) {
+    final bar = _SmartBottomBar(
+      state: state,
+      onTap: () {
+        if (state.kind == _SmartBarStateKind.orderTracking &&
+            state.orderId != null) {
+          context.push('/orders/${state.orderId}/track');
+        } else {
+          onTapCart();
+        }
+      },
+    );
+
+    if (state.kind != _SmartBarStateKind.orderTracking || state.orderId == null) {
+      return bar;
+    }
+
+    return Dismissible(
+      key: ValueKey('order-tracking-${state.orderId}'),
+      direction: DismissDirection.horizontal,
+      onDismissed: (_) {
+        _dismissedOrderTrackingId.value = state.orderId;
+      },
+      child: bar,
+    );
+  }
 }
+
+/// Tracks the order id (if any) whose tracking bar the customer swiped
+/// away — module-level so it survives widget rebuilds, following the same
+/// pattern as [productOptionSheetVisible]/[addressSheetVisible] elsewhere
+/// in this file. Cleared implicitly whenever a *different* order becomes
+/// active (see the `activeOrder.id != dismissedOrderId` check above).
+final _dismissedOrderTrackingId = ValueNotifier<String?>(null);
+
+/// Tracks whether `cartProvider` was still resolving its first fetch on
+/// the previous build — module-level (not per-widget State) because
+/// `_CartPillHost` is a stateless `ConsumerWidget` rebuilt fresh each
+/// time, same rationale as [_dismissedOrderTrackingId] above. Used to
+/// give the Smart Bottom Bar's cold-start appearance a zero-duration
+/// pop-in instead of the normal animated slide-up, so it doesn't read as
+/// an unexplained jump right after launch (see `_buildContent`).
+final _cartWasResolving = ValueNotifier<bool>(false);
 
 class _SmartBottomBar extends StatelessWidget {
   const _SmartBottomBar({

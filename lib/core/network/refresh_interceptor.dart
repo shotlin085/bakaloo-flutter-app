@@ -77,10 +77,28 @@ class RefreshInterceptor extends Interceptor {
           ),
         );
 
-        final refreshResponse = await refreshDio.post<dynamic>(
-          ApiConstants.refreshToken,
-          data: <String, dynamic>{'refreshToken': refreshToken},
-        );
+        final Response<dynamic> refreshResponse;
+        try {
+          refreshResponse = await refreshDio.post<dynamic>(
+            ApiConstants.refreshToken,
+            data: <String, dynamic>{'refreshToken': refreshToken},
+          );
+        } catch (_) {
+          // The refresh token itself is dead (expired/revoked server-side —
+          // e.g. a newer login elsewhere bumped session_version). No amount
+          // of retrying fixes this, and this failure is a DioException, so
+          // without this catch it falls straight into the `on DioException`
+          // branch below and is rejected as-is — forceLogout() never runs,
+          // and the user is stuck: every subsequent request keeps failing
+          // the exact same way with no path back to the login screen.
+          await _forceLogout();
+          throw _authDioException(
+            requestOptions,
+            const AuthFailure(
+              message: 'Your session has expired. Please sign in again.',
+            ),
+          );
+        }
 
         final tokens = _extractTokenPair(refreshResponse.data);
         final accessToken = tokens['accessToken'];

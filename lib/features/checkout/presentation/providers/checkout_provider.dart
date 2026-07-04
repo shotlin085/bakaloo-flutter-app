@@ -21,6 +21,7 @@ import 'package:bakaloo_flutter_app/features/checkout/domain/entities/delivery_s
 import 'package:bakaloo_flutter_app/features/checkout/domain/repositories/checkout_repository.dart';
 import 'package:bakaloo_flutter_app/features/checkout/domain/usecases/place_order.dart';
 import 'package:bakaloo_flutter_app/features/checkout/presentation/providers/coupon_provider.dart';
+import 'package:bakaloo_flutter_app/features/checkout/presentation/providers/store_status_provider.dart';
 import 'package:bakaloo_flutter_app/features/payments/presentation/providers/payment_provider.dart';
 import 'package:bakaloo_flutter_app/features/wallet/presentation/providers/wallet_provider.dart';
 import 'package:bakaloo_flutter_app/routing/app_router.dart';
@@ -274,6 +275,22 @@ class CheckoutNotifier extends _$CheckoutNotifier {
       return const CheckoutPlacementResult(errorMessage: message);
     }
 
+    // Final closed-store backstop: the schedule sheet already steers ASAP
+    // selections away when the store is closed, but the store could have
+    // closed in the gap between opening the sheet and tapping submit — the
+    // backend enforces this too (STORE_CLOSED_ASAP_UNAVAILABLE), this just
+    // avoids a round-trip failure for the common case.
+    if (effectiveDeliverySlot.isAsap) {
+      final storeOpen =
+          ref.read(storeStatusProvider).asData?.value.isOpen ?? true;
+      if (!storeOpen) {
+        const message =
+            'The store is currently closed. Please choose a scheduled delivery time.';
+        state = state.copyWith(errorMessage: message);
+        return const CheckoutPlacementResult(errorMessage: message);
+      }
+    }
+
     final walletBalance = await _walletBalance;
     if (selectedPaymentMethod == PaymentMethod.wallet &&
         walletBalance < total) {
@@ -300,6 +317,7 @@ class CheckoutNotifier extends _$CheckoutNotifier {
             scheduledSlotStart: _scheduledSlotStart,
             scheduledSlotEnd: _scheduledSlotEnd,
             scheduledSlotLabel: _scheduledSlotLabel,
+            quickDeliverySelected: effectiveDeliverySlot.quickDeliverySelected,
           ),
         );
 

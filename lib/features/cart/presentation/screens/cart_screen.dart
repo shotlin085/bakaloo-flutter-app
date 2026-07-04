@@ -27,8 +27,11 @@ import 'package:bakaloo_flutter_app/features/cart/presentation/widgets/cart_tip_
 import 'package:bakaloo_flutter_app/features/checkout/domain/entities/checkout_summary_entity.dart';
 import 'package:bakaloo_flutter_app/features/checkout/domain/entities/delivery_slot_entity.dart';
 import 'package:bakaloo_flutter_app/features/checkout/presentation/providers/checkout_provider.dart';
+import 'package:bakaloo_flutter_app/features/checkout/presentation/providers/delivery_slot_provider.dart';
+import 'package:bakaloo_flutter_app/features/checkout/presentation/providers/store_status_provider.dart';
 import 'package:bakaloo_flutter_app/features/checkout/presentation/screens/coupons_screen.dart';
 import 'package:bakaloo_flutter_app/features/cart/presentation/widgets/schedule_delivery_sheet.dart';
+import 'package:bakaloo_flutter_app/features/checkout/presentation/widgets/store_hours_sheet.dart';
 import 'package:bakaloo_flutter_app/routing/route_names.dart';
 import 'package:bakaloo_flutter_app/shared/widgets/confirmation_dialog.dart';
 import 'package:bakaloo_flutter_app/shared/widgets/empty_state.dart';
@@ -364,11 +367,31 @@ class _CartScreenState extends ConsumerState<CartScreen> {
     );
     final effectiveSlot = selectedSlot ?? const SelectedDeliverySlot.asap();
 
+    // Closed-store steering: when the store is closed and the customer
+    // hasn't already picked a scheduled slot, swap the usual "X min
+    // delivery" header for the next real available window instead —
+    // never silently keep showing an ASAP estimate that can't be honored.
+    final storeOpen =
+        ref.watch(storeStatusProvider).asData?.value.isOpen ?? true;
+    String? nextAvailableLabel;
+    if (!storeOpen && effectiveSlot.isAsap) {
+      final days = ref.watch(deliverySlotsProvider).asData?.value ?? const [];
+      for (final day in days) {
+        final availableSlots = day.slots.where((s) => s.available);
+        if (availableSlots.isNotEmpty) {
+          nextAvailableLabel = '${day.label}, ${availableSlots.first.label}';
+          break;
+        }
+      }
+    }
+
     return CartDeliveryHeader(
       estimateMinutes: estimateMinutes,
       itemCount: itemCount,
       selectedSlot: effectiveSlot,
+      nextAvailableLabel: nextAvailableLabel,
       onScheduleTap: () => _openScheduleSheet(context),
+      onViewHoursTap: () => StoreHoursSheet.show(context),
     );
   }
 

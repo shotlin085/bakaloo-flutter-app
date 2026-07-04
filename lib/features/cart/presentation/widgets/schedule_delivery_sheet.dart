@@ -3,9 +3,12 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:gap/gap.dart';
 
+import 'package:bakaloo_flutter_app/features/cart/domain/entities/bill_summary_entity.dart';
+import 'package:bakaloo_flutter_app/features/cart/presentation/providers/cart_enhancement_providers.dart';
 import 'package:bakaloo_flutter_app/features/checkout/domain/entities/delivery_slot_entity.dart';
 import 'package:bakaloo_flutter_app/features/checkout/presentation/providers/checkout_provider.dart';
 import 'package:bakaloo_flutter_app/features/checkout/presentation/providers/delivery_slot_provider.dart';
+import 'package:bakaloo_flutter_app/features/checkout/presentation/providers/store_status_provider.dart';
 
 // ─── Brand colours ────────────────────────────────────────────────────────────
 const _kPurple = Color(0xFF7C3AED);
@@ -33,6 +36,7 @@ class ScheduleDeliverySheet extends ConsumerStatefulWidget {
 class _ScheduleDeliverySheetState
     extends ConsumerState<ScheduleDeliverySheet> {
   bool _isScheduled = false;
+  bool _quickDeliverySelected = false;
   int _selectedDayIndex = 0;
   DeliverySlotEntity? _selectedSlot;
 
@@ -44,11 +48,32 @@ class _ScheduleDeliverySheetState
     if (existing != null && existing.isScheduled) {
       _isScheduled = true;
     }
+    if (existing != null && existing.isAsap) {
+      _quickDeliverySelected = existing.quickDeliverySelected;
+    }
   }
 
   @override
   Widget build(BuildContext context) {
     final slotsAsync = ref.watch(deliverySlotsProvider);
+    // Real admin-configured ETA (same field the cart's delivery header
+    // already uses) — falls back to 30 only while the bill summary is
+    // still loading, matching BillSummaryEntity's own default.
+    final billSummary = ref.watch(billSummaryProvider).asData?.value;
+    final etaMinutes = billSummary?.deliveryEstimate.minutes ?? 30;
+    final quickDelivery = billSummary?.quickDelivery ?? const QuickDeliveryInfo();
+    // Fail-open while loading (StoreStatusEntity.open() default) — never
+    // block ASAP just because this specific fetch hasn't resolved yet.
+    final storeOpen = ref.watch(storeStatusProvider).asData?.value.isOpen ?? true;
+    if (!storeOpen && !_isScheduled) {
+      // Steer into Schedule mode the moment we learn the store is closed —
+      // covers both "just opened the sheet" and "store closed while the
+      // sheet was already open on the ASAP tab". Deferred to next frame
+      // since this runs during build().
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted && !_isScheduled) setState(() => _isScheduled = true);
+      });
+    }
 
     return DraggableScrollableSheet(
       initialChildSize: 0.82,
@@ -121,6 +146,36 @@ class _ScheduleDeliverySheetState
 
               Gap(12.h),
 
+              if (!storeOpen)
+                Padding(
+                  padding: EdgeInsets.symmetric(horizontal: 16.w),
+                  child: Container(
+                    margin: EdgeInsets.only(bottom: 10.h),
+                    padding: EdgeInsets.symmetric(horizontal: 12.w, vertical: 10.h),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFFEF3C7),
+                      borderRadius: BorderRadius.circular(10.r),
+                      border: Border.all(color: const Color(0xFFFDE68A)),
+                    ),
+                    child: Row(
+                      children: [
+                        Icon(Icons.info_outline_rounded, size: 16.sp, color: const Color(0xFF92400E)),
+                        Gap(8.w),
+                        Expanded(
+                          child: Text(
+                            'Store is currently closed — choose a delivery time below.',
+                            style: TextStyle(
+                              fontSize: 12.sp,
+                              color: const Color(0xFF92400E),
+                              fontFamily: 'Inter',
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+
               // ── Mode cards ───────────────────────────────────────
               Padding(
                 padding: EdgeInsets.symmetric(horizontal: 16.w),
@@ -129,8 +184,9 @@ class _ScheduleDeliverySheetState
                     _ModeCard(
                       icon: Icons.bolt_rounded,
                       title: 'ASAP',
-                      subtitle: 'Deliver in 6 mins',
+                      subtitle: storeOpen ? 'Deliver in $etaMinutes mins' : 'Unavailable — store closed',
                       selected: !_isScheduled,
+                      disabled: !storeOpen,
                       onTap: () => setState(() {
                         _isScheduled = false;
                         _selectedSlot = null;
@@ -212,7 +268,13 @@ class _ScheduleDeliverySheetState
                           );
                         },
                       )
-                    : _AsapContent(),
+                    : _AsapContent(
+                        etaMinutes: etaMinutes,
+                        quickDelivery: quickDelivery,
+                        quickDeliverySelected: _quickDeliverySelected,
+                        onQuickDeliveryChanged: (value) =>
+                            setState(() => _quickDeliverySelected = value),
+                      ),
               ),
 
               // ── Bottom CTA ────────────────────────────────────────
@@ -224,6 +286,7 @@ class _ScheduleDeliverySheetState
                   child: _ConfirmButton(
                     isScheduled: _isScheduled,
                     selectedSlot: _selectedSlot,
+                    etaMinutes: etaMinutes,
                     selectedDayLabel: (_isScheduled &&
                             ref
                                     .read(deliverySlotsProvider)
@@ -249,7 +312,10 @@ class _ScheduleDeliverySheetState
                           ref.read(checkoutProvider.notifier);
                       if (!_isScheduled) {
                         checkoutNotifier.selectDeliverySlot(
-                            const SelectedDeliverySlot.asap());
+                          SelectedDeliverySlot.asap(
+                            quickDeliverySelected: _quickDeliverySelected,
+                          ),
+                        );
                       } else if (slot != null) {
                         final days = ref
                             .read(deliverySlotsProvider)
@@ -288,6 +354,7 @@ class _ModeCard extends StatelessWidget {
     required this.subtitle,
     required this.selected,
     required this.onTap,
+    this.disabled = false,
   });
 
   final IconData icon;
@@ -295,28 +362,34 @@ class _ModeCard extends StatelessWidget {
   final String subtitle;
   final bool selected;
   final VoidCallback onTap;
+  final bool disabled;
 
   @override
   Widget build(BuildContext context) {
+    final isSelected = selected && !disabled;
     return Expanded(
       child: GestureDetector(
-        onTap: onTap,
+        onTap: disabled ? null : onTap,
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 150),
           padding: EdgeInsets.symmetric(horizontal: 14.w, vertical: 14.h),
           decoration: BoxDecoration(
-            color: selected ? _kPurpleLight : _kGreyLight,
+            color: disabled
+                ? _kGreyLight.withValues(alpha: 0.5)
+                : isSelected
+                    ? _kPurpleLight
+                    : _kGreyLight,
             borderRadius: BorderRadius.circular(12.r),
             border: Border.all(
-              color: selected ? _kPurple : const Color(0xFFE5E7EB),
-              width: selected ? 1.5 : 1,
+              color: isSelected ? _kPurple : const Color(0xFFE5E7EB),
+              width: isSelected ? 1.5 : 1,
             ),
           ),
           child: Row(
             children: [
               Icon(
                 icon,
-                color: selected ? _kPurple : _kGrey,
+                color: disabled ? _kGrey.withValues(alpha: 0.5) : isSelected ? _kPurple : _kGrey,
                 size: 20.sp,
               ),
               Gap(8.w),
@@ -329,7 +402,7 @@ class _ModeCard extends StatelessWidget {
                       style: TextStyle(
                         fontSize: 13.sp,
                         fontWeight: FontWeight.w700,
-                        color: selected ? _kPurple : _kBlack,
+                        color: disabled ? _kGrey : isSelected ? _kPurple : _kBlack,
                         fontFamily: 'Inter',
                       ),
                     ),
@@ -337,7 +410,7 @@ class _ModeCard extends StatelessWidget {
                       subtitle,
                       style: TextStyle(
                         fontSize: 11.sp,
-                        color: selected ? _kPurple : _kGrey,
+                        color: disabled ? _kGrey : isSelected ? _kPurple : _kGrey,
                         fontFamily: 'Inter',
                       ),
                     ),
@@ -361,6 +434,18 @@ class _ModeCard extends StatelessWidget {
 // ─── ASAP content placeholder ─────────────────────────────────────────────────
 
 class _AsapContent extends StatelessWidget {
+  const _AsapContent({
+    required this.etaMinutes,
+    required this.quickDelivery,
+    required this.quickDeliverySelected,
+    required this.onQuickDeliveryChanged,
+  });
+
+  final int etaMinutes;
+  final QuickDeliveryInfo quickDelivery;
+  final bool quickDeliverySelected;
+  final ValueChanged<bool> onQuickDeliveryChanged;
+
   @override
   Widget build(BuildContext context) {
     return Padding(
@@ -381,7 +466,7 @@ class _AsapContent extends StatelessWidget {
           ),
           Gap(6.h),
           Text(
-            'Your order will be delivered in approximately 6 minutes after payment.',
+            'Your order will be delivered in approximately $etaMinutes minutes after payment.',
             textAlign: TextAlign.center,
             style: TextStyle(
               fontSize: 13.sp,
@@ -390,6 +475,52 @@ class _AsapContent extends StatelessWidget {
               height: 1.5,
             ),
           ),
+          if (quickDelivery.enabled) ...[
+            Gap(20.h),
+            Container(
+              padding: EdgeInsets.all(14.w),
+              decoration: BoxDecoration(
+                color: _kGreen.withValues(alpha: 0.06),
+                borderRadius: BorderRadius.circular(12.r),
+                border: Border.all(color: _kGreen.withValues(alpha: 0.25)),
+              ),
+              child: Row(
+                children: [
+                  Icon(Icons.bolt_rounded, color: _kGreen, size: 22.sp),
+                  Gap(10.w),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          quickDelivery.label,
+                          style: TextStyle(
+                            fontSize: 13.5.sp,
+                            fontWeight: FontWeight.w600,
+                            color: _kBlack,
+                            fontFamily: 'Inter',
+                          ),
+                        ),
+                        Text(
+                          '+₹${quickDelivery.amount.toStringAsFixed(0)} for priority delivery',
+                          style: TextStyle(
+                            fontSize: 12.sp,
+                            color: _kGrey,
+                            fontFamily: 'Inter',
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  Switch(
+                    value: quickDeliverySelected,
+                    activeThumbColor: _kGreen,
+                    onChanged: onQuickDeliveryChanged,
+                  ),
+                ],
+              ),
+            ),
+          ],
         ],
       ),
     );
@@ -598,12 +729,14 @@ class _ConfirmButton extends StatelessWidget {
     required this.selectedSlot,
     required this.selectedDayLabel,
     required this.onConfirm,
+    required this.etaMinutes,
   });
 
   final bool isScheduled;
   final DeliverySlotEntity? selectedSlot;
   final String selectedDayLabel;
   final ValueChanged<DeliverySlotEntity?> onConfirm;
+  final int etaMinutes;
 
   @override
   Widget build(BuildContext context) {
@@ -612,7 +745,7 @@ class _ConfirmButton extends StatelessWidget {
         ? 'Deliver $selectedDayLabel, ${selectedSlot!.label}'
         : isScheduled
             ? 'Select a time slot'
-            : 'Deliver in 6 mins';
+            : 'Deliver in $etaMinutes mins';
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,

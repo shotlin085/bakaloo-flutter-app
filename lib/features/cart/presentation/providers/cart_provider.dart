@@ -25,6 +25,28 @@ import 'package:bakaloo_flutter_app/features/products/domain/entities/product_en
 
 part 'cart_provider.g.dart';
 
+/// Surfaces cart-mutation failures (add/update/remove) that happen after
+/// the widget that triggered them (e.g. a product card's +/- button) has
+/// already been unmounted — navigated away from, or the screen popped —
+/// so the normal `if (!context.mounted) return;` snackbar guard in the
+/// calling widget silently swallows the error. `CartNotifier` is
+/// `keepAlive` and outlives any single screen, so it publishes failures
+/// here; [AppShell] (the always-mounted root shell) listens and shows
+/// the toast regardless of which screen was on top when the request
+/// actually completed. Without this, a quantity change that fails after
+/// the user has already navigated away looks to them like it silently
+/// "reset itself" on next launch — the optimistic UI reverted correctly,
+/// but nothing ever told them why.
+class CartMutationFailureNotifier extends ValueNotifier<Failure?> {
+  CartMutationFailureNotifier() : super(null);
+
+  void report(Failure failure) {
+    value = failure;
+  }
+}
+
+final cartMutationFailureNotifier = CartMutationFailureNotifier();
+
 final cartRemoteDataSourceProvider = Provider<CartRemoteDataSource>((Ref ref) {
   return CartRemoteDataSource(ref.watch(apiClientProvider));
 });
@@ -188,13 +210,14 @@ class CartNotifier extends _$CartNotifier {
             failure.message.contains('not in cart') ||
             failure.message.contains('CART_ITEM_NOT_FOUND')) {
           ref.invalidateSelf();
-          return CartActionResult(
-            failure: const NotFoundFailure(
-              message: 'Item no longer in cart. Cart has been refreshed.',
-            ),
+          const notFound = NotFoundFailure(
+            message: 'Item no longer in cart. Cart has been refreshed.',
           );
+          cartMutationFailureNotifier.report(notFound);
+          return const CartActionResult(failure: notFound);
         }
         state = AsyncData(previous);
+        cartMutationFailureNotifier.report(failure);
         return CartActionResult(failure: failure);
       },
       (cart) {
@@ -238,6 +261,7 @@ class CartNotifier extends _$CartNotifier {
           return const CartActionResult(); // treat as success — item is gone
         }
         state = AsyncData(previous);
+        cartMutationFailureNotifier.report(failure);
         return CartActionResult(failure: failure);
       },
       (cart) {

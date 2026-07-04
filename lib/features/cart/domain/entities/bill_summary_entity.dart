@@ -29,6 +29,7 @@ abstract class BillSummaryEntity with _$BillSummaryEntity {
     @Default(<FeeLine>[]) List<FeeLine> fees,
     @Default(PaymentMethodsInfo()) PaymentMethodsInfo paymentMethods,
     @Default(CartMilestoneProgress()) CartMilestoneProgress cartMilestone,
+    @Default(QuickDeliveryInfo()) QuickDeliveryInfo quickDelivery,
   }) = _BillSummaryEntity;
 
   factory BillSummaryEntity.fromJson(Map<String, dynamic> json) =>
@@ -260,4 +261,20 @@ abstract class PaymentMethodsInfo with _$PaymentMethodsInfo {
 
   factory PaymentMethodsInfo.fromJson(Map<String, dynamic> json) =>
       _$PaymentMethodsInfoFromJson(json);
+}
+
+/// Whether the paid "Quick Delivery" ASAP upgrade is available right now —
+/// independent of whether the customer has actually selected it (that's
+/// tracked client-side on [SelectedDeliverySlot], not here). When [enabled]
+/// is false the option should not be shown/selectable at all.
+@freezed
+abstract class QuickDeliveryInfo with _$QuickDeliveryInfo {
+  const factory QuickDeliveryInfo({
+    @Default(false) bool enabled,
+    @Default(0) double amount,
+    @Default('Quick delivery fee') String label,
+  }) = _QuickDeliveryInfo;
+
+  factory QuickDeliveryInfo.fromJson(Map<String, dynamic> json) =>
+      _$QuickDeliveryInfoFromJson(json);
 }

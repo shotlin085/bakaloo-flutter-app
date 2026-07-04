@@ -54,23 +54,36 @@ class DeliverySlotDayEntity {
 
 /// The user's selected delivery preference — either ASAP or a specific slot.
 class SelectedDeliverySlot {
-  const SelectedDeliverySlot.asap() : mode = 'ASAP', slot = null, dayLabel = null;
+  const SelectedDeliverySlot.asap({this.quickDeliverySelected = false})
+      : mode = 'ASAP',
+        slot = null,
+        dayLabel = null;
 
   const SelectedDeliverySlot.scheduled({
     required DeliverySlotEntity this.slot,
     required String this.dayLabel,
-  }) : mode = 'SCHEDULED';
+  })  : mode = 'SCHEDULED',
+        quickDeliverySelected = false;
 
   final String mode;
   final DeliverySlotEntity? slot;
   final String? dayLabel;
+  /// Whether the customer explicitly opted into the paid "Quick Delivery"
+  /// upgrade — only meaningful when [isAsap] is true. Never implied by
+  /// picking ASAP alone; the admin-configured surcharge (if enabled) is
+  /// only charged when this is explicitly true.
+  final bool quickDeliverySelected;
 
   bool get isAsap => mode == 'ASAP';
   bool get isScheduled => mode == 'SCHEDULED';
 
-  /// Short display label for the cart row / checkout card.
-  String get displayLabel {
-    if (isAsap) return 'Delivering in 6 mins';
+  /// Short display label for the cart row / checkout card. [etaMinutes]
+  /// should come from the real backend-configured delivery estimate
+  /// (`BillSummaryEntity.deliveryEstimate.minutes`) — this entity has no
+  /// access to that value itself, so it must be passed in rather than
+  /// hardcoded, unlike the previous fixed "6 mins" placeholder.
+  String displayLabel(int etaMinutes) {
+    if (isAsap) return 'Delivering in $etaMinutes mins';
     return '$dayLabel, ${slot!.label}';
   }
 
