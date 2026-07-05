@@ -23,6 +23,16 @@
             android:name="com.google.android.geo.API_KEY"
             android:value="${GOOGLE_MAPS_API_KEY}" />
 
+        <!-- Small icon for FCM notifications received while the app is in
+             the background/terminated (handled natively, not by
+             LocalNotificationService). Without this, FCM falls back to the
+             app's full-color launcher icon, which Android's alpha-only
+             status-bar mask renders as a blank/generic shape instead of the
+             Bakaloo mark. -->
+        <meta-data
+            android:name="com.google.firebase.messaging.default_notification_icon"
+            android:resource="@drawable/ic_stat_notification" />
+
         <activity
             android:name="com.razorpay.CheckoutActivity"
             android:configChanges="keyboard|keyboardHidden|orientation|screenSize"

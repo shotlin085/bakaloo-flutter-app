@@ -22,8 +22,13 @@ class LocalNotificationService {
       return;
     }
 
+    // A full-color launcher icon here renders wrong on Android's status bar
+    // — notification icons are forced through an alpha-only silhouette mask
+    // (Android 5.0+), so ic_launcher either shows as a blank white blob or
+    // falls back to a generic placeholder. ic_stat_notification is a
+    // proper white-on-transparent silhouette made for this purpose.
     const androidSettings =
-        AndroidInitializationSettings('@mipmap/ic_launcher');
+        AndroidInitializationSettings('@drawable/ic_stat_notification');
     const iosSettings = DarwinInitializationSettings();
 
     await _plugin.initialize(
