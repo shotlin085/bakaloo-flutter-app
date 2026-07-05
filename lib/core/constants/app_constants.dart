@@ -21,6 +21,12 @@ class AppConstants {
   static const connectTimeoutSeconds = 25;
   static const receiveTimeoutSeconds = 40;
 
+  // Official company contact — shown in the in-app Support sheet, and must
+  // match Privacy Policy / Terms / Play Console Store Settings exactly.
+  static const supportPhone = '+91 99249 98906';
+  static const supportPhoneDialable = '+919924998906';
+  static const supportEmail = 'support@bakaloo.in';
+
   // Wallet-to-wallet transfer (send money to another Bakaloo user) is
   // disabled for this release: it requires RBI Full-KYC PPI authorization
   // regardless of transfer/balance limits, which this platform does not

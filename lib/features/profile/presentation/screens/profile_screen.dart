@@ -13,6 +13,7 @@ import 'package:share_plus/share_plus.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import 'package:bakaloo_flutter_app/core/constants/api_constants.dart';
+import 'package:bakaloo_flutter_app/core/constants/app_constants.dart';
 import 'package:bakaloo_flutter_app/core/theme/app_colors.dart';
 import 'package:bakaloo_flutter_app/core/utils/app_toast.dart';
 import 'package:bakaloo_flutter_app/core/theme/app_dimensions.dart';
@@ -426,9 +427,49 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
             children: <Widget>[
               Text('Need help?', style: AppTextStyles.h2),
               Gap(10.h),
-              Text(
-                'Reach us at support@bakaloo.app or call +91 90000 00000.',
-                style: AppTextStyles.bodyMedium,
+              InkWell(
+                onTap: () => launchUrl(
+                  Uri.parse('tel:${AppConstants.supportPhoneDialable}'),
+                ),
+                borderRadius: BorderRadius.circular(8.r),
+                child: Padding(
+                  padding: EdgeInsets.symmetric(vertical: 6.h),
+                  child: Row(
+                    children: <Widget>[
+                      Icon(
+                        PhosphorIcons.phone(PhosphorIconsStyle.regular),
+                        size: 18.sp,
+                      ),
+                      Gap(8.w),
+                      Text(
+                        'Call ${AppConstants.supportPhone}',
+                        style: AppTextStyles.bodyMedium,
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              InkWell(
+                onTap: () => launchUrl(
+                  Uri.parse('mailto:${AppConstants.supportEmail}'),
+                ),
+                borderRadius: BorderRadius.circular(8.r),
+                child: Padding(
+                  padding: EdgeInsets.symmetric(vertical: 6.h),
+                  child: Row(
+                    children: <Widget>[
+                      Icon(
+                        PhosphorIcons.envelope(PhosphorIconsStyle.regular),
+                        size: 18.sp,
+                      ),
+                      Gap(8.w),
+                      Text(
+                        'Email ${AppConstants.supportEmail}',
+                        style: AppTextStyles.bodyMedium,
+                      ),
+                    ],
+                  ),
+                ),
               ),
               Gap(14.h),
               SizedBox(
