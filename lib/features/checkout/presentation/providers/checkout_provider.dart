@@ -326,6 +326,25 @@ class CheckoutNotifier extends _$CheckoutNotifier {
     if (result.isLeft()) {
       final failure =
           result.fold((l) => l, (_) => throw StateError('unreachable'));
+
+      // The address shown as "selected" can go stale server-side (e.g. the
+      // user deleted it and re-added one with the same label — a new row,
+      // a new id) without this screen ever refetching the address list.
+      // Left alone, selectedAddress keeps pointing at the dead id and every
+      // retry fails identically with the same confusing "address not
+      // found" toast next to a perfectly valid-looking address card. Clear
+      // it and force a refresh so the next render falls back to the
+      // current default/first address (or prompts to add one).
+      if (failure.message.toLowerCase().contains('address not found')) {
+        ref.read(addressProvider.notifier).refresh();
+        state = state.copyWith(
+          isPlacingOrder: false,
+          errorMessage: failure.message,
+          selectedAddress: null,
+        );
+        return CheckoutPlacementResult(errorMessage: failure.message);
+      }
+
       state = state.copyWith(
         isPlacingOrder: false,
         errorMessage: failure.message,

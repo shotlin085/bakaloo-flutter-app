@@ -101,6 +101,19 @@ class _ProductImageGalleryState extends State<ProductImageGallery> {
     }
   }
 
+  /// Decode target for the hero gallery image, in physical pixels. This
+  /// image renders full-screen-width (StackFit.expand inside a SliverAppBar
+  /// whose expandedHeight is ~420 logical px) — a fixed 520x520 cache size
+  /// meant for something list-thumbnail-sized was forcing Flutter to
+  /// upscale a 520px-decoded bitmap to fill a ~1000px+ physical area on
+  /// most phones, which is what read as "low quality" on the detail page.
+  /// Sizing to the device's actual physical width fixes that without
+  /// decoding arbitrarily large admin-uploaded originals at full size.
+  int _decodeDimension(BuildContext context) {
+    final mq = MediaQuery.of(context);
+    return (mq.size.width * mq.devicePixelRatio).round();
+  }
+
   @override
   Widget build(BuildContext context) {
     return SliverAppBar(
@@ -162,8 +175,8 @@ class _ProductImageGalleryState extends State<ProductImageGallery> {
                               : CachedNetworkImage(
                                   imageUrl: imageUrl,
                                   fit: BoxFit.contain,
-                                  memCacheWidth: 520,
-                                  memCacheHeight: 520,
+                                  memCacheWidth: _decodeDimension(context),
+                                  memCacheHeight: _decodeDimension(context),
                                   fadeInDuration: Duration.zero,
                                   filterQuality: FilterQuality.high,
                                   placeholder: (context, url) =>

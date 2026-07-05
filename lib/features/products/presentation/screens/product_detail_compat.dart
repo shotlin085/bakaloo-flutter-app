@@ -7,12 +7,24 @@ ProductEntity normalizedProductForDetail(ProductEntity product) {
   return product.copyWith(netQuantity: netQuantity);
 }
 
+/// Builds the "Product Details" attribute grid from every source the
+/// dashboard lets an admin fill in independently — generic attributes,
+/// ingredients, storage instructions, and nutrition info are all separate
+/// editable fields (see ProductForm.tsx), not alternatives to each other.
+/// Previously this returned `product.attributes` alone whenever it was
+/// non-empty, silently discarding nutrition/ingredients/storage the same
+/// admin had also set — merging them fixes that.
+///
+/// Description is deliberately never folded in here: ProductDetailScreen
+/// already renders it via its own ProductDescriptionSection whenever it's
+/// non-empty, so adding it as a synthetic attribute too just duplicated it
+/// on screen.
 List<Map<String, dynamic>> effectiveAttributesForDetail(ProductEntity product) {
-  if (product.hasAttributes) {
-    return product.attributes!;
-  }
-
   final attrs = <Map<String, dynamic>>[];
+
+  if (product.hasAttributes) {
+    attrs.addAll(product.attributes!);
+  }
   if ((product.ingredients ?? '').trim().isNotEmpty) {
     attrs.add(<String, dynamic>{
       'label': 'Ingredients',
@@ -32,12 +44,6 @@ List<Map<String, dynamic>> effectiveAttributesForDetail(ProductEntity product) {
         'value': '${entry.value}',
       });
     }
-  }
-  if ((product.description ?? '').trim().isNotEmpty && attrs.isEmpty) {
-    attrs.add(<String, dynamic>{
-      'label': 'Description',
-      'value': product.description!,
-    });
   }
   return attrs;
 }

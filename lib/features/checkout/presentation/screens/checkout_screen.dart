@@ -54,6 +54,14 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
         ref.read(walletProvider.future).ignore();
       }
     });
+    // Refresh the address list every time checkout opens. addressProvider
+    // is keepAlive and only refetches on explicit invalidation, so an
+    // address deleted/recreated (or edited) elsewhere since the last fetch
+    // — including in a different app session — would otherwise leave
+    // CheckoutNotifier's selectedAddress pointing at a stale id that looks
+    // fine on screen but fails with "Delivery address not found" the
+    // moment the order is placed.
+    ref.read(addressProvider.notifier).refresh();
   }
 
   @override

@@ -150,7 +150,7 @@ class _ProductDetailScreenState extends ConsumerState<ProductDetailScreen> {
                   scrollOffset: _scrollOffset,
                   onSearch: _navigateToSearch,
                   onShare: () => _shareProduct(effectiveProduct),
-                  onBack: () => Navigator.pop(context),
+                  onBack: _handleBack,
                   onImageChanged: (index) => _logProductImageSwipe(
                     effectiveProduct,
                     index,
@@ -272,6 +272,19 @@ class _ProductDetailScreenState extends ConsumerState<ProductDetailScreen> {
 
   void _navigateToSearch() {
     context.push(RouteNames.search);
+  }
+
+  /// A shared product link (e.g. bakaloo.in/products/:slug, opened via App
+  /// Links) cold-starts the app directly onto this screen with nothing
+  /// else on the navigation stack. `Navigator.pop` on an empty stack left
+  /// the user staring at a black screen instead of leaving the app or
+  /// going anywhere useful — check canPop first and fall back to home.
+  void _handleBack() {
+    if (Navigator.canPop(context)) {
+      Navigator.pop(context);
+    } else {
+      context.go(RouteNames.home);
+    }
   }
 
   void _openProduct(ProductEntity product) {
