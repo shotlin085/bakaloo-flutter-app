@@ -230,12 +230,10 @@ class _StoreScreenShellState extends ConsumerState<StoreScreenShell>
 
     return AnnotatedRegion<SystemUiOverlayStyle>(
       value: SystemUiOverlayStyle(
-        statusBarColor: Colors.transparent,
         statusBarIconBrightness:
             useLightStatusIcons ? Brightness.light : Brightness.dark,
         statusBarBrightness:
             useLightStatusIcons ? Brightness.dark : Brightness.light,
-        systemNavigationBarColor: Colors.white,
         systemNavigationBarIconBrightness: Brightness.dark,
       ),
       child: Scaffold(

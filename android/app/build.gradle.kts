@@ -40,7 +40,7 @@ android {
     defaultConfig {
         applicationId = "com.bakaloo.india"
         minSdk = flutter.minSdkVersion
-        targetSdk = 35
+        targetSdk = 36
         versionCode = flutter.versionCode
         versionName = flutter.versionName
         multiDexEnabled = true
@@ -68,6 +68,18 @@ android {
 
     buildFeatures {
         buildConfig = true
+    }
+
+    packaging {
+        jniLibs {
+            // rootbeer (pulled in transitively by flutter_jailbreak_detection on
+            // Android) ships a 4 KB-page-only libtoolChecker.so with no 16 KB build
+            // available. RootDetection._isCompromised() already falls back to the
+            // bakaloo/security MethodChannel's native isDeviceCompromised() check
+            // when this plugin throws, so excluding it here is safe and keeps the
+            // release bundle 16 KB-page-size compatible.
+            excludes += "**/libtoolChecker.so"
+        }
     }
 }
 

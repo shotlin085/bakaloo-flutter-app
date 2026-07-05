@@ -145,7 +145,11 @@ class _OtpVerifyScreenState extends ConsumerState<OtpVerifyScreen>
     );
 
     return AnnotatedRegion<SystemUiOverlayStyle>(
-      value: SystemUiOverlayStyle.dark,
+      value: const SystemUiOverlayStyle(
+        statusBarIconBrightness: Brightness.dark,
+        statusBarBrightness: Brightness.light,
+        systemNavigationBarIconBrightness: Brightness.dark,
+      ),
       child: Scaffold(
         backgroundColor: Colors.white,
         // Fix #3: Do NOT resize when keyboard opens — prevents layout shift

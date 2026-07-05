@@ -206,10 +206,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
     SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
     SystemChrome.setSystemUIOverlayStyle(
       const SystemUiOverlayStyle(
-        statusBarColor: Colors.transparent,
         statusBarIconBrightness: Brightness.dark,
         statusBarBrightness: Brightness.light,
-        systemNavigationBarColor: Colors.white,
         systemNavigationBarIconBrightness: Brightness.dark,
       ),
     );
@@ -654,17 +652,13 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
         return AnnotatedRegion<SystemUiOverlayStyle>(
           value: isStickyHeaderActive
               ? const SystemUiOverlayStyle(
-                  statusBarColor: Colors.transparent,
                   statusBarIconBrightness: Brightness.dark,
                   statusBarBrightness: Brightness.light,
-                  systemNavigationBarColor: Colors.white,
                   systemNavigationBarIconBrightness: Brightness.dark,
                 )
               : const SystemUiOverlayStyle(
-                  statusBarColor: Colors.transparent,
                   statusBarIconBrightness: Brightness.dark,
                   statusBarBrightness: Brightness.light,
-                  systemNavigationBarColor: Colors.white,
                   systemNavigationBarIconBrightness: Brightness.dark,
                 ),
           child: child!,
