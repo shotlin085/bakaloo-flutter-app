@@ -10,6 +10,7 @@ import 'package:local_auth/local_auth.dart';
 import 'package:phosphor_flutter/phosphor_flutter.dart';
 import 'package:flutter/services.dart';
 
+import 'package:bakaloo_flutter_app/core/constants/app_constants.dart';
 import 'package:bakaloo_flutter_app/core/security/screenshot_prevention.dart';
 import 'package:bakaloo_flutter_app/core/theme/app_colors.dart';
 import 'package:bakaloo_flutter_app/core/theme/app_dimensions.dart';
@@ -383,15 +384,17 @@ class _BalanceCard extends StatelessWidget {
                   onTap: onAddMoney,
                 ),
               ),
-              Gap(12.w),
-              Expanded(
-                child: _WalletActionButton(
-                  icon: PhosphorIcons.arrowsClockwise(),
-                  label: 'Transfer',
-                  filled: false,
-                  onTap: onTransfer,
+              if (AppConstants.walletTransfersEnabled) ...<Widget>[
+                Gap(12.w),
+                Expanded(
+                  child: _WalletActionButton(
+                    icon: PhosphorIcons.arrowsClockwise(),
+                    label: 'Transfer',
+                    filled: false,
+                    onTap: onTransfer,
+                  ),
                 ),
-              ),
+              ],
             ],
           ),
         ],
@@ -548,11 +551,12 @@ class _QuickActionRow extends StatelessWidget {
           label: 'Add',
           onTap: onAddMoney,
         ),
-        _QuickActionCircle(
-          icon: PhosphorIcons.arrowsLeftRight(),
-          label: 'Transfer',
-          onTap: onTransfer,
-        ),
+        if (AppConstants.walletTransfersEnabled)
+          _QuickActionCircle(
+            icon: PhosphorIcons.arrowsLeftRight(),
+            label: 'Transfer',
+            onTap: onTransfer,
+          ),
         _QuickActionCircle(
           icon: PhosphorIcons.clockCounterClockwise(),
           label: 'History',

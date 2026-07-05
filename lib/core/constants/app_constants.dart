@@ -20,4 +20,13 @@ class AppConstants {
   // service-unavailable blocker. 25s connect / 40s receive is safe.
   static const connectTimeoutSeconds = 25;
   static const receiveTimeoutSeconds = 40;
+
+  // Wallet-to-wallet transfer (send money to another Bakaloo user) is
+  // disabled for this release: it requires RBI Full-KYC PPI authorization
+  // regardless of transfer/balance limits, which this platform does not
+  // have. The backend already rejects every transfer (wallet_max_transfer_amount
+  // is 0 in production), so this only controls whether the UI still offers
+  // an entry point into a feature that will fail. Flip back on together with
+  // re-enabling it on the backend once that's been cleared.
+  static const walletTransfersEnabled = false;
 }

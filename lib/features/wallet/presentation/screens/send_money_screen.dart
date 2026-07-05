@@ -9,6 +9,7 @@ import 'package:go_router/go_router.dart';
 import 'package:local_auth/local_auth.dart';
 import 'package:phosphor_flutter/phosphor_flutter.dart';
 
+import 'package:bakaloo_flutter_app/core/constants/app_constants.dart';
 import 'package:bakaloo_flutter_app/core/theme/app_colors.dart';
 import 'package:bakaloo_flutter_app/core/theme/app_dimensions.dart';
 import 'package:bakaloo_flutter_app/core/theme/app_shadows.dart';
@@ -38,6 +39,22 @@ class _SendMoneyScreenState extends ConsumerState<SendMoneyScreen> {
 
   WalletRecipientEntity? _selectedRecipient;
   bool _isSending = false;
+
+  @override
+  void initState() {
+    super.initState();
+    // Defense-in-depth: the wallet screen no longer offers a way to reach
+    // this screen while transfers are disabled, but bounce back immediately
+    // if it's ever reached some other way (deep link, restored navigation
+    // state) rather than let someone fill out a transfer that can only fail.
+    if (!AppConstants.walletTransfersEnabled) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        AppToast.show(context, 'Wallet transfers are temporarily unavailable.');
+        Navigator.of(context).maybePop();
+      });
+    }
+  }
 
   @override
   void dispose() {
