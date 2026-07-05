@@ -10,6 +10,7 @@ import 'package:local_auth/local_auth.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:phosphor_flutter/phosphor_flutter.dart';
 import 'package:share_plus/share_plus.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import 'package:bakaloo_flutter_app/core/constants/api_constants.dart';
 import 'package:bakaloo_flutter_app/core/theme/app_colors.dart';
@@ -208,9 +209,26 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                       MenuTile(
                         icon: PhosphorIcons.shieldCheck(PhosphorIconsStyle.light),
                         label: 'Privacy',
-                        onTap: () {
-                          AppToast.show(context, '🚀 Coming soon!', type: ToastType.info);
-                        },
+                        // inAppWebView, not externalApplication: this app is
+                        // a verified App Links handler for bakaloo.in, so an
+                        // external-mode launch of a bakaloo.in URL gets
+                        // handed straight back to this same app by the OS
+                        // instead of a browser, and go_router has no /privacy
+                        // route (it's web-only) — inAppWebView renders the
+                        // URL directly, skipping OS link resolution.
+                        onTap: () => launchUrl(
+                          Uri.parse('${ApiConstants.webBaseUrl}/privacy'),
+                          mode: LaunchMode.inAppWebView,
+                        ),
+                      ),
+                      _divider(),
+                      MenuTile(
+                        icon: PhosphorIcons.fileText(PhosphorIconsStyle.light),
+                        label: 'Terms & Conditions',
+                        onTap: () => launchUrl(
+                          Uri.parse('${ApiConstants.webBaseUrl}/terms'),
+                          mode: LaunchMode.inAppWebView,
+                        ),
                       ),
                     ],
                   ),

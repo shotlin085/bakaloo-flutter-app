@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_animate/flutter_animate.dart';
@@ -7,7 +8,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:gap/gap.dart';
 import 'package:go_router/go_router.dart';
+import 'package:url_launcher/url_launcher.dart';
 
+import 'package:bakaloo_flutter_app/core/constants/api_constants.dart';
 import 'package:bakaloo_flutter_app/core/theme/app_colors.dart';
 import 'package:bakaloo_flutter_app/core/utils/validators.dart';
 import 'package:bakaloo_flutter_app/features/auth/presentation/providers/auth_gate_controller.dart';
@@ -31,10 +34,28 @@ class _PhoneEntryScreenState extends ConsumerState<PhoneEntryScreen> {
   final TextEditingController _phoneController = TextEditingController();
   bool _hasInteracted = false;
 
+  late final TapGestureRecognizer _termsTapRecognizer =
+      TapGestureRecognizer()..onTap = () => _openLegalPage('/terms');
+  late final TapGestureRecognizer _privacyTapRecognizer =
+      TapGestureRecognizer()..onTap = () => _openLegalPage('/privacy');
+
   @override
   void dispose() {
     _phoneController.dispose();
+    _termsTapRecognizer.dispose();
+    _privacyTapRecognizer.dispose();
     super.dispose();
+  }
+
+  Future<void> _openLegalPage(String path) async {
+    final uri = Uri.parse('${ApiConstants.webBaseUrl}$path');
+    // NOT externalApplication: this app is a verified Android App Links
+    // handler for bakaloo.in (for shared product links), so the OS hands
+    // a bakaloo.in/* URL straight back to this same app instead of a
+    // browser — go_router then throws "no routes for location" since
+    // /privacy and /terms are web-only pages. inAppWebView renders the
+    // URL directly without going through OS link resolution at all.
+    await launchUrl(uri, mode: LaunchMode.inAppWebView);
   }
 
   @override
@@ -309,20 +330,22 @@ class _PhoneEntryScreenState extends ConsumerState<PhoneEntryScreen> {
                                         height: 1.5,
                                       ),
                                       children: <InlineSpan>[
-                                        const TextSpan(
+                                        TextSpan(
                                           text: 'Terms & Conditions',
-                                          style: TextStyle(
+                                          style: const TextStyle(
                                             color: _brandPurple,
                                             fontWeight: FontWeight.w700,
                                           ),
+                                          recognizer: _termsTapRecognizer,
                                         ),
                                         const TextSpan(text: ' and '),
-                                        const TextSpan(
+                                        TextSpan(
                                           text: 'Privacy Policy',
-                                          style: TextStyle(
+                                          style: const TextStyle(
                                             color: _brandPurple,
                                             fontWeight: FontWeight.w700,
                                           ),
+                                          recognizer: _privacyTapRecognizer,
                                         ),
                                         const TextSpan(text: '.'),
                                       ],
