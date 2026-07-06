@@ -3,7 +3,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:gap/gap.dart';
 import 'package:phosphor_flutter/phosphor_flutter.dart';
-import 'package:rive/rive.dart' hide Image;
 
 import 'package:bakaloo_flutter_app/core/network/app_availability_provider.dart';
 import 'package:bakaloo_flutter_app/core/theme/app_colors.dart';
@@ -61,7 +60,9 @@ class AppAvailabilityGate extends ConsumerWidget {
 }
 
 // ───────────────────────────────────────────────────────────────────────────
-// Service-unavailable blocker — keeps the existing lightweight Rive overlay.
+// Service-unavailable blocker — static illustration (no Rive dependency: its
+// native renderer isn't built for 16 KB memory pages and Play Console treats
+// that as a release-blocking error, not just a recommendation).
 // ───────────────────────────────────────────────────────────────────────────
 class _ServiceUnavailableBlocker extends StatelessWidget {
   const _ServiceUnavailableBlocker({required this.onRetry});
@@ -75,7 +76,7 @@ class _ServiceUnavailableBlocker extends StatelessWidget {
       child: SafeArea(
         child: LayoutBuilder(
           builder: (context, constraints) {
-            final animationSize =
+            final illustrationSize =
                 (constraints.maxWidth * 0.72).clamp(240.0, 320.0);
 
             return Padding(
@@ -83,17 +84,12 @@ class _ServiceUnavailableBlocker extends StatelessWidget {
               child: Column(
                 children: <Widget>[
                   const Spacer(flex: 2),
-                  RepaintBoundary(
-                    child: ClipRect(
-                      child: SizedBox(
-                        width: animationSize,
-                        height: animationSize,
-                        child: const RiveAnimation.asset(
-                          'assets/animations/3679-7682-birdy.riv',
-                          fit: BoxFit.cover,
-                          alignment: Alignment.center,
-                        ),
-                      ),
+                  SizedBox(
+                    width: illustrationSize,
+                    height: illustrationSize,
+                    child: Image.asset(
+                      'assets/images/bakaloo-offline-state-illustration.png',
+                      fit: BoxFit.contain,
                     ),
                   ),
                   const Spacer(),
