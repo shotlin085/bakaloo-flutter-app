@@ -106,11 +106,19 @@ final placeOrderUseCaseProvider = Provider<PlaceOrderUseCase>((Ref ref) {
 class CheckoutNotifier extends _$CheckoutNotifier {
   @override
   CheckoutState build() {
+    // ignore: avoid_print
+    print('🔵 CheckoutNotifier.build() called fresh');
+    ref.onDispose(() {
+      // ignore: avoid_print
+      print('🔴 CheckoutNotifier DISPOSED');
+    });
     ref
       ..listen<AsyncValue<List<AddressEntity>>>(addressProvider, (_, next) {
         next.whenData(_syncAddresses);
       })
       ..listen<AsyncValue<CartEntity>>(cartProvider, (_, next) {
+        // ignore: avoid_print
+        print('🟡 checkoutProvider _syncCart triggered, appliedCoupon=${state.appliedCoupon?.code}, slot=${state.selectedDeliverySlot}');
         next.whenData(_syncCart);
       });
 
@@ -525,6 +533,8 @@ class CheckoutNotifier extends _$CheckoutNotifier {
   }
 
   void _syncCart(CartEntity nextCart) {
+    // ignore: avoid_print
+    print('🟢 _syncCart running, nextCart.subtotal=${nextCart.subtotal}, currentCoupon=${state.appliedCoupon?.code}, minOrderAmount=${state.appliedCoupon?.minOrderAmount}, slot=${state.selectedDeliverySlot}');
     final currentCoupon = state.appliedCoupon;
     var nextState = state.copyWith(
       validatedCart: CartValidationResult(
