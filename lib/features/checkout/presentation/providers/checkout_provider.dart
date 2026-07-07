@@ -102,31 +102,40 @@ final placeOrderUseCaseProvider = Provider<PlaceOrderUseCase>((Ref ref) {
   return PlaceOrderUseCase(ref.watch(checkoutRepositoryProvider));
 });
 
-@riverpod
+// `keepAlive: true` — this state (selected address, applied coupon, payment
+// method, delivery slot) represents an in-progress checkout flow spanning
+// Cart -> Checkout, both of which watch this provider. `checkout` is a
+// nested child route of `/cart` (see app_router.dart); pushing it rebuilds
+// the `/cart` branch's widget identity, which — combined with autoDispose —
+// tore this provider down and rebuilt it fresh with default state (no
+// listener bridges the gap), silently discarding the applied coupon and any
+// selected delivery slot the instant Checkout opened. keepAlive removes that
+// window entirely; the state is explicitly cleared by removeCoupon() /
+// clearDeliverySlot() / order completion instead.
+@Riverpod(keepAlive: true)
 class CheckoutNotifier extends _$CheckoutNotifier {
   @override
   CheckoutState build() {
-    // ignore: avoid_print
-    print('🔵 CheckoutNotifier.build() called fresh');
-    ref.onDispose(() {
-      // ignore: avoid_print
-      print('🔴 CheckoutNotifier DISPOSED');
-    });
     ref
       ..listen<AsyncValue<List<AddressEntity>>>(addressProvider, (_, next) {
         next.whenData(_syncAddresses);
       })
       ..listen<AsyncValue<CartEntity>>(cartProvider, (_, next) {
-        // ignore: avoid_print
-        print('🟡 checkoutProvider _syncCart triggered, appliedCoupon=${state.appliedCoupon?.code}, slot=${state.selectedDeliverySlot}');
         next.whenData(_syncCart);
       });
 
-    final initialAddresses = switch (ref.watch(addressProvider)) {
+    // `ref.read`, not `ref.watch` — these only seed the state the first time
+    // this provider builds. Using `watch` here previously re-ran build() in
+    // full on every single address/cart change (e.g. the cart revalidation
+    // that runs when proceeding to checkout), discarding appliedCoupon and
+    // selectedDeliverySlot in the process — the `ref.listen` calls above
+    // already handle every subsequent change incrementally via
+    // _syncAddresses/_syncCart, which preserve the rest of the state.
+    final initialAddresses = switch (ref.read(addressProvider)) {
       AsyncData(:final value) => value,
       _ => null,
     };
-    final initialCart = switch (ref.watch(cartProvider)) {
+    final initialCart = switch (ref.read(cartProvider)) {
       AsyncData(:final value) => value,
       _ => null,
     };
@@ -207,6 +216,23 @@ class CheckoutNotifier extends _$CheckoutNotifier {
     state = state.copyWith(
       appliedCoupon: null,
       currentStep: CheckoutStep.coupon,
+      errorMessage: null,
+    );
+  }
+
+  /// Clears the order-specific selections (applied coupon, delivery slot,
+  /// payment method) once an order has been successfully placed. Needed
+  /// because [CheckoutNotifier] is `keepAlive` — without this, a coupon or
+  /// quick-delivery selection from a completed order would silently carry
+  /// over and show as "applied" on the next one. `selectedAddress` is left
+  /// alone; it's a delivery preference, not order-specific, and stays
+  /// correctly in sync via `_syncAddresses`.
+  void resetForNewOrder() {
+    state = state.copyWith(
+      appliedCoupon: null,
+      selectedDeliverySlot: null,
+      paymentMethod: PaymentMethod.online,
+      currentStep: CheckoutStep.address,
       errorMessage: null,
     );
   }
@@ -412,6 +438,7 @@ class CheckoutNotifier extends _$CheckoutNotifier {
       // the order success screen ourselves, mirroring what payment_provider
       // does for wallet/online once their gateway confirms success.
       ref.invalidate(cartProvider);
+      resetForNewOrder();
       ref.read(appRouterProvider).go('/orders/success/${order.id}');
     }
 
@@ -533,8 +560,6 @@ class CheckoutNotifier extends _$CheckoutNotifier {
   }
 
   void _syncCart(CartEntity nextCart) {
-    // ignore: avoid_print
-    print('🟢 _syncCart running, nextCart.subtotal=${nextCart.subtotal}, currentCoupon=${state.appliedCoupon?.code}, minOrderAmount=${state.appliedCoupon?.minOrderAmount}, slot=${state.selectedDeliverySlot}');
     final currentCoupon = state.appliedCoupon;
     var nextState = state.copyWith(
       validatedCart: CartValidationResult(

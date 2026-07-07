@@ -11,6 +11,7 @@ import 'package:bakaloo_flutter_app/core/di/providers.dart';
 import 'package:bakaloo_flutter_app/features/auth/domain/entities/user_entity.dart';
 import 'package:bakaloo_flutter_app/features/cart/presentation/providers/cart_provider.dart';
 import 'package:bakaloo_flutter_app/features/checkout/domain/repositories/checkout_repository.dart';
+import 'package:bakaloo_flutter_app/features/checkout/presentation/providers/checkout_provider.dart';
 import 'package:bakaloo_flutter_app/features/payments/data/datasources/payment_remote_datasource.dart';
 import 'package:bakaloo_flutter_app/features/payments/data/repositories/payment_repository_impl.dart';
 import 'package:bakaloo_flutter_app/features/payments/domain/entities/payment_entity.dart';
@@ -262,6 +263,7 @@ class PaymentNotifier extends _$PaymentNotifier {
         ref.invalidate(walletBalanceProvider);
         // ignore: cascade_invocations
         ref.invalidate(cartProvider); // Clear cart after wallet payment success
+        ref.read(checkoutProvider.notifier).resetForNewOrder();
         state = PaymentState.idle();
         ref.read(appRouterProvider).go('/orders/success/${order.id}');
         return const PaymentActionResult();
@@ -349,6 +351,7 @@ class PaymentNotifier extends _$PaymentNotifier {
       },
       (payment) {
         ref.invalidate(cartProvider); // Clear cart ONLY after confirmed payment
+        ref.read(checkoutProvider.notifier).resetForNewOrder();
         state = PaymentState.idle().copyWith(lastPayment: payment);
         unawaited(
           ref.read(analyticsServiceProvider).logPurchase(
