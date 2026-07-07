@@ -10,6 +10,7 @@ class AppConstants {
   static const platformFee = 5.0;
   static const maxCodAmount = 2000.0;
   static const maxSearchHistory = 10;
+  static const maxRecentlyViewed = 12;
   static const imageCacheSizeMB = 256;
   static const imageCacheMaxCount = 1000;
   static const socketReconnectAttempts = 10;

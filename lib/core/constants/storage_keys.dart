@@ -10,6 +10,7 @@ class StorageKeys {
   static const categoriesBox = 'categories';
   static const ordersBox = 'orders';
   static const searchHistoryBox = 'search_history';
+  static const recentlyViewedBox = 'recently_viewed';
   static const bannersBox = 'banners';
   static const userBox = 'user';
   static const settingsBox = 'settings';

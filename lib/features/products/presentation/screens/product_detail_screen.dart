@@ -12,6 +12,7 @@ import 'package:bakaloo_flutter_app/features/auth/presentation/providers/auth_ga
 import 'package:bakaloo_flutter_app/features/cart/presentation/providers/cart_provider.dart';
 import 'package:bakaloo_flutter_app/features/products/domain/entities/product_entity.dart';
 import 'package:bakaloo_flutter_app/features/products/presentation/providers/product_detail_provider.dart';
+import 'package:bakaloo_flutter_app/features/products/presentation/providers/recently_viewed_provider.dart';
 import 'package:bakaloo_flutter_app/features/products/presentation/screens/product_detail_compat.dart';
 import 'package:bakaloo_flutter_app/features/products/presentation/screens/product_detail_socket_delegate.dart';
 import 'package:bakaloo_flutter_app/features/products/presentation/screens/product_list_screen.dart';
@@ -127,6 +128,11 @@ class _ProductDetailScreenState extends ConsumerState<ProductDetailScreen> {
                   effectiveProduct.id,
                   effectiveProduct.categoryId,
                 ),
+          );
+          unawaited(
+            ref
+                .read(recentlyViewedProvider.notifier)
+                .recordView(effectiveProduct.id),
           );
         }
 
@@ -246,6 +252,17 @@ class _ProductDetailScreenState extends ConsumerState<ProductDetailScreen> {
                         targetProduct,
                       ),
                       onSeeAll: () => _openSimilarProducts(effectiveProduct),
+                      onAddToCart: _addToCart,
+                    ),
+                  ),
+                ),
+                SliverToBoxAdapter(
+                  child: RepaintBoundary(
+                    child: RecentlyViewedWrapper(
+                      productId: effectiveProduct.id,
+                      enabled: _scrollOffset >= 180,
+                      onProductTap: (targetProduct) =>
+                          _openProduct(targetProduct),
                       onAddToCart: _addToCart,
                     ),
                   ),

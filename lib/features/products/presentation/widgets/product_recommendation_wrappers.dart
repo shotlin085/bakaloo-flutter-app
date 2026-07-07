@@ -4,7 +4,9 @@ import 'package:flutter_screenutil/flutter_screenutil.dart';
 
 import 'package:bakaloo_flutter_app/features/products/domain/entities/product_entity.dart';
 import 'package:bakaloo_flutter_app/features/products/presentation/providers/product_detail_provider.dart';
+import 'package:bakaloo_flutter_app/features/products/presentation/providers/recently_viewed_provider.dart';
 import 'package:bakaloo_flutter_app/features/products/presentation/widgets/product_pair_with_section.dart';
+import 'package:bakaloo_flutter_app/features/products/presentation/widgets/product_recently_viewed_section.dart';
 import 'package:bakaloo_flutter_app/features/products/presentation/widgets/product_similar_section.dart';
 
 class PairWithWrapper extends ConsumerWidget {
@@ -88,6 +90,41 @@ class SimilarWrapper extends ConsumerWidget {
               products: products,
               onProductTap: onProductTap,
               onSeeAll: onSeeAll,
+              onAddToCart: onAddToCart,
+            ),
+    );
+  }
+}
+
+class RecentlyViewedWrapper extends ConsumerWidget {
+  const RecentlyViewedWrapper({
+    required this.productId,
+    required this.enabled,
+    required this.onProductTap,
+    required this.onAddToCart,
+    super.key,
+  });
+
+  final String productId;
+  final bool enabled;
+  final ValueChanged<ProductEntity> onProductTap;
+  final ValueChanged<ProductEntity> onAddToCart;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    if (!enabled) {
+      return const SizedBox.shrink();
+    }
+
+    final async = ref.watch(recentlyViewedProductsProvider(productId));
+    return async.when(
+      loading: () => const SizedBox.shrink(),
+      error: (_, __) => const SizedBox.shrink(),
+      data: (products) => products.isEmpty
+          ? const SizedBox.shrink()
+          : ProductRecentlyViewedSection(
+              products: products,
+              onProductTap: onProductTap,
               onAddToCart: onAddToCart,
             ),
     );

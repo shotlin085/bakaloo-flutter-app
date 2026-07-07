@@ -11,6 +11,7 @@ class HiveService {
   static late Box<dynamic> categoriesBox;
   static late Box<dynamic> ordersBox;
   static late Box<dynamic> searchHistoryBox;
+  static late Box<dynamic> recentlyViewedBox;
   static late Box<dynamic> bannersBox;
   static late Box<dynamic> userBox;
   static late Box<dynamic> settingsBox;
@@ -27,6 +28,8 @@ class HiveService {
     ordersBox = await Hive.openBox<dynamic>(StorageKeys.ordersBox);
     searchHistoryBox =
         await Hive.openBox<dynamic>(StorageKeys.searchHistoryBox);
+    recentlyViewedBox =
+        await Hive.openBox<dynamic>(StorageKeys.recentlyViewedBox);
     bannersBox = await Hive.openBox<dynamic>(StorageKeys.bannersBox);
     userBox = await _openSensitiveBox(StorageKeys.userBox, cipher);
     settingsBox = await _openSensitiveBox(StorageKeys.settingsBox, cipher);
