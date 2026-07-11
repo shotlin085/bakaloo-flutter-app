@@ -50,6 +50,9 @@ class _AddEditAddressScreenState extends ConsumerState<AddEditAddressScreen> {
   final TextEditingController _addressLine1Controller = TextEditingController();
   final TextEditingController _buildingController = TextEditingController();
   final TextEditingController _landmarkController = TextEditingController();
+  final TextEditingController _cityController = TextEditingController();
+  final TextEditingController _stateController = TextEditingController();
+  final TextEditingController _pincodeController = TextEditingController();
   final TextEditingController _receiverNameController = TextEditingController();
   final TextEditingController _receiverPhoneController =
       TextEditingController();
@@ -86,6 +89,8 @@ class _AddEditAddressScreenState extends ConsumerState<AddEditAddressScreen> {
       !_isSaving &&
       _hasPinnedLocation &&
       _addressLine1Controller.text.trim().isNotEmpty &&
+      _cityController.text.trim().isNotEmpty &&
+      _stateController.text.trim().isNotEmpty &&
       _pincodeStatus == _PincodeValidationStatus.valid;
 
   @override
@@ -93,6 +98,9 @@ class _AddEditAddressScreenState extends ConsumerState<AddEditAddressScreen> {
     super.initState();
     _seedFromInitialAddress();
     _addressLine1Controller.addListener(_handleFormStateChanged);
+    _cityController.addListener(_handleCityTextChanged);
+    _stateController.addListener(_handleStateTextChanged);
+    _pincodeController.addListener(_handlePincodeTextChanged);
     if ((_pincode ?? '').trim().isNotEmpty) {
       _schedulePincodeValidation(_pincode);
     }
@@ -102,6 +110,15 @@ class _AddEditAddressScreenState extends ConsumerState<AddEditAddressScreen> {
   void dispose() {
     _addressLine1Controller
       ..removeListener(_handleFormStateChanged)
+      ..dispose();
+    _cityController
+      ..removeListener(_handleCityTextChanged)
+      ..dispose();
+    _stateController
+      ..removeListener(_handleStateTextChanged)
+      ..dispose();
+    _pincodeController
+      ..removeListener(_handlePincodeTextChanged)
       ..dispose();
     _buildingController.dispose();
     _landmarkController.dispose();
@@ -148,6 +165,9 @@ class _AddEditAddressScreenState extends ConsumerState<AddEditAddressScreen> {
     _city = address.city.trim();
     _state = address.state.trim();
     _pincode = address.pincode.trim();
+    _cityController.text = _city!;
+    _stateController.text = _state!;
+    _pincodeController.text = _pincode!;
     _latitude = address.latitude;
     _longitude = address.longitude;
     _areaName = _deriveAreaName(
@@ -170,6 +190,36 @@ class _AddEditAddressScreenState extends ConsumerState<AddEditAddressScreen> {
     if (mounted) {
       setState(() {});
     }
+  }
+
+  // City/State/Pincode are pre-filled from the map pick but stay fully
+  // editable — these listeners keep the underlying _city/_state/_pincode
+  // state (used by save + the existing pincode-availability check) in sync
+  // with whatever the user actually typed, so a manual correction is what
+  // actually gets validated and saved, not the original geocoded guess.
+  void _handleCityTextChanged() {
+    final value = _cityController.text;
+    if (value == _city) return;
+    setState(() {
+      _city = value;
+    });
+  }
+
+  void _handleStateTextChanged() {
+    final value = _stateController.text;
+    if (value == _state) return;
+    setState(() {
+      _state = value;
+    });
+  }
+
+  void _handlePincodeTextChanged() {
+    final value = _pincodeController.text;
+    if (value == _pincode) return;
+    setState(() {
+      _pincode = value;
+    });
+    _schedulePincodeValidation(value);
   }
 
   Future<void> _openMapPicker({
@@ -325,6 +375,9 @@ class _AddEditAddressScreenState extends ConsumerState<AddEditAddressScreen> {
       if ((resolvedLine2 ?? '').trim().isNotEmpty) {
         _landmarkController.text = resolvedLine2!.trim();
       }
+      _cityController.text = resolvedCity ?? '';
+      _stateController.text = resolvedState ?? '';
+      _pincodeController.text = resolvedPincode ?? '';
     });
 
     _schedulePincodeValidation(resolvedPincode);
@@ -683,6 +736,54 @@ class _AddEditAddressScreenState extends ConsumerState<AddEditAddressScreen> {
                         controller: _landmarkController,
                         label: 'Landmark & Area Name (Optional)',
                         textInputAction: TextInputAction.next,
+                      ),
+                      Gap(12.h),
+                      Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: <Widget>[
+                          Expanded(
+                            child: _FormField(
+                              controller: _cityController,
+                              label: 'City *',
+                              textInputAction: TextInputAction.next,
+                              validator: (String? value) {
+                                if ((value ?? '').trim().isEmpty) {
+                                  return 'City is required.';
+                                }
+                                return null;
+                              },
+                            ),
+                          ),
+                          Gap(12.w),
+                          Expanded(
+                            child: _FormField(
+                              controller: _pincodeController,
+                              label: 'PIN Code *',
+                              keyboardType: TextInputType.number,
+                              textInputAction: TextInputAction.next,
+                              maxLength: 6,
+                              validator: (String? value) {
+                                final trimmed = (value ?? '').trim();
+                                if (trimmed.isEmpty) {
+                                  return 'PIN code is required.';
+                                }
+                                return Validators.validatePincode(trimmed);
+                              },
+                            ),
+                          ),
+                        ],
+                      ),
+                      Gap(12.h),
+                      _FormField(
+                        controller: _stateController,
+                        label: 'State *',
+                        textInputAction: TextInputAction.done,
+                        validator: (String? value) {
+                          if ((value ?? '').trim().isEmpty) {
+                            return 'State is required.';
+                          }
+                          return null;
+                        },
                       ),
                       Gap(20.h),
                       Text(
