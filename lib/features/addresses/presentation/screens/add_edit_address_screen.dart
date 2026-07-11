@@ -47,7 +47,8 @@ class _AddEditAddressScreenState extends ConsumerState<AddEditAddressScreen> {
   static const List<String> _labels = <String>['Home', 'Work', 'Other'];
 
   final GlobalKey<FormState> _formKey = GlobalKey<FormState>();
-  final TextEditingController _addressLine1Controller = TextEditingController();
+  final TextEditingController _addressController = TextEditingController();
+  final TextEditingController _houseNoController = TextEditingController();
   final TextEditingController _buildingController = TextEditingController();
   final TextEditingController _landmarkController = TextEditingController();
   final TextEditingController _cityController = TextEditingController();
@@ -88,7 +89,8 @@ class _AddEditAddressScreenState extends ConsumerState<AddEditAddressScreen> {
   bool get _canSave =>
       !_isSaving &&
       _hasPinnedLocation &&
-      _addressLine1Controller.text.trim().isNotEmpty &&
+      _addressController.text.trim().isNotEmpty &&
+      _houseNoController.text.trim().isNotEmpty &&
       _cityController.text.trim().isNotEmpty &&
       _stateController.text.trim().isNotEmpty &&
       _pincodeStatus == _PincodeValidationStatus.valid;
@@ -97,7 +99,8 @@ class _AddEditAddressScreenState extends ConsumerState<AddEditAddressScreen> {
   void initState() {
     super.initState();
     _seedFromInitialAddress();
-    _addressLine1Controller.addListener(_handleFormStateChanged);
+    _addressController.addListener(_handleFormStateChanged);
+    _houseNoController.addListener(_handleFormStateChanged);
     _cityController.addListener(_handleCityTextChanged);
     _stateController.addListener(_handleStateTextChanged);
     _pincodeController.addListener(_handlePincodeTextChanged);
@@ -108,7 +111,10 @@ class _AddEditAddressScreenState extends ConsumerState<AddEditAddressScreen> {
 
   @override
   void dispose() {
-    _addressLine1Controller
+    _addressController
+      ..removeListener(_handleFormStateChanged)
+      ..dispose();
+    _houseNoController
       ..removeListener(_handleFormStateChanged)
       ..dispose();
     _cityController
@@ -145,9 +151,10 @@ class _AddEditAddressScreenState extends ConsumerState<AddEditAddressScreen> {
 
     final secondaryParts = _splitSecondaryAddress(address.addressLine2);
     _selectedLabel = _normalizeLabel(address.label);
-    _addressLine1Controller.text = address.addressLine1;
-    _buildingController.text = secondaryParts.$1;
-    _landmarkController.text = secondaryParts.$2;
+    _addressController.text = address.addressLine1;
+    _houseNoController.text = secondaryParts.$1;
+    _buildingController.text = secondaryParts.$2;
+    _landmarkController.text = secondaryParts.$3;
     _receiverNameController.text = (_firstNonEmpty(<String?>[
           address.receiverName,
           accountName,
@@ -370,7 +377,7 @@ class _AddEditAddressScreenState extends ConsumerState<AddEditAddressScreen> {
       // refresh these to match the new spot rather than leave stale text
       // from a previous pick in place.
       if ((resolvedLine1 ?? '').trim().isNotEmpty) {
-        _addressLine1Controller.text = resolvedLine1!.trim();
+        _addressController.text = resolvedLine1!.trim();
       }
       if ((resolvedLine2 ?? '').trim().isNotEmpty) {
         _landmarkController.text = resolvedLine2!.trim();
@@ -540,7 +547,7 @@ class _AddEditAddressScreenState extends ConsumerState<AddEditAddressScreen> {
 
     final params = AddressUpsertParams(
       label: _selectedLabel,
-      addressLine1: _addressLine1Controller.text.trim(),
+      addressLine1: _addressController.text.trim(),
       addressLine2: _composeSecondaryAddress(),
       receiverName: _emptyToNull(_receiverNameController.text),
       receiverPhone: _receiverPhoneValue,
@@ -584,6 +591,7 @@ class _AddEditAddressScreenState extends ConsumerState<AddEditAddressScreen> {
 
   String? _composeSecondaryAddress() {
     final parts = <String>[
+      _houseNoController.text.trim(),
       _buildingController.text.trim(),
       _landmarkController.text.trim(),
     ].where((value) => value.isNotEmpty).toList(growable: false);
@@ -715,7 +723,19 @@ class _AddEditAddressScreenState extends ConsumerState<AddEditAddressScreen> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: <Widget>[
                       _FormField(
-                        controller: _addressLine1Controller,
+                        controller: _addressController,
+                        label: 'Address *',
+                        textInputAction: TextInputAction.next,
+                        validator: (String? value) {
+                          if ((value ?? '').trim().isEmpty) {
+                            return 'Address is required.';
+                          }
+                          return null;
+                        },
+                      ),
+                      Gap(12.h),
+                      _FormField(
+                        controller: _houseNoController,
                         label: 'House No. & Floor *',
                         textInputAction: TextInputAction.next,
                         validator: (String? value) {
@@ -1243,10 +1263,16 @@ class _ResolvedLocationData {
   final String? pincode;
 }
 
-(String, String) _splitSecondaryAddress(String? rawValue) {
+// addressLine2 is saved as "houseNo, building, landmark" going forward, so
+// edit mode restores the same three boxes from it. Addresses saved before
+// the Address field existed only ever had two segments (building,
+// landmark) — those legacy rows redistribute across the three boxes on
+// first edit; nothing is lost, it just lands in a different box until the
+// user re-saves.
+(String, String, String) _splitSecondaryAddress(String? rawValue) {
   final value = (rawValue ?? '').trim();
   if (value.isEmpty) {
-    return ('', '');
+    return ('', '', '');
   }
 
   final parts = value
@@ -1255,11 +1281,16 @@ class _ResolvedLocationData {
       .where((String item) => item.isNotEmpty)
       .toList(growable: false);
 
-  if (parts.length <= 1) {
-    return (value, '');
+  if (parts.isEmpty) {
+    return ('', '', '');
   }
-
-  return (parts.first, parts.sublist(1).join(', '));
+  if (parts.length == 1) {
+    return (parts[0], '', '');
+  }
+  if (parts.length == 2) {
+    return (parts[0], parts[1], '');
+  }
+  return (parts[0], parts[1], parts.sublist(2).join(', '));
 }
 
 String _normalizeLabel(String rawLabel) {
