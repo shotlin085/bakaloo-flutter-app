@@ -313,6 +313,18 @@ class _AddEditAddressScreenState extends ConsumerState<AddEditAddressScreen> {
         state: resolvedState,
         pincode: resolvedPincode,
       );
+      // Pre-fill the editable fields with the geocoded guess instead of
+      // leaving them blank — the user reviews and corrects them rather
+      // than typing the whole address from scratch. A fresh pin pick is a
+      // deliberate "this is my location" action, so it's expected to
+      // refresh these to match the new spot rather than leave stale text
+      // from a previous pick in place.
+      if ((resolvedLine1 ?? '').trim().isNotEmpty) {
+        _addressLine1Controller.text = resolvedLine1!.trim();
+      }
+      if ((resolvedLine2 ?? '').trim().isNotEmpty) {
+        _landmarkController.text = resolvedLine2!.trim();
+      }
     });
 
     _schedulePincodeValidation(resolvedPincode);

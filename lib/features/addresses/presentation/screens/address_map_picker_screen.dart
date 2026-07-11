@@ -647,13 +647,19 @@ class _AddressMapPickerScreenState extends State<AddressMapPickerScreen>
   }
 
   bool _hasUsefulReverseDetails(ReverseGeocodeResult reverse) {
+    // Nominatim (OSM) reliably covers broad fields — city/state/pincode —
+    // almost everywhere in India, even where its fine-grained coverage of
+    // small residential colonies is sparse. Checking "any field" here meant
+    // the richer on-device geocoder fallback below almost never ran, since
+    // state/pincode alone were enough to satisfy it — leaving the specific
+    // road/colony name blank in exactly the areas it matters most. Only
+    // treat Nominatim's answer as sufficient when it actually names the
+    // place (addressLine1/addressLine2); otherwise fetch the native
+    // placemark too so _ResolvedLocationDetails.fromSources can merge in
+    // whichever source has the better road/locality name.
     return <String?>[
-      reverse.displayName,
       reverse.addressLine1,
       reverse.addressLine2,
-      reverse.city,
-      reverse.state,
-      reverse.pincode,
     ].any((value) => (value ?? '').trim().isNotEmpty);
   }
 
