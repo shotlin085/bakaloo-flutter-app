@@ -403,9 +403,17 @@ class _ProductRecommendationCardState extends State<ProductRecommendationCard> {
                         ),
                       ),
                     if (!widget.product.inStock)
+                      // AppColors.overlayDark (40% black) was deliberately
+                      // lightened for the compact Home-screen grid card —
+                      // reused verbatim here it read as barely-there against
+                      // these larger, more vivid rail photos, so a tap where
+                      // the (correctly hidden) ADD button used to be looked
+                      // like a dead button rather than an unavailable item.
+                      // A darker, dedicated tint keeps this card unmistakably
+                      // marked as out of stock.
                       Positioned.fill(
                         child: Container(
-                          color: AppColors.overlayDark,
+                          color: Colors.black.withValues(alpha: 0.62),
                           alignment: Alignment.center,
                           child: Text(
                             'Out of stock',
