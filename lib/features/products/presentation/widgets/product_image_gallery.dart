@@ -1,7 +1,7 @@
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
-import 'package:phosphor_flutter/phosphor_flutter.dart';
+import 'package:phosphoricons_flutter/phosphoricons_flutter.dart';
 
 import 'package:bakaloo_flutter_app/features/products/presentation/widgets/product_highlights_overlay.dart';
 import 'package:bakaloo_flutter_app/shared/widgets/rating_badge.dart';
@@ -167,7 +167,7 @@ class _ProductImageGalleryState extends State<ProductImageGallery> {
                           child: imageUrl == null
                               ? Center(
                                   child: PhosphorIcon(
-                                    PhosphorIcons.image(),
+                                    PhosphorIcons.image,
                                     size: 42.sp,
                                     color: const Color(0xFFBBBBBB),
                                   ),
@@ -186,7 +186,7 @@ class _ProductImageGalleryState extends State<ProductImageGallery> {
                                   ),
                                   errorWidget: (context, url, error) => Center(
                                     child: PhosphorIcon(
-                                      PhosphorIcons.imageBroken(),
+                                      PhosphorIcons.imageBroken,
                                       size: 36.sp,
                                       color: const Color(0xFFBBBBBB),
                                     ),
@@ -207,23 +207,17 @@ class _ProductImageGalleryState extends State<ProductImageGallery> {
                         child: Row(
                           children: <Widget>[
                             _CircleActionButton(
-                              icon: PhosphorIcons.caretLeft(
-                                PhosphorIconsStyle.bold,
-                              ),
+                              icon: PhosphorIcons.caretLeftBold,
                               onTap: widget.onBack,
                             ),
                             const Spacer(),
                             _CircleActionButton(
-                              icon: PhosphorIcons.magnifyingGlass(
-                                PhosphorIconsStyle.bold,
-                              ),
+                              icon: PhosphorIcons.magnifyingGlassBold,
                               onTap: widget.onSearch,
                             ),
                             SizedBox(width: 8.w),
                             _CircleActionButton(
-                              icon: PhosphorIcons.shareNetwork(
-                                PhosphorIconsStyle.bold,
-                              ),
+                              icon: PhosphorIcons.shareNetworkBold,
                               onTap: widget.onShare,
                             ),
                           ],
@@ -252,7 +246,7 @@ class _ProductImageGalleryState extends State<ProductImageGallery> {
                               ),
                               child: Center(
                                 child: PhosphorIcon(
-                                  PhosphorIcons.sparkle(),
+                                  PhosphorIcons.sparkle,
                                   size: 18.sp,
                                   color: Colors.white,
                                 ),
@@ -330,7 +324,7 @@ class _ProductImageGalleryState extends State<ProductImageGallery> {
               height: 36.w,
               child: Center(
                 child: PhosphorIcon(
-                  PhosphorIcons.caretLeft(PhosphorIconsStyle.bold),
+                  PhosphorIcons.caretLeftBold,
                   size: 20.sp,
                   color: const Color(0xFF1A1A1A),
                 ),
@@ -358,7 +352,7 @@ class _ProductImageGalleryState extends State<ProductImageGallery> {
                   color: const Color(0xFFF2F2F2),
                   child: Center(
                     child: PhosphorIcon(
-                      PhosphorIcons.image(),
+                      PhosphorIcons.image,
                       size: 14.sp,
                       color: const Color(0xFFBBBBBB),
                     ),
@@ -431,7 +425,7 @@ class _ProductImageGalleryState extends State<ProductImageGallery> {
               height: 28.w,
               child: Center(
                 child: PhosphorIcon(
-                  PhosphorIcons.magnifyingGlass(PhosphorIconsStyle.bold),
+                  PhosphorIcons.magnifyingGlassBold,
                   size: 18.sp,
                   color: const Color(0xFF1A1A1A),
                 ),
@@ -447,7 +441,7 @@ class _ProductImageGalleryState extends State<ProductImageGallery> {
               height: 28.w,
               child: Center(
                 child: PhosphorIcon(
-                  PhosphorIcons.shareNetwork(PhosphorIconsStyle.bold),
+                  PhosphorIcons.shareNetworkBold,
                   size: 18.sp,
                   color: const Color(0xFF1A1A1A),
                 ),

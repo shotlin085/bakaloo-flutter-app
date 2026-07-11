@@ -8,7 +8,7 @@ import 'package:gap/gap.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 import 'package:latlong2/latlong.dart' as map;
-import 'package:phosphor_flutter/phosphor_flutter.dart';
+import 'package:phosphoricons_flutter/phosphoricons_flutter.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:wakelock_plus/wakelock_plus.dart';
 
@@ -619,7 +619,7 @@ class _TrackingTopBar extends StatelessWidget {
                 mainAxisSize: MainAxisSize.min,
                 children: <Widget>[
                   PhosphorIcon(
-                    PhosphorIcons.mapTrifold(),
+                    PhosphorIcons.mapTrifold,
                     size: 16.sp,
                     color: AppColors.infoBlue,
                   ),
@@ -695,11 +695,11 @@ class _TrackingStatusCard extends StatelessWidget {
                   runSpacing: 8.h,
                   children: <Widget>[
                     _StatusPill(
-                      icon: PhosphorIcons.navigationArrow(),
+                      icon: PhosphorIcons.navigationArrow,
                       label: etaLabel,
                     ),
                     _StatusPill(
-                      icon: PhosphorIcons.path(),
+                      icon: PhosphorIcons.path,
                       label: distanceLabel,
                     ),
                   ],

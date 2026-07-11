@@ -7,7 +7,7 @@ import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:gap/gap.dart';
-import 'package:phosphor_flutter/phosphor_flutter.dart';
+import 'package:phosphoricons_flutter/phosphoricons_flutter.dart';
 import 'package:pinput/pinput.dart';
 
 import 'package:bakaloo_flutter_app/core/security/screenshot_prevention.dart';
@@ -360,8 +360,8 @@ class _OtpVerifyScreenState extends ConsumerState<OtpVerifyScreen>
                           children: <Widget>[
                             PhosphorIcon(
                               _secondsRemaining > 0
-                                  ? PhosphorIcons.arrowClockwise()
-                                  : PhosphorIcons.arrowClockwise(),
+                                  ? PhosphorIcons.arrowClockwise
+                                  : PhosphorIcons.arrowClockwise,
                               color: _brandPurple,
                               size: 20.sp,
                             ),
@@ -513,7 +513,7 @@ class _OtpVerifyScreenState extends ConsumerState<OtpVerifyScreen>
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: <Widget>[
                             PhosphorIcon(
-                              PhosphorIcons.shieldCheck(),
+                              PhosphorIcons.shieldCheck,
                               color: _brandPurple,
                               size: 15.sp,
                             ),

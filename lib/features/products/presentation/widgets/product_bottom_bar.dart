@@ -2,7 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
-import 'package:phosphor_flutter/phosphor_flutter.dart';
+import 'package:phosphoricons_flutter/phosphoricons_flutter.dart';
 
 import 'package:bakaloo_flutter_app/core/theme/app_colors.dart';
 import 'package:bakaloo_flutter_app/features/products/domain/entities/product_entity.dart';
@@ -103,9 +103,7 @@ class _ProductBottomBarState extends State<ProductBottomBar> {
                             mainAxisSize: MainAxisSize.min,
                             children: <Widget>[
                               PhosphorIcon(
-                                PhosphorIcons.shoppingCartSimple(
-                                  PhosphorIconsStyle.bold,
-                                ),
+                                PhosphorIcons.shoppingCartSimpleBold,
                                 size: 20.sp,
                                 color: Colors.white,
                               ),
@@ -191,9 +189,7 @@ class _ViewCartButton extends StatelessWidget {
                   Padding(
                     padding: EdgeInsets.only(top: 1.h),
                     child: PhosphorIcon(
-                      PhosphorIcons.shoppingCartSimple(
-                        PhosphorIconsStyle.bold,
-                      ),
+                      PhosphorIcons.shoppingCartSimpleBold,
                       size: 20.sp,
                       color: const Color(0xFF1A1A1A),
                     ),
@@ -245,7 +241,7 @@ class _BottomQuantityControl extends StatelessWidget {
       child: Row(
         children: <Widget>[
           _QtyActionButton(
-            icon: PhosphorIcons.minus(PhosphorIconsStyle.bold),
+            icon: PhosphorIcons.minusBold,
             onTap: onDecrement,
           ),
           Expanded(
@@ -262,7 +258,7 @@ class _BottomQuantityControl extends StatelessWidget {
             ),
           ),
           _QtyActionButton(
-            icon: PhosphorIcons.plus(PhosphorIconsStyle.bold),
+            icon: PhosphorIcons.plusBold,
             onTap: onIncrement,
           ),
         ],

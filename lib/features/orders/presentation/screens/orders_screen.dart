@@ -5,7 +5,7 @@ import 'package:flutter_svg/flutter_svg.dart';
 import 'package:gap/gap.dart';
 import 'package:go_router/go_router.dart';
 import 'package:infinite_scroll_pagination/infinite_scroll_pagination.dart';
-import 'package:phosphor_flutter/phosphor_flutter.dart';
+import 'package:phosphoricons_flutter/phosphoricons_flutter.dart';
 
 import 'package:bakaloo_flutter_app/core/theme/app_colors.dart';
 import 'package:bakaloo_flutter_app/core/utils/app_toast.dart';
@@ -275,7 +275,7 @@ class _OrdersHeader extends ConsumerWidget {
         crossAxisAlignment: CrossAxisAlignment.center,
         children: <Widget>[
           _HeaderIconButton(
-            icon: PhosphorIcons.arrowLeft(PhosphorIconsStyle.bold),
+            icon: PhosphorIcons.arrowLeftBold,
             semanticLabel: 'Back',
             onTap: () =>
                 context.canPop() ? context.pop() : context.go(RouteNames.home),
@@ -302,7 +302,7 @@ class _OrdersHeader extends ConsumerWidget {
           ),
           SizedBox(width: 8.w),
           _HeaderIconButton(
-            icon: PhosphorIcons.handbag(PhosphorIconsStyle.bold),
+            icon: PhosphorIcons.handbagBold,
             semanticLabel: 'Cart',
             badgeCount: cartCount,
             onTap: () => context.push(RouteNames.cart),
@@ -462,7 +462,7 @@ class _OrdersErrorState extends StatelessWidget {
           mainAxisSize: MainAxisSize.min,
           children: <Widget>[
             PhosphorIcon(
-              PhosphorIcons.warningCircle(),
+              PhosphorIcons.warningCircle,
               size: 42.sp,
               color: AppColors.warningOrange,
             ),

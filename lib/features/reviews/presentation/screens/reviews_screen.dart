@@ -6,7 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:gap/gap.dart';
 import 'package:infinite_scroll_pagination/infinite_scroll_pagination.dart';
-import 'package:phosphor_flutter/phosphor_flutter.dart';
+import 'package:phosphoricons_flutter/phosphoricons_flutter.dart';
 
 import 'package:bakaloo_flutter_app/core/theme/app_colors.dart';
 import 'package:bakaloo_flutter_app/core/theme/app_dimensions.dart';
@@ -210,14 +210,14 @@ class _MyReviewCard extends StatelessWidget {
                         fit: BoxFit.cover,
                         errorWidget: (_, __, ___) => Center(
                           child: PhosphorIcon(
-                            PhosphorIcons.image(),
+                            PhosphorIcons.image,
                             color: AppColors.textDisabled,
                           ),
                         ),
                       )
                     : Center(
                         child: PhosphorIcon(
-                          PhosphorIcons.image(),
+                          PhosphorIcons.image,
                           color: AppColors.textDisabled,
                         ),
                       ),
@@ -559,9 +559,7 @@ class _StarsRow extends StatelessWidget {
         return Padding(
           padding: EdgeInsets.only(right: 2.w),
           child: PhosphorIcon(
-            PhosphorIcons.star(
-              isFilled ? PhosphorIconsStyle.fill : PhosphorIconsStyle.regular,
-            ),
+            isFilled ? PhosphorIcons.starFill : PhosphorIcons.star,
             size: starSize.sp,
             color: isFilled ? AppColors.ratingGold : AppColors.borderLight,
           ),

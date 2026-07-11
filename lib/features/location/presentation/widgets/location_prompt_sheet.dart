@@ -3,7 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:gap/gap.dart';
 import 'package:go_router/go_router.dart';
-import 'package:phosphor_flutter/phosphor_flutter.dart';
+import 'package:phosphoricons_flutter/phosphoricons_flutter.dart';
 
 import 'package:bakaloo_flutter_app/core/theme/app_colors.dart';
 import 'package:bakaloo_flutter_app/core/theme/app_text_styles.dart';
@@ -172,9 +172,7 @@ class _LocationPromptSheetState extends ConsumerState<_LocationPromptSheet> {
                         ),
                         child: Center(
                           child: PhosphorIcon(
-                            PhosphorIcons.mapPinLine(
-                              PhosphorIconsStyle.fill,
-                            ),
+                            PhosphorIcons.mapPinLineFill,
                             size: 26.sp,
                             color: AppColors.orderViolet,
                           ),
@@ -222,9 +220,7 @@ class _LocationPromptSheetState extends ConsumerState<_LocationPromptSheet> {
                             ),
                           )
                         : PhosphorIcon(
-                            PhosphorIcons.navigationArrow(
-                              PhosphorIconsStyle.fill,
-                            ),
+                            PhosphorIcons.navigationArrowFill,
                             size: 20.sp,
                             color: AppColors.orderViolet,
                           ),
@@ -316,7 +312,7 @@ class _LocationPromptSheetState extends ConsumerState<_LocationPromptSheet> {
                     _ActionRow(
                       onTap: _onSeeAllAddresses,
                       leading: PhosphorIcon(
-                        PhosphorIcons.mapPin(PhosphorIconsStyle.fill),
+                        PhosphorIcons.mapPinFill,
                         size: 20.sp,
                         color: AppColors.textSecondary,
                       ),
@@ -335,7 +331,7 @@ class _LocationPromptSheetState extends ConsumerState<_LocationPromptSheet> {
                     _ActionRow(
                       onTap: _onAddManually,
                       leading: PhosphorIcon(
-                        PhosphorIcons.plusCircle(PhosphorIconsStyle.fill),
+                        PhosphorIcons.plusCircleFill,
                         size: 20.sp,
                         color: AppColors.textSecondary,
                       ),

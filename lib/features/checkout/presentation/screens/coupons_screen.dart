@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:gap/gap.dart';
-import 'package:phosphor_flutter/phosphor_flutter.dart';
+import 'package:phosphoricons_flutter/phosphoricons_flutter.dart';
 
 import 'package:bakaloo_flutter_app/core/theme/app_colors.dart';
 import 'package:bakaloo_flutter_app/core/theme/app_dimensions.dart';
@@ -124,7 +124,7 @@ class _CouponsScreenState extends ConsumerState<CouponsScreen> {
             _PremiumSectionHeader(
               eyebrow: 'SMART COUPONS',
               eyebrowColor: _kGreen,
-              eyebrowIcon: PhosphorIcons.tag(PhosphorIconsStyle.fill),
+              eyebrowIcon: PhosphorIcons.tagFill,
               title: 'Best codes for this order',
               subtitle:
                   'These offers are ready to apply instantly on your current basket.',
@@ -137,13 +137,13 @@ class _CouponsScreenState extends ConsumerState<CouponsScreen> {
               const _SkeletonCouponCard(),
             ] else if (couponsAsync.hasError && coupons.isEmpty)
               _ErrorCard(
-                icon: PhosphorIcons.warningCircle(),
+                icon: PhosphorIcons.warningCircle,
                 message: 'Unable to load coupons right now',
                 onRetry: () => ref.invalidate(availableCouponsProvider),
               )
             else if (coupons.isEmpty)
               _EmptyCard(
-                icon: PhosphorIcons.tag(),
+                icon: PhosphorIcons.tag,
                 title: 'No live coupons right now',
                 subtitle:
                     'Try a code manually or use one of the payment offers below.',
@@ -183,7 +183,7 @@ class _CouponsScreenState extends ConsumerState<CouponsScreen> {
             _PremiumSectionHeader(
               eyebrow: 'BANK & UPI OFFERS',
               eyebrowColor: _kGold,
-              eyebrowIcon: PhosphorIcons.creditCard(PhosphorIconsStyle.fill),
+              eyebrowIcon: PhosphorIcons.creditCardFill,
               title: 'Payment perks you can unlock',
               subtitle:
                   'These work on online payment and update based on your cart total.',
@@ -196,13 +196,13 @@ class _CouponsScreenState extends ConsumerState<CouponsScreen> {
               const _SkeletonBankCard(),
             ] else if (offersAsync.hasError && offers.isEmpty)
               _ErrorCard(
-                icon: PhosphorIcons.creditCard(),
+                icon: PhosphorIcons.creditCard,
                 message: 'Unable to load payment offers',
                 onRetry: () => ref.invalidate(paymentOffersProvider),
               )
             else if (offers.isEmpty)
               _EmptyCard(
-                icon: PhosphorIcons.bank(),
+                icon: PhosphorIcons.bank,
                 title: 'No payment offers right now',
                 subtitle:
                     'Once live offers are available, they will appear here automatically.',
@@ -233,7 +233,7 @@ class _CouponsScreenState extends ConsumerState<CouponsScreen> {
       titleSpacing: 0,
       leading: IconButton(
         icon: Icon(
-          PhosphorIcons.arrowLeft(PhosphorIconsStyle.bold),
+          PhosphorIcons.arrowLeftBold,
           size: 22.sp,
           color: AppColors.textPrimary,
         ),
@@ -264,7 +264,7 @@ class _CouponsScreenState extends ConsumerState<CouponsScreen> {
             borderRadius: BorderRadius.circular(12.r),
           ),
           child: Icon(
-            PhosphorIcons.gift(PhosphorIconsStyle.fill),
+            PhosphorIcons.giftFill,
             size: 20.sp,
             color: _kGreen,
           ),
@@ -603,7 +603,7 @@ class _PremiumCouponCard extends StatelessWidget {
                     Row(
                       children: <Widget>[
                         Icon(
-                          PhosphorIcons.shoppingBag(),
+                          PhosphorIcons.shoppingBag,
                           size: 13.sp,
                           color: AppColors.textSecondary,
                         ),
@@ -1022,7 +1022,7 @@ class _SavingsInfoCard extends StatelessWidget {
               shape: BoxShape.circle,
             ),
             child: Icon(
-              PhosphorIcons.shieldCheck(PhosphorIconsStyle.fill),
+              PhosphorIcons.shieldCheckFill,
               size: 18.sp,
               color: _kGreen,
             ),

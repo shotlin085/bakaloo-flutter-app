@@ -4,7 +4,7 @@ import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:gap/gap.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:go_router/go_router.dart';
-import 'package:phosphor_flutter/phosphor_flutter.dart';
+import 'package:phosphoricons_flutter/phosphoricons_flutter.dart';
 import 'package:share_plus/share_plus.dart';
 
 import 'package:bakaloo_flutter_app/core/theme/app_colors.dart';
@@ -57,7 +57,7 @@ class AddressListScreen extends ConsumerWidget {
         leading: IconButton(
           onPressed: () => Navigator.of(context).maybePop(),
           icon: PhosphorIcon(
-            PhosphorIcons.caretLeft(PhosphorIconsStyle.bold),
+            PhosphorIcons.caretLeftBold,
             size: 20.sp,
             color: AppColors.textPrimary,
           ),
@@ -250,7 +250,7 @@ class _AddNewAddressCard extends StatelessWidget {
                 ),
                 child: Center(
                   child: PhosphorIcon(
-                    PhosphorIcons.plus(PhosphorIconsStyle.bold),
+                    PhosphorIcons.plusBold,
                     size: 22.sp,
                     color: AppColors.orderViolet,
                   ),
@@ -282,7 +282,7 @@ class _AddNewAddressCard extends StatelessWidget {
               ),
               Gap(8.w),
               PhosphorIcon(
-                PhosphorIcons.caretRight(PhosphorIconsStyle.bold),
+                PhosphorIcons.caretRightBold,
                 size: 18.sp,
                 color: AppColors.textTertiary,
               ),
@@ -418,7 +418,7 @@ class _SavedAddressCard extends StatelessWidget {
                       Row(
                         children: <Widget>[
                           PhosphorIcon(
-                            PhosphorIcons.mapPin(PhosphorIconsStyle.fill),
+                            PhosphorIcons.mapPinFill,
                             size: 13.sp,
                             color: AppColors.textTertiary,
                           ),
@@ -451,7 +451,7 @@ class _SavedAddressCard extends StatelessWidget {
               Column(
                 children: <Widget>[
                   _CardIconButton(
-                    icon: PhosphorIcons.shareNetwork(),
+                    icon: PhosphorIcons.shareNetwork,
                     onTap: onShare,
                   ),
                   Gap(8.h),
@@ -528,12 +528,12 @@ class _SavedAddressCard extends StatelessWidget {
   PhosphorIconData _iconForLabel(String label) {
     final lower = label.toLowerCase();
     if (lower.contains('home')) {
-      return PhosphorIcons.house();
+      return PhosphorIcons.house;
     }
     if (lower.contains('work') || lower.contains('office')) {
-      return PhosphorIcons.briefcase();
+      return PhosphorIcons.briefcase;
     }
-    return PhosphorIcons.mapPin();
+    return PhosphorIcons.mapPin;
   }
 }
 
@@ -559,7 +559,7 @@ class _EditPill extends StatelessWidget {
               mainAxisSize: MainAxisSize.min,
               children: <Widget>[
                 PhosphorIcon(
-                  PhosphorIcons.pencilSimple(),
+                  PhosphorIcons.pencilSimple,
                   size: 14.sp,
                   color: AppColors.orderViolet,
                 ),
@@ -601,7 +601,7 @@ class _CardIconButton extends StatelessWidget {
       ),
       child: icon == null
           ? PhosphorIcon(
-              PhosphorIcons.dotsThreeVertical(),
+              PhosphorIcons.dotsThreeVertical,
               size: 18.sp,
               color: AppColors.textSecondary,
             )
@@ -812,7 +812,7 @@ class _AddressEmptyState extends StatelessWidget {
               shape: BoxShape.circle,
             ),
             child: PhosphorIcon(
-              PhosphorIcons.mapPinLine(),
+              PhosphorIcons.mapPinLine,
               size: 28.sp,
               color: AppColors.orderViolet,
             ),
@@ -864,7 +864,7 @@ class _AddressErrorState extends StatelessWidget {
                 shape: BoxShape.circle,
               ),
               child: PhosphorIcon(
-                PhosphorIcons.warningCircle(),
+                PhosphorIcons.warningCircle,
                 size: 28.sp,
                 color: AppColors.errorRed,
               ),

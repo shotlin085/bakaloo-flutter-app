@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:gap/gap.dart';
-import 'package:phosphor_flutter/phosphor_flutter.dart';
+import 'package:phosphoricons_flutter/phosphoricons_flutter.dart';
 
 import 'package:bakaloo_flutter_app/core/constants/api_constants.dart';
 import 'package:bakaloo_flutter_app/core/theme/app_colors.dart';
@@ -357,7 +357,7 @@ class _ProductCardState extends State<ProductCard> {
           Row(
             children: <Widget>[
               PhosphorIcon(
-                PhosphorIcons.clock(),
+                PhosphorIcons.clock,
                 size: 11.sp,
                 color: const Color(0xFF888888),
               ),
@@ -533,7 +533,7 @@ class _ProductCardState extends State<ProductCard> {
                     padding: EdgeInsets.fromLTRB(contentPadding, 2.h, contentPadding, 0),
                     child: Row(
                       children: <Widget>[
-                        PhosphorIcon(PhosphorIcons.clock(), size: 11.sp, color: const Color(0xFF888888)),
+                        PhosphorIcon(PhosphorIcons.clock, size: 11.sp, color: const Color(0xFF888888)),
                         Gap(3.w),
                         Text(
                           product.formattedDeliveryTime,
@@ -927,11 +927,7 @@ class _WishlistButton extends ConsumerWidget {
         child: Padding(
           padding: EdgeInsets.all(6.w),
           child: PhosphorIcon(
-            PhosphorIcons.heart(
-              isWishlisted
-                  ? PhosphorIconsStyle.fill
-                  : PhosphorIconsStyle.regular,
-            ),
+            isWishlisted ? PhosphorIcons.heartFill : PhosphorIcons.heart,
             size: 18,
             color: isWishlisted ? AppColors.errorRed : const Color(0xFF606060),
           ),
@@ -1072,7 +1068,7 @@ class _ZeptoAddQtyButton extends ConsumerWidget {
                 width: controlWidth,
                 child: Center(
                   child: PhosphorIcon(
-                    PhosphorIcons.minus(),
+                    PhosphorIcons.minus,
                     size: iconSize,
                     color: Colors.white,
                   ),
@@ -1104,7 +1100,7 @@ class _ZeptoAddQtyButton extends ConsumerWidget {
                 width: controlWidth,
                 child: Center(
                   child: PhosphorIcon(
-                    PhosphorIcons.plus(),
+                    PhosphorIcons.plus,
                     size: iconSize,
                     color: Colors.white,
                   ),
@@ -1180,7 +1176,7 @@ class _ZeptoAddQtyButton extends ConsumerWidget {
             alignment: Alignment.center,
             child: compactPlus
                 ? PhosphorIcon(
-                    PhosphorIcons.plus(PhosphorIconsStyle.bold),
+                    PhosphorIcons.plusBold,
                     size: tight ? 15.0 : 18.0,
                     color: greenBorder,
                   )
@@ -1215,7 +1211,7 @@ class _ZeptoAddQtyButton extends ConsumerWidget {
                         ],
                       )
                     : PhosphorIcon(
-                        PhosphorIcons.plus(PhosphorIconsStyle.bold),
+                        PhosphorIcons.plusBold,
                         size: tight ? 15.0 : 18.0,
                         color: greenBorder,
                       ),

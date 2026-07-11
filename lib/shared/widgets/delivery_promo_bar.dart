@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
-import 'package:phosphor_flutter/phosphor_flutter.dart';
+import 'package:phosphoricons_flutter/phosphoricons_flutter.dart';
 
 import 'package:bakaloo_flutter_app/features/cart/presentation/providers/cart_provider.dart';
 
@@ -37,7 +37,7 @@ class DeliveryPromoBar extends ConsumerWidget {
         child: Row(
           children: <Widget>[
             PhosphorIcon(
-              PhosphorIcons.lockSimple(),
+              PhosphorIcons.lockSimple,
               size: 18.sp,
               color: const Color(0xFFFFD700),
             ),
@@ -68,7 +68,7 @@ class DeliveryPromoBar extends ConsumerWidget {
             ),
             // Optional: "Add Items" arrow
             PhosphorIcon(
-              PhosphorIcons.caretRight(),
+              PhosphorIcons.caretRight,
               size: 16.sp,
               color: const Color(0xFF888888),
             ),

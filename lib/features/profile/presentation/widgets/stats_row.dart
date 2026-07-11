@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:gap/gap.dart';
-import 'package:phosphor_flutter/phosphor_flutter.dart';
+import 'package:phosphoricons_flutter/phosphoricons_flutter.dart';
 
 import 'package:bakaloo_flutter_app/core/theme/app_colors.dart';
 import 'package:bakaloo_flutter_app/core/theme/app_text_styles.dart';
@@ -38,7 +38,7 @@ class StatsRow extends StatelessWidget {
         children: <Widget>[
           Expanded(
             child: _StatCell(
-              icon: PhosphorIcons.bag(),
+              icon: PhosphorIcons.bag,
               value: '${stats.totalOrders}',
               label: 'Orders',
             ),
@@ -46,7 +46,7 @@ class StatsRow extends StatelessWidget {
           _divider(),
           Expanded(
             child: _StatCell(
-              icon: PhosphorIcons.wallet(),
+              icon: PhosphorIcons.wallet,
               value: _formatSpent(stats.totalSpent),
               label: 'Spent',
             ),
@@ -54,7 +54,7 @@ class StatsRow extends StatelessWidget {
           _divider(),
           Expanded(
             child: _StatCell(
-              icon: PhosphorIcons.sparkle(),
+              icon: PhosphorIcons.sparkle,
               value: '${stats.loyaltyPoints}',
               label: 'Points',
             ),

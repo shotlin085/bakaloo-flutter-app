@@ -9,7 +9,7 @@ import 'package:gap/gap.dart';
 import 'package:geocoding/geocoding.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:latlong2/latlong.dart' as map;
-import 'package:phosphor_flutter/phosphor_flutter.dart';
+import 'package:phosphoricons_flutter/phosphoricons_flutter.dart';
 
 import 'package:bakaloo_flutter_app/core/maps/geo_point.dart';
 import 'package:bakaloo_flutter_app/core/maps/maps_service.dart';
@@ -156,7 +156,7 @@ class _AddressMapPickerScreenState extends State<AddressMapPickerScreen>
                   isLoading: _isLocating,
                   onTap: _moveToCurrentLocation,
                   child: PhosphorIcon(
-                    PhosphorIcons.crosshairSimple(PhosphorIconsStyle.bold),
+                    PhosphorIcons.crosshairSimpleBold,
                     size: 20.sp,
                     color: AppColors.textSecondary,
                   ),
@@ -793,7 +793,7 @@ class _TopBar extends StatelessWidget {
           IconButton(
             onPressed: onBack,
             icon: PhosphorIcon(
-              PhosphorIcons.caretLeft(PhosphorIconsStyle.bold),
+              PhosphorIcons.caretLeftBold,
               size: 20.sp,
               color: AppColors.textPrimary,
             ),
@@ -851,7 +851,7 @@ class _SearchCard extends StatelessWidget {
           prefixIcon: Padding(
             padding: EdgeInsets.symmetric(horizontal: 14.w),
             child: PhosphorIcon(
-              PhosphorIcons.magnifyingGlass(),
+              PhosphorIcons.magnifyingGlass,
               size: 18.sp,
               color: AppColors.textSecondary,
             ),
@@ -1096,7 +1096,7 @@ class _CenterPinOverlay extends StatelessWidget {
           const _TooltipBubble(),
           Gap(8.h),
           PhosphorIcon(
-            PhosphorIcons.mapPin(PhosphorIconsStyle.fill),
+            PhosphorIcons.mapPinFill,
             size: 42.sp,
             color: AppColors.cartPink,
           ),

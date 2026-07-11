@@ -4,7 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:gap/gap.dart';
 import 'package:go_router/go_router.dart';
-import 'package:phosphor_flutter/phosphor_flutter.dart';
+import 'package:phosphoricons_flutter/phosphoricons_flutter.dart';
 
 import 'package:bakaloo_flutter_app/core/theme/app_colors.dart';
 import 'package:bakaloo_flutter_app/core/theme/app_dimensions.dart';
@@ -231,13 +231,13 @@ class _CategoriesHeader extends ConsumerWidget {
           ),
           SizedBox(width: 10.w),
           _HeaderIconButton(
-            icon: PhosphorIcons.magnifyingGlass(PhosphorIconsStyle.bold),
+            icon: PhosphorIcons.magnifyingGlassBold,
             semanticLabel: 'Search',
             onTap: () => context.push(RouteNames.search),
           ),
           SizedBox(width: 10.w),
           _HeaderIconButton(
-            icon: PhosphorIcons.shoppingCartSimple(PhosphorIconsStyle.bold),
+            icon: PhosphorIcons.shoppingCartSimpleBold,
             semanticLabel: 'Cart',
             badgeCount: cartCount,
             onTap: () => context.push(RouteNames.cart),

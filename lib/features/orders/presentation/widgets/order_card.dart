@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
-import 'package:phosphor_flutter/phosphor_flutter.dart';
+import 'package:phosphoricons_flutter/phosphoricons_flutter.dart';
 
 import 'package:bakaloo_flutter_app/core/theme/app_colors.dart';
 import 'package:bakaloo_flutter_app/core/utils/extensions/datetime_extensions.dart';
@@ -181,7 +181,7 @@ class _OrderMeta extends StatelessWidget {
         Row(
           children: <Widget>[
             PhosphorIcon(
-              PhosphorIcons.calendarBlank(),
+              PhosphorIcons.calendarBlank,
               size: 12.sp,
               color: AppColors.textTertiary,
             ),
@@ -286,7 +286,7 @@ class _OrderActions extends StatelessWidget {
           children: <Widget>[
             Expanded(
               child: _PrimaryButton(
-                icon: PhosphorIcons.paperPlaneTilt(PhosphorIconsStyle.fill),
+                icon: PhosphorIcons.paperPlaneTiltFill,
                 label: 'Track Order',
                 onTap: onTrack,
               ),
@@ -308,7 +308,7 @@ class _OrderActions extends StatelessWidget {
           children: <Widget>[
             Expanded(
               child: _PrimaryButton(
-                icon: PhosphorIcons.paperPlaneTilt(PhosphorIconsStyle.fill),
+                icon: PhosphorIcons.paperPlaneTiltFill,
                 label: 'Track Order',
                 onTap: onTrack,
               ),
@@ -330,7 +330,7 @@ class _OrderActions extends StatelessWidget {
           children: <Widget>[
             Expanded(
               child: _PrimaryButton(
-                icon: PhosphorIcons.arrowsClockwise(PhosphorIconsStyle.bold),
+                icon: PhosphorIcons.arrowsClockwiseBold,
                 label: 'Reorder',
                 isLoading: isReordering,
                 onTap: onReorder,

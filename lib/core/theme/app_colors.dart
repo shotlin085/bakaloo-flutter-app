@@ -43,7 +43,7 @@ class AppColors {
   static const borderLight = Color(0xFFE0E0E0);
   static const borderFocus = Color(0xFF0C831F);
 
-  static const overlayDark = Color(0xCC000000);
+  static const overlayDark = Color(0x66000000);
   static const overlayLight = Color(0x33000000);
   static const shimmerHighlight = Color(0xFFF5F5F5);
   static const ratingGold = Color(0xFFFFA000);

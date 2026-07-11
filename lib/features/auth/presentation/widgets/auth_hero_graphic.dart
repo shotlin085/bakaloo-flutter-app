@@ -4,7 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:gap/gap.dart';
-import 'package:phosphor_flutter/phosphor_flutter.dart';
+import 'package:phosphoricons_flutter/phosphoricons_flutter.dart';
 
 import 'package:bakaloo_flutter_app/core/theme/app_colors.dart';
 import 'package:bakaloo_flutter_app/core/theme/app_text_styles.dart';
@@ -86,7 +86,7 @@ class _AuthHeroGraphicState extends State<AuthHeroGraphic>
                       ),
                       child: Center(
                         child: PhosphorIcon(
-                          PhosphorIcons.shoppingBag(PhosphorIconsStyle.fill),
+                          PhosphorIcons.shoppingBagFill,
                           size: 40.sp,
                           color: Colors.white,
                         ),

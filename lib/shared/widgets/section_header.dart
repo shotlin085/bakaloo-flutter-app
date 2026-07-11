@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
-import 'package:phosphor_flutter/phosphor_flutter.dart';
+import 'package:phosphoricons_flutter/phosphoricons_flutter.dart';
 
 import 'package:bakaloo_flutter_app/core/theme/app_colors.dart';
 import 'package:bakaloo_flutter_app/core/theme/app_dimensions.dart';
@@ -49,7 +49,7 @@ class SectionHeader extends StatelessWidget {
                   ),
                   const SizedBox(width: AppDimensions.spacing4),
                   PhosphorIcon(
-                    PhosphorIcons.arrowRight(),
+                    PhosphorIcons.arrowRight,
                     size: 16,
                     color: AppColors.primaryGreen,
                   ),

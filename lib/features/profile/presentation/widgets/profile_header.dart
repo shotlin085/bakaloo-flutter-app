@@ -4,7 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:gap/gap.dart';
 import 'package:go_router/go_router.dart';
-import 'package:phosphor_flutter/phosphor_flutter.dart';
+import 'package:phosphoricons_flutter/phosphoricons_flutter.dart';
 
 import 'package:bakaloo_flutter_app/core/theme/app_colors.dart';
 import 'package:bakaloo_flutter_app/core/theme/app_text_styles.dart';
@@ -60,7 +60,7 @@ class _ProfileHeaderState extends ConsumerState<ProfileHeader> {
                   padding: EdgeInsets.zero,
                   constraints: const BoxConstraints(),
                   icon: PhosphorIcon(
-                    PhosphorIcons.caretLeft(),
+                    PhosphorIcons.caretLeft,
                     size: 22.sp,
                     color: AppColors.textPrimary,
                   ),
@@ -151,7 +151,7 @@ class _EditProfileButton extends StatelessWidget {
             mainAxisSize: MainAxisSize.min,
             children: <Widget>[
               PhosphorIcon(
-                PhosphorIcons.pencilSimple(),
+                PhosphorIcons.pencilSimple,
                 size: 14.sp,
                 color: AppColors.orderViolet,
               ),

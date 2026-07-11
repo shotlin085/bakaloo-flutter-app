@@ -7,7 +7,7 @@ import 'package:gap/gap.dart';
 import 'package:go_router/go_router.dart';
 import 'package:infinite_scroll_pagination/infinite_scroll_pagination.dart';
 import 'package:local_auth/local_auth.dart';
-import 'package:phosphor_flutter/phosphor_flutter.dart';
+import 'package:phosphoricons_flutter/phosphoricons_flutter.dart';
 import 'package:flutter/services.dart';
 
 import 'package:bakaloo_flutter_app/core/constants/app_constants.dart';
@@ -378,7 +378,7 @@ class _BalanceCard extends StatelessWidget {
             children: <Widget>[
               Expanded(
                 child: _WalletActionButton(
-                  icon: PhosphorIcons.plus(PhosphorIconsStyle.bold),
+                  icon: PhosphorIcons.plusBold,
                   label: 'Add Money',
                   filled: true,
                   onTap: onAddMoney,
@@ -388,7 +388,7 @@ class _BalanceCard extends StatelessWidget {
                 Gap(12.w),
                 Expanded(
                   child: _WalletActionButton(
-                    icon: PhosphorIcons.arrowsClockwise(),
+                    icon: PhosphorIcons.arrowsClockwise,
                     label: 'Transfer',
                     filled: false,
                     onTap: onTransfer,
@@ -440,8 +440,8 @@ class _HideBalanceButton extends StatelessWidget {
                 )
               : PhosphorIcon(
                   unlocked
-                      ? PhosphorIcons.eye()
-                      : PhosphorIcons.eyeSlash(),
+                      ? PhosphorIcons.eye
+                      : PhosphorIcons.eyeSlash,
                   size: 16.sp,
                   color: AppColors.orderViolet,
                 ),
@@ -467,7 +467,7 @@ class _WalletGlyph extends StatelessWidget {
       ),
       child: Center(
         child: PhosphorIcon(
-          PhosphorIcons.wallet(PhosphorIconsStyle.fill),
+          PhosphorIcons.walletFill,
           size: 32.sp,
           color: AppColors.orderViolet,
         ),
@@ -547,18 +547,18 @@ class _QuickActionRow extends StatelessWidget {
       mainAxisAlignment: MainAxisAlignment.spaceAround,
       children: <Widget>[
         _QuickActionCircle(
-          icon: PhosphorIcons.plusCircle(),
+          icon: PhosphorIcons.plusCircle,
           label: 'Add',
           onTap: onAddMoney,
         ),
         if (AppConstants.walletTransfersEnabled)
           _QuickActionCircle(
-            icon: PhosphorIcons.arrowsLeftRight(),
+            icon: PhosphorIcons.arrowsLeftRight,
             label: 'Transfer',
             onTap: onTransfer,
           ),
         _QuickActionCircle(
-          icon: PhosphorIcons.clockCounterClockwise(),
+          icon: PhosphorIcons.clockCounterClockwise,
           label: 'History',
           onTap: onHistory,
         ),
@@ -677,7 +677,7 @@ class _TransactionTile extends StatelessWidget {
             ),
             child: Center(
               child: PhosphorIcon(
-                isCredit ? PhosphorIcons.arrowDown() : PhosphorIcons.arrowUp(),
+                isCredit ? PhosphorIcons.arrowDown : PhosphorIcons.arrowUp,
                 color: color,
                 size: 18.sp,
               ),

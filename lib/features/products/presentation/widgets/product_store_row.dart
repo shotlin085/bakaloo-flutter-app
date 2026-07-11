@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:gap/gap.dart';
-import 'package:phosphor_flutter/phosphor_flutter.dart';
+import 'package:phosphoricons_flutter/phosphoricons_flutter.dart';
 
 import 'package:bakaloo_flutter_app/core/theme/app_text_styles.dart';
 import 'package:bakaloo_flutter_app/features/products/presentation/providers/product_store_info_provider.dart';
@@ -75,7 +75,7 @@ class ProductStoreRow extends ConsumerWidget {
                   border: Border.all(color: border),
                 ),
                 child: Icon(
-                  PhosphorIcons.storefront(PhosphorIconsStyle.fill),
+                  PhosphorIcons.storefrontFill,
                   size: 18.sp,
                   color: fg,
                 ),
@@ -111,12 +111,8 @@ class ProductStoreRow extends ConsumerWidget {
                       children: <Widget>[
                         Icon(
                           available
-                              ? PhosphorIcons.checkCircle(
-                                  PhosphorIconsStyle.fill,
-                                )
-                              : PhosphorIcons.warningCircle(
-                                  PhosphorIconsStyle.fill,
-                                ),
+                              ? PhosphorIcons.checkCircleFill
+                              : PhosphorIcons.warningCircleFill,
                           size: 13.sp,
                           color: fg,
                         ),

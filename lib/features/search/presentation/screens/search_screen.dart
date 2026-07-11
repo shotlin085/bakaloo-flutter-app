@@ -9,7 +9,7 @@ import 'package:flutter_svg/flutter_svg.dart';
 import 'package:gap/gap.dart';
 import 'package:go_router/go_router.dart';
 import 'package:infinite_scroll_pagination/infinite_scroll_pagination.dart';
-import 'package:phosphor_flutter/phosphor_flutter.dart';
+import 'package:phosphoricons_flutter/phosphoricons_flutter.dart';
 
 import 'package:bakaloo_flutter_app/core/theme/app_colors.dart';
 import 'package:bakaloo_flutter_app/core/theme/app_dimensions.dart';
@@ -448,7 +448,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen>
                             ),
                             if (isSelected)
                               PhosphorIcon(
-                                PhosphorIcons.check(PhosphorIconsStyle.bold),
+                                PhosphorIcons.checkBold,
                                 size: 18.sp,
                                 color: AppColors.orderViolet,
                               ),
@@ -814,9 +814,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen>
                     child: Row(
                       children: <Widget>[
                         _CircleIconButton(
-                          icon: PhosphorIcons.arrowLeft(
-                            PhosphorIconsStyle.bold,
-                          ),
+                          icon: PhosphorIcons.arrowLeftBold,
                           semanticLabel: 'Back',
                           onTap: _dismiss,
                         ),
@@ -832,10 +830,8 @@ class _SearchScreenState extends ConsumerState<SearchScreen>
                         Gap(12.w),
                         _CircleIconButton(
                           icon: _searchController.text.trim().isEmpty
-                              ? PhosphorIcons.microphone(
-                                  PhosphorIconsStyle.bold,
-                                )
-                              : PhosphorIcons.x(PhosphorIconsStyle.bold),
+                              ? PhosphorIcons.microphoneBold
+                              : PhosphorIcons.xBold,
                           iconColor: _searchController.text.trim().isEmpty
                               ? AppColors.orderViolet
                               : AppColors.textSecondary,
@@ -1037,7 +1033,7 @@ class _SearchInput extends StatelessWidget {
               prefixIcon: Padding(
                 padding: EdgeInsets.only(left: 16.w, right: 10.w),
                 child: PhosphorIcon(
-                  PhosphorIcons.magnifyingGlass(PhosphorIconsStyle.bold),
+                  PhosphorIcons.magnifyingGlassBold,
                   size: 20.sp,
                   color: AppColors.textSecondary,
                 ),
@@ -1251,7 +1247,7 @@ class _RecentSearchChip extends StatelessWidget {
           mainAxisSize: MainAxisSize.min,
           children: <Widget>[
             PhosphorIcon(
-              PhosphorIcons.clockCounterClockwise(),
+              PhosphorIcons.clockCounterClockwise,
               size: 15.sp,
               color: AppColors.orderViolet,
             ),
@@ -1267,7 +1263,7 @@ class _RecentSearchChip extends StatelessWidget {
               onTap: onRemove,
               behavior: HitTestBehavior.opaque,
               child: PhosphorIcon(
-                PhosphorIcons.x(),
+                PhosphorIcons.x,
                 size: 14,
                 color: AppColors.textSecondary,
               ),
@@ -1366,7 +1362,7 @@ class _PopularCategoryCard extends StatelessWidget {
                 ),
                 child: Center(
                   child: PhosphorIcon(
-                    PhosphorIcons.caretRight(PhosphorIconsStyle.bold),
+                    PhosphorIcons.caretRightBold,
                     size: 16.sp,
                     color: AppColors.textPrimary,
                   ),
@@ -1405,7 +1401,7 @@ class _ViewAllProductsCard extends StatelessWidget {
             ),
             child: Center(
               child: PhosphorIcon(
-                PhosphorIcons.sparkle(PhosphorIconsStyle.fill),
+                PhosphorIcons.sparkleFill,
                 size: 20.sp,
                 color: AppColors.orderViolet,
               ),
@@ -1541,7 +1537,7 @@ class _SearchResultsState extends StatelessWidget {
               ),
               // Sort pill
               _SortFilterPill(
-                icon: PhosphorIcons.caretDown(PhosphorIconsStyle.bold),
+                icon: PhosphorIcons.caretDownBold,
                 label: sortOption.label,
                 isActive: sortOption != _SortOption.relevance,
                 onTap: onSortTap,
@@ -1549,9 +1545,7 @@ class _SearchResultsState extends StatelessWidget {
               Gap(14.w),
               // Filter pill
               _SortFilterPill(
-                icon: PhosphorIcons.slidersHorizontal(
-                  PhosphorIconsStyle.bold,
-                ),
+                icon: PhosphorIcons.slidersHorizontalBold,
                 label: filterState.isDefault
                     ? null
                     : 'Filters ${filterState.activeCount}',
@@ -1758,7 +1752,7 @@ class _SearchResultTile extends ConsumerWidget {
                 child: imageUrl == null || imageUrl.isEmpty
                     ? Center(
                         child: PhosphorIcon(
-                          PhosphorIcons.image(),
+                          PhosphorIcons.image,
                           color: AppColors.textDisabled,
                         ),
                       )
@@ -1768,7 +1762,7 @@ class _SearchResultTile extends ConsumerWidget {
                         fit: BoxFit.cover,
                         errorWidget: (_, __, ___) => Center(
                           child: PhosphorIcon(
-                            PhosphorIcons.imageBroken(),
+                            PhosphorIcons.imageBroken,
                             color: AppColors.textDisabled,
                           ),
                         ),
@@ -1984,7 +1978,7 @@ class _SearchErrorState extends StatelessWidget {
           mainAxisSize: MainAxisSize.min,
           children: <Widget>[
             PhosphorIcon(
-              PhosphorIcons.warningCircle(),
+              PhosphorIcons.warningCircle,
               size: 48,
               color: AppColors.warningOrange,
             ),

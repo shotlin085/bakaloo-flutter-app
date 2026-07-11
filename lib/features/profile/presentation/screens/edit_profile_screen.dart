@@ -4,7 +4,7 @@ import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:gap/gap.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
-import 'package:phosphor_flutter/phosphor_flutter.dart';
+import 'package:phosphoricons_flutter/phosphoricons_flutter.dart';
 
 import 'package:bakaloo_flutter_app/core/theme/app_colors.dart';
 import 'package:bakaloo_flutter_app/core/theme/app_dimensions.dart';
@@ -54,7 +54,7 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
         leading: IconButton(
           onPressed: () => context.pop(),
           icon: PhosphorIcon(
-            PhosphorIcons.caretLeft(),
+            PhosphorIcons.caretLeft,
             color: AppColors.textPrimary,
             size: 22.sp,
           ),
@@ -142,7 +142,7 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
                       ),
                     ),
                     PhosphorIcon(
-                      PhosphorIcons.calendarDots(),
+                      PhosphorIcons.calendarDots,
                       size: 20.sp,
                       color: AppColors.textSecondary,
                     ),

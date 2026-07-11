@@ -9,7 +9,7 @@ import 'package:geocoding/geocoding.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:latlong2/latlong.dart' as map;
 import 'package:permission_handler/permission_handler.dart';
-import 'package:phosphor_flutter/phosphor_flutter.dart';
+import 'package:phosphoricons_flutter/phosphoricons_flutter.dart';
 
 import 'package:bakaloo_flutter_app/core/maps/geo_point.dart';
 import 'package:bakaloo_flutter_app/core/theme/app_colors.dart';
@@ -546,7 +546,7 @@ class _AddEditAddressScreenState extends ConsumerState<AddEditAddressScreen> {
         leading: IconButton(
           onPressed: () => Navigator.of(context).maybePop(),
           icon: PhosphorIcon(
-            PhosphorIcons.caretLeft(PhosphorIconsStyle.bold),
+            PhosphorIcons.caretLeftBold,
             size: 20.sp,
             color: AppColors.textPrimary,
           ),
@@ -758,7 +758,7 @@ class _CompactMapPreview extends StatelessWidget {
                         mainAxisSize: MainAxisSize.min,
                         children: <Widget>[
                           PhosphorIcon(
-                            PhosphorIcons.mapPin(PhosphorIconsStyle.fill),
+                            PhosphorIcons.mapPinFill,
                             size: 32.sp,
                             color: AppColors.cartPink,
                           ),
@@ -796,9 +796,7 @@ class _CompactMapPreview extends StatelessWidget {
                             ),
                           )
                         : PhosphorIcon(
-                            PhosphorIcons.crosshairSimple(
-                              PhosphorIconsStyle.bold,
-                            ),
+                            PhosphorIcons.crosshairSimpleBold,
                             size: 18.sp,
                             color: AppColors.textSecondary,
                           ),

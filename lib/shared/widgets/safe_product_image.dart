@@ -1,7 +1,7 @@
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
-import 'package:phosphor_flutter/phosphor_flutter.dart';
+import 'package:phosphoricons_flutter/phosphoricons_flutter.dart';
 
 import 'package:bakaloo_flutter_app/core/theme/app_colors.dart';
 
@@ -85,7 +85,7 @@ class _Fallback extends StatelessWidget {
       color: bg,
       child: Center(
         child: PhosphorIcon(
-          PhosphorIcons.package(),
+          PhosphorIcons.package,
           size: size ?? 18.sp,
           color: AppColors.textTertiary,
         ),

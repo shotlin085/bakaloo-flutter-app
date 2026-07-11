@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:gap/gap.dart';
-import 'package:phosphor_flutter/phosphor_flutter.dart';
+import 'package:phosphoricons_flutter/phosphoricons_flutter.dart';
 
 import 'package:bakaloo_flutter_app/core/theme/app_colors.dart';
 import 'package:bakaloo_flutter_app/core/theme/app_text_styles.dart';
@@ -34,8 +34,8 @@ class AppearanceToggle extends ConsumerWidget {
               child: Center(
                 child: PhosphorIcon(
                   isDark
-                      ? PhosphorIcons.moon()
-                      : PhosphorIcons.sun(),
+                      ? PhosphorIcons.moon
+                      : PhosphorIcons.sun,
                   size: 18.sp,
                   color: AppColors.textPrimary,
                 ),

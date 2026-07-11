@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:gap/gap.dart';
-import 'package:phosphor_flutter/phosphor_flutter.dart';
+import 'package:phosphoricons_flutter/phosphoricons_flutter.dart';
 
 import 'package:bakaloo_flutter_app/core/theme/app_colors.dart';
 import 'package:bakaloo_flutter_app/core/theme/app_dimensions.dart';
@@ -26,7 +26,7 @@ class QuickActionRow extends StatelessWidget {
       children: <Widget>[
         Expanded(
           child: _QuickActionTile(
-            icon: PhosphorIcons.package(),
+            icon: PhosphorIcons.package,
             label: 'Your orders',
             onTap: onOrdersTap,
           ),
@@ -34,7 +34,7 @@ class QuickActionRow extends StatelessWidget {
         Gap(10.w),
         Expanded(
           child: _QuickActionTile(
-            icon: PhosphorIcons.wallet(),
+            icon: PhosphorIcons.wallet,
             label: 'Bakaloo Money',
             onTap: onWalletTap,
           ),
@@ -42,7 +42,7 @@ class QuickActionRow extends StatelessWidget {
         Gap(10.w),
         Expanded(
           child: _QuickActionTile(
-            icon: PhosphorIcons.question(),
+            icon: PhosphorIcons.question,
             label: 'Need help?',
             onTap: onHelpTap,
           ),

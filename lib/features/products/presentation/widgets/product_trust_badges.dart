@@ -1,7 +1,7 @@
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
-import 'package:phosphor_flutter/phosphor_flutter.dart';
+import 'package:phosphoricons_flutter/phosphoricons_flutter.dart';
 
 import 'package:bakaloo_flutter_app/features/products/domain/entities/product_entity.dart';
 import 'package:bakaloo_flutter_app/shared/widgets/trust_badge_card.dart';
@@ -32,7 +32,7 @@ class ProductTrustBadges extends StatelessWidget {
           if (product.hasNoReturn)
             TrustBadgeCard(
               icon: _IconBadge(
-                icon: PhosphorIcons.package(),
+                icon: PhosphorIcons.package,
               ),
               title: 'No Exchange or Return',
               subtitle:
@@ -41,7 +41,7 @@ class ProductTrustBadges extends StatelessWidget {
           if (product.isAuthentic)
             TrustBadgeCard(
               icon: _IconBadge(
-                icon: PhosphorIcons.shieldCheck(),
+                icon: PhosphorIcons.shieldCheck,
               ),
               title: '100% Authentic',
               subtitle:
@@ -138,7 +138,7 @@ class _BrandFallback extends StatelessWidget {
         ),
         child: Center(
           child: PhosphorIcon(
-            PhosphorIcons.storefront(),
+            PhosphorIcons.storefront,
             size: 22.sp,
             color: const Color(0xFF1A1A1A),
           ),

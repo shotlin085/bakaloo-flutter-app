@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:gap/gap.dart';
-import 'package:phosphor_flutter/phosphor_flutter.dart';
+import 'package:phosphoricons_flutter/phosphoricons_flutter.dart';
 
 import 'package:bakaloo_flutter_app/core/network/app_availability_provider.dart';
 import 'package:bakaloo_flutter_app/core/theme/app_colors.dart';
@@ -31,7 +31,7 @@ class AppAvailabilityGate extends ConsumerWidget {
             child: BakalooStateScreen(
               illustrationAsset:
                   'assets/images/bakaloo-offline-state-illustration.png',
-              icon: PhosphorIcons.wifiSlash(PhosphorIconsStyle.bold),
+              icon: PhosphorIcons.wifiSlashBold,
               title: "You're offline",
               subtitle:
                   'Please check your internet connection\nand try again.',

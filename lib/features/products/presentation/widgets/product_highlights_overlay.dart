@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
-import 'package:phosphor_flutter/phosphor_flutter.dart';
+import 'package:phosphoricons_flutter/phosphoricons_flutter.dart';
 
 class ProductHighlightsOverlay extends StatefulWidget {
   const ProductHighlightsOverlay({
@@ -158,7 +158,7 @@ class _ProductHighlightsOverlayState extends State<ProductHighlightsOverlay>
                         ),
                         child: Center(
                           child: PhosphorIcon(
-                            PhosphorIcons.x(),
+                            PhosphorIcons.x,
                             size: 18.sp,
                             color: Colors.white,
                           ),

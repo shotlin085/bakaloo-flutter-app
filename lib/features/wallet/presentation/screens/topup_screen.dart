@@ -5,7 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:gap/gap.dart';
 import 'package:go_router/go_router.dart';
-import 'package:phosphor_flutter/phosphor_flutter.dart';
+import 'package:phosphoricons_flutter/phosphoricons_flutter.dart';
 import 'package:razorpay_flutter/razorpay_flutter.dart';
 
 import 'package:bakaloo_flutter_app/core/security/screenshot_prevention.dart';
@@ -201,7 +201,7 @@ class _TopupScreenState extends ConsumerState<TopupScreen> {
                     ),
                     child: Center(
                       child: PhosphorIcon(
-                        PhosphorIcons.wallet(),
+                        PhosphorIcons.wallet,
                         color: AppColors.orderViolet,
                         size: 20.sp,
                       ),

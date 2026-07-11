@@ -1,7 +1,7 @@
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
-import 'package:phosphor_flutter/phosphor_flutter.dart';
+import 'package:phosphoricons_flutter/phosphoricons_flutter.dart';
 
 import 'package:bakaloo_flutter_app/core/constants/api_constants.dart';
 import 'package:bakaloo_flutter_app/shared/utils/link_tap_handler.dart';
@@ -141,9 +141,7 @@ class _CustomBannerSectionState extends State<CustomBannerSection> {
                     ),
                     child: Center(
                       child: PhosphorIcon(
-                        PhosphorIcons.imageSquare(
-                          PhosphorIconsStyle.duotone,
-                        ),
+                        PhosphorIcons.imageSquareDuotone,
                         size: 42.sp,
                         color: const Color(0xFF9B9B9B),
                       ),
@@ -165,9 +163,7 @@ class _CustomBannerSectionState extends State<CustomBannerSection> {
                       ),
                       child: Center(
                         child: PhosphorIcon(
-                          PhosphorIcons.imageBroken(
-                            PhosphorIconsStyle.duotone,
-                          ),
+                          PhosphorIcons.imageBrokenDuotone,
                           size: 38.sp,
                           color: const Color(0xFF9B9B9B),
                         ),

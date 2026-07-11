@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
-import 'package:phosphor_flutter/phosphor_flutter.dart';
+import 'package:phosphoricons_flutter/phosphoricons_flutter.dart';
 
 class TrustBadgeCard extends StatelessWidget {
   const TrustBadgeCard({
@@ -64,7 +64,7 @@ class TrustBadgeCard extends StatelessWidget {
               ),
             ),
             PhosphorIcon(
-              PhosphorIcons.caretRight(),
+              PhosphorIcons.caretRight,
               size: 20.sp,
               color: const Color(0xFFCCCCCC),
             ),

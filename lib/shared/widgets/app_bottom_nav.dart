@@ -7,7 +7,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:gap/gap.dart';
 import 'package:go_router/go_router.dart';
-import 'package:phosphor_flutter/phosphor_flutter.dart';
+import 'package:phosphoricons_flutter/phosphoricons_flutter.dart';
 
 import 'package:bakaloo_flutter_app/core/notifications/notification_router.dart';
 import 'package:bakaloo_flutter_app/core/theme/app_colors.dart';
@@ -143,7 +143,7 @@ class _AppShellState extends ConsumerState<AppShell>
               MaterialBanner(
                 backgroundColor: AppColors.bgCard,
                 leading: PhosphorIcon(
-                  PhosphorIcons.bellRinging(),
+                  PhosphorIcons.bellRinging,
                   color: AppColors.primaryGreen,
                 ),
                 content: Text(
@@ -725,7 +725,7 @@ class _SmartBottomBar extends StatelessWidget {
                   if (!isTracking) _buildCartSummary(context),
                   Gap(6.w),
                   PhosphorIcon(
-                    PhosphorIcons.caretRight(PhosphorIconsStyle.bold),
+                    PhosphorIcons.caretRightBold,
                     size: 18.sp,
                     color: Colors.white,
                   ),
@@ -752,7 +752,7 @@ class _SmartBottomBar extends StatelessWidget {
           mainAxisSize: MainAxisSize.min,
           children: <Widget>[
             PhosphorIcon(
-              PhosphorIcons.moped(PhosphorIconsStyle.fill),
+              PhosphorIcons.mopedFill,
               size: 18.sp,
               color: Colors.white,
             ),
@@ -788,7 +788,7 @@ class _SmartBottomBar extends StatelessWidget {
           mainAxisSize: MainAxisSize.min,
           children: <Widget>[
             PhosphorIcon(
-              PhosphorIcons.sealCheck(PhosphorIconsStyle.fill),
+              PhosphorIcons.sealCheckFill,
               size: 18.sp,
               color: Colors.white,
             ),
@@ -861,7 +861,7 @@ class _SmartBottomBar extends StatelessWidget {
           ),
           alignment: Alignment.center,
           child: PhosphorIcon(
-            PhosphorIcons.basket(PhosphorIconsStyle.fill),
+            PhosphorIcons.basketFill,
             size: 16.sp,
             color: Colors.white,
           ),

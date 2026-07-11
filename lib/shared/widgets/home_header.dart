@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:gap/gap.dart';
-import 'package:phosphor_flutter/phosphor_flutter.dart';
+import 'package:phosphoricons_flutter/phosphoricons_flutter.dart';
 
 import 'package:bakaloo_flutter_app/core/providers/store_provider.dart';
 import 'package:bakaloo_flutter_app/core/theme/remote_theme_model.dart';
@@ -331,7 +331,7 @@ class _CircleNotificationButton extends StatelessWidget {
             color: Colors.white,
             child: Center(
               child: PhosphorIcon(
-                PhosphorIcons.bell(PhosphorIconsStyle.regular),
+                PhosphorIcons.bell,
                 size: 22.sp,
                 color: const Color(0xFF2A1A47),
               ),

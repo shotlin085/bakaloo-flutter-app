@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
-import 'package:phosphor_flutter/phosphor_flutter.dart';
+import 'package:phosphoricons_flutter/phosphoricons_flutter.dart';
 
 class ProductPromoBanner extends StatelessWidget {
   const ProductPromoBanner({
@@ -53,7 +53,7 @@ class ProductPromoBanner extends StatelessWidget {
               child: Row(
                 children: <Widget>[
                   PhosphorIcon(
-                    PhosphorIcons.scooter(PhosphorIconsStyle.fill),
+                    PhosphorIcons.scooterFill,
                     size: 26.sp,
                     color: Colors.white,
                   ),

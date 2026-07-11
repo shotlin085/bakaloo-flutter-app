@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:gap/gap.dart';
-import 'package:phosphor_flutter/phosphor_flutter.dart';
+import 'package:phosphoricons_flutter/phosphoricons_flutter.dart';
 
 import 'package:bakaloo_flutter_app/core/theme/app_colors.dart';
 import 'package:bakaloo_flutter_app/core/theme/app_dimensions.dart';
@@ -165,14 +165,14 @@ class _WriteReviewScreenState extends ConsumerState<WriteReviewScreen> {
                           fit: BoxFit.cover,
                           errorWidget: (_, __, ___) => Center(
                             child: PhosphorIcon(
-                              PhosphorIcons.image(),
+                              PhosphorIcons.image,
                               color: AppColors.textDisabled,
                             ),
                           ),
                         )
                       : Center(
                           child: PhosphorIcon(
-                            PhosphorIcons.image(),
+                            PhosphorIcons.image,
                             color: AppColors.textDisabled,
                           ),
                         ),
@@ -212,11 +212,7 @@ class _WriteReviewScreenState extends ConsumerState<WriteReviewScreen> {
                       duration: const Duration(milliseconds: 180),
                       curve: Curves.easeOutBack,
                       child: PhosphorIcon(
-                        PhosphorIcons.star(
-                          isSelected
-                              ? PhosphorIconsStyle.fill
-                              : PhosphorIconsStyle.regular,
-                        ),
+                        isSelected ? PhosphorIcons.starFill : PhosphorIcons.star,
                         size: 34.sp,
                         color: isSelected
                             ? AppColors.ratingGold

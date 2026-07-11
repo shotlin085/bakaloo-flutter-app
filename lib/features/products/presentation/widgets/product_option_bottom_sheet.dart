@@ -3,7 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:gap/gap.dart';
 import 'package:go_router/go_router.dart';
-import 'package:phosphor_flutter/phosphor_flutter.dart';
+import 'package:phosphoricons_flutter/phosphoricons_flutter.dart';
 
 import 'package:bakaloo_flutter_app/core/theme/app_colors.dart';
 import 'package:bakaloo_flutter_app/core/theme/app_text_styles.dart';
@@ -98,7 +98,7 @@ class ProductOptionBottomSheet extends ConsumerWidget {
         mainAxisSize: MainAxisSize.min,
         children: <Widget>[
           PhosphorIcon(
-            PhosphorIcons.warningCircle(),
+            PhosphorIcons.warningCircle,
             size: 40.sp,
             color: AppColors.textTertiary,
           ),
@@ -148,7 +148,7 @@ class ProductOptionBottomSheet extends ConsumerWidget {
           mainAxisSize: MainAxisSize.min,
           children: <Widget>[
             PhosphorIcon(
-              PhosphorIcons.package(),
+              PhosphorIcons.package,
               size: 40.sp,
               color: AppColors.textTertiary,
             ),
@@ -534,7 +534,7 @@ class _QuantityStepper extends ConsumerWidget {
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: <Widget>[
           _StepperButton(
-            icon: PhosphorIcons.minus(),
+            icon: PhosphorIcons.minus,
             onTap: () async {
               if (quantity == 1) {
                 final result = await ref.read(cartProvider.notifier).removeItem(
@@ -564,7 +564,7 @@ class _QuantityStepper extends ConsumerWidget {
             ),
           ),
           _StepperButton(
-            icon: PhosphorIcons.plus(),
+            icon: PhosphorIcons.plus,
             onTap: () async {
               if (quantity >= (option.maxOrderQty ?? 50)) {
                 AppToast.show(

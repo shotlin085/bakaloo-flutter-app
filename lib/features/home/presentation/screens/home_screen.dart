@@ -7,7 +7,7 @@ import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:gap/gap.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:go_router/go_router.dart';
-import 'package:phosphor_flutter/phosphor_flutter.dart';
+import 'package:phosphoricons_flutter/phosphoricons_flutter.dart';
 
 import 'package:bakaloo_flutter_app/core/constants/api_constants.dart';
 import 'package:bakaloo_flutter_app/core/theme/remote_theme_model.dart';
@@ -1260,7 +1260,7 @@ class _FallbackHeroArt extends StatelessWidget {
       color: const Color(0xFFF3FBD7),
       child: Center(
         child: PhosphorIcon(
-          PhosphorIcons.imageSquare(PhosphorIconsStyle.duotone),
+          PhosphorIcons.imageSquareDuotone,
           size: 40.sp,
           color: const Color(0xFF9BA56A),
         ),

@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
-import 'package:phosphor_flutter/phosphor_flutter.dart';
+import 'package:phosphoricons_flutter/phosphoricons_flutter.dart';
 
 import 'package:bakaloo_flutter_app/routing/route_names.dart';
 import 'package:bakaloo_flutter_app/shared/widgets/bakaloo_state_screen.dart';
@@ -27,7 +27,7 @@ class LocationUnavailableScreen extends StatelessWidget {
       child: BakalooStateScreen(
         illustrationAsset:
             'assets/images/bakaloo-location-unavailable-illustration.png',
-        icon: PhosphorIcons.gpsSlash(PhosphorIconsStyle.bold),
+        icon: PhosphorIcons.gpsSlashBold,
         title: "We're not in your area yet",
         subtitle:
             "We're expanding fast. Try a different location\n"

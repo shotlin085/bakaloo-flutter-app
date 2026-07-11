@@ -6,7 +6,7 @@ import 'package:gap/gap.dart';
 import 'package:go_router/go_router.dart';
 import 'package:lottie/lottie.dart';
 import 'package:open_file/open_file.dart';
-import 'package:phosphor_flutter/phosphor_flutter.dart';
+import 'package:phosphoricons_flutter/phosphoricons_flutter.dart';
 
 import 'package:bakaloo_flutter_app/core/theme/app_colors.dart';
 import 'package:bakaloo_flutter_app/core/utils/app_toast.dart';
@@ -167,7 +167,7 @@ class _OrderDetailScreenState extends ConsumerState<OrderDetailScreen> {
           TextButton.icon(
             onPressed: () => context.push('/orders/${widget.id}/track'),
             icon: PhosphorIcon(
-              PhosphorIcons.navigationArrow(),
+              PhosphorIcons.navigationArrow,
               size: 16.sp,
             ),
             label: Text(
@@ -1010,7 +1010,7 @@ class _OrderActions extends StatelessWidget {
                         height: 16.w,
                         child: const CircularProgressIndicator(strokeWidth: 2),
                       )
-                    : PhosphorIcon(PhosphorIcons.filePdf(), size: 16.sp),
+                    : PhosphorIcon(PhosphorIcons.filePdf, size: 16.sp),
                 label: const Text('Download Invoice'),
               ),
             ),
@@ -1059,7 +1059,7 @@ class _OrderActions extends StatelessWidget {
                         height: 16.w,
                         child: const CircularProgressIndicator(strokeWidth: 2),
                       )
-                    : PhosphorIcon(PhosphorIcons.filePdf(), size: 16.sp),
+                    : PhosphorIcon(PhosphorIcons.filePdf, size: 16.sp),
                 label: const Text('Download Invoice'),
               ),
             ),
@@ -1090,7 +1090,7 @@ class _OrderActions extends StatelessWidget {
           width: double.infinity,
           child: FilledButton.icon(
             onPressed: () => context.push('/orders/${order.id}/track'),
-            icon: PhosphorIcon(PhosphorIcons.navigationArrow(), size: 16.sp),
+            icon: PhosphorIcon(PhosphorIcons.navigationArrow, size: 16.sp),
             label: const Text('Track Order'),
           ),
         );
@@ -1116,7 +1116,7 @@ class _DetailErrorState extends StatelessWidget {
           mainAxisSize: MainAxisSize.min,
           children: <Widget>[
             PhosphorIcon(
-              PhosphorIcons.warningCircle(),
+              PhosphorIcons.warningCircle,
               size: 40.sp,
               color: AppColors.warningOrange,
             ),

@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:gap/gap.dart';
-import 'package:phosphor_flutter/phosphor_flutter.dart';
+import 'package:phosphoricons_flutter/phosphoricons_flutter.dart';
 
 import 'package:bakaloo_flutter_app/core/theme/app_colors.dart';
 import 'package:bakaloo_flutter_app/core/theme/app_text_styles.dart';
@@ -61,7 +61,7 @@ class CartPaymentSelectorSheet extends ConsumerWidget {
 
           // Online Payment (Recommended/Razorpay)
           _PaymentOptionTile(
-            icon: PhosphorIcons.creditCard(),
+            icon: PhosphorIcons.creditCard,
             title: 'Pay Online',
             subtitle: 'UPI, Cards, Netbanking',
             onTap: () {
@@ -75,7 +75,7 @@ class CartPaymentSelectorSheet extends ConsumerWidget {
 
           // Bakaloo Wallet
           _PaymentOptionTile(
-            icon: PhosphorIcons.wallet(),
+            icon: PhosphorIcons.wallet,
             title: 'Bakaloo Wallet',
             subtitle: 'Balance: ${walletBalance.toInrCurrency}',
             onTap: hasEnoughWalletBalance
@@ -197,7 +197,7 @@ class _PaymentOptionTile extends StatelessWidget {
                 trailingWidget!
               else
                 PhosphorIcon(
-                  PhosphorIcons.caretRight(),
+                  PhosphorIcons.caretRight,
                   size: 20,
                   color: AppColors.textSecondary,
                 ),

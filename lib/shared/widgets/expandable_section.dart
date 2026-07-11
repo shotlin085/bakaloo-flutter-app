@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
-import 'package:phosphor_flutter/phosphor_flutter.dart';
+import 'package:phosphoricons_flutter/phosphoricons_flutter.dart';
 
 class ExpandableSection extends StatefulWidget {
   const ExpandableSection({
@@ -82,7 +82,7 @@ class _ExpandableSectionState extends State<ExpandableSection> {
                   duration: const Duration(milliseconds: 250),
                   curve: Curves.easeInOut,
                   child: PhosphorIcon(
-                    PhosphorIcons.caretDown(),
+                    PhosphorIcons.caretDown,
                     size: 22.sp,
                     color: const Color(0xFF333333),
                   ),

@@ -7,7 +7,7 @@ import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:gap/gap.dart';
 import 'package:go_router/go_router.dart';
 import 'package:local_auth/local_auth.dart';
-import 'package:phosphor_flutter/phosphor_flutter.dart';
+import 'package:phosphoricons_flutter/phosphoricons_flutter.dart';
 
 import 'package:bakaloo_flutter_app/core/constants/app_constants.dart';
 import 'package:bakaloo_flutter_app/core/theme/app_colors.dart';
@@ -201,7 +201,7 @@ class _SendMoneyScreenState extends ConsumerState<SendMoneyScreen> {
             prefixIcon: Padding(
               padding: EdgeInsets.all(12.w),
               child: PhosphorIcon(
-                PhosphorIcons.magnifyingGlass(),
+                PhosphorIcons.magnifyingGlass,
                 size: 20.sp,
                 color: AppColors.textSecondary,
               ),
@@ -277,7 +277,7 @@ class _SendMoneyScreenState extends ConsumerState<SendMoneyScreen> {
                       ),
                       child: Center(
                         child: PhosphorIcon(
-                          PhosphorIcons.user(),
+                          PhosphorIcons.user,
                           color: AppColors.orderViolet,
                           size: 18.sp,
                         ),
@@ -333,7 +333,7 @@ class _SendMoneyScreenState extends ConsumerState<SendMoneyScreen> {
                 ),
                 child: Center(
                   child: PhosphorIcon(
-                    PhosphorIcons.user(),
+                    PhosphorIcons.user,
                     color: AppColors.orderViolet,
                     size: 20.sp,
                   ),

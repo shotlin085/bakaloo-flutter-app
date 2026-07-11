@@ -4,7 +4,7 @@ import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:gap/gap.dart';
 import 'package:go_router/go_router.dart';
 import 'package:lottie/lottie.dart';
-import 'package:phosphor_flutter/phosphor_flutter.dart';
+import 'package:phosphoricons_flutter/phosphoricons_flutter.dart';
 
 import 'package:bakaloo_flutter_app/core/theme/app_colors.dart';
 import 'package:bakaloo_flutter_app/core/theme/app_text_styles.dart';
@@ -127,7 +127,7 @@ class _WishlistEmptyState extends StatelessWidget {
                 repeat: true,
                 fit: BoxFit.contain,
                 errorBuilder: (_, __, ___) => Icon(
-                  PhosphorIcons.heart(),
+                  PhosphorIcons.heart,
                   size: 80.sp,
                   color: AppColors.textDisabled,
                 ),

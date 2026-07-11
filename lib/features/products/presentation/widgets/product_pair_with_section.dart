@@ -1,7 +1,7 @@
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
-import 'package:phosphor_flutter/phosphor_flutter.dart';
+import 'package:phosphoricons_flutter/phosphoricons_flutter.dart';
 
 import 'package:bakaloo_flutter_app/core/constants/api_constants.dart';
 import 'package:bakaloo_flutter_app/core/theme/app_colors.dart';
@@ -102,7 +102,7 @@ class ProductRecommendationsStrip extends StatelessWidget {
                       ),
                       SizedBox(width: 2.w),
                       PhosphorIcon(
-                        PhosphorIcons.caretRight(),
+                        PhosphorIcons.caretRight,
                         size: 14.sp,
                         color: AppColors.pdViolet,
                       ),
@@ -282,7 +282,7 @@ class _ProductRecommendationCardState extends State<ProductRecommendationCard> {
                         child: _imageUrl == null
                             ? Center(
                                 child: PhosphorIcon(
-                                  PhosphorIcons.image(),
+                                  PhosphorIcons.image,
                                   size: 28.sp,
                                   color: const Color(0xFFBBBBBB),
                                 ),
@@ -300,7 +300,7 @@ class _ProductRecommendationCardState extends State<ProductRecommendationCard> {
                                 ),
                                 errorWidget: (context, url, error) => Center(
                                   child: PhosphorIcon(
-                                    PhosphorIcons.imageBroken(),
+                                    PhosphorIcons.imageBroken,
                                     size: 24.sp,
                                     color: const Color(0xFFBBBBBB),
                                   ),
@@ -320,7 +320,7 @@ class _ProductRecommendationCardState extends State<ProductRecommendationCard> {
                         ),
                         child: Center(
                           child: PhosphorIcon(
-                            PhosphorIcons.heart(),
+                            PhosphorIcons.heart,
                             size: 16.sp,
                             color: const Color(0xFF999999),
                           ),
@@ -496,7 +496,7 @@ class _ProductRecommendationCardState extends State<ProductRecommendationCard> {
                         mainAxisSize: MainAxisSize.min,
                         children: <Widget>[
                           PhosphorIcon(
-                            PhosphorIcons.star(PhosphorIconsStyle.fill),
+                            PhosphorIcons.starFill,
                             size: 11.sp,
                             color: const Color(0xFFFFB300),
                           ),

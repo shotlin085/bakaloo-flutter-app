@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
-import 'package:phosphor_flutter/phosphor_flutter.dart';
+import 'package:phosphoricons_flutter/phosphoricons_flutter.dart';
 
 import 'package:bakaloo_flutter_app/features/products/domain/entities/product_entity.dart';
 import 'package:bakaloo_flutter_app/features/products/presentation/widgets/product_option_bottom_sheet.dart';
@@ -46,7 +46,7 @@ void showProductOptionsSheet(BuildContext context, ProductEntity product) {
               child: Padding(
                 padding: EdgeInsets.all(9.w),
                 child: PhosphorIcon(
-                  PhosphorIcons.x(PhosphorIconsStyle.bold),
+                  PhosphorIcons.xBold,
                   size: 18.sp,
                   color: Colors.white,
                 ),

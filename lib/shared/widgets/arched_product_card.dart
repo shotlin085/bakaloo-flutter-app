@@ -3,7 +3,7 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
-import 'package:phosphor_flutter/phosphor_flutter.dart';
+import 'package:phosphoricons_flutter/phosphoricons_flutter.dart';
 
 import 'package:bakaloo_flutter_app/core/constants/api_constants.dart';
 import 'package:bakaloo_flutter_app/core/theme/app_colors.dart';
@@ -336,7 +336,7 @@ class _ArchedProductCardState extends State<ArchedProductCard> {
                       child: imageUrl == null || imageUrl.isEmpty
                           ? Center(
                               child: PhosphorIcon(
-                                PhosphorIcons.image(),
+                                PhosphorIcons.image,
                                 color: AppColors.textDisabled,
                                 size: 32,
                               ),
@@ -350,7 +350,7 @@ class _ArchedProductCardState extends State<ArchedProductCard> {
                               placeholder: const SizedBox.expand(),
                               errorWidget: Center(
                                 child: PhosphorIcon(
-                                  PhosphorIcons.imageBroken(),
+                                  PhosphorIcons.imageBroken,
                                   color: AppColors.textDisabled,
                                   size: 28,
                                 ),
@@ -389,7 +389,7 @@ class _ArchedProductCardState extends State<ArchedProductCard> {
                     bottom: 3.h,
                     right: 8.w,
                     child: PhosphorIcon(
-                      PhosphorIcons.heart(PhosphorIconsStyle.regular),
+                      PhosphorIcons.heart,
                       size: 18,
                       color: const Color(0xFFE04A86),
                     ),
@@ -570,7 +570,7 @@ class _ArchedAddButton extends ConsumerWidget {
                 width: 28.w,
                 child: Center(
                   child: PhosphorIcon(
-                    PhosphorIcons.minus(),
+                    PhosphorIcons.minus,
                     size: 14,
                     color: Colors.white,
                   ),
@@ -604,7 +604,7 @@ class _ArchedAddButton extends ConsumerWidget {
                 width: 28.w,
                 child: Center(
                   child: PhosphorIcon(
-                    PhosphorIcons.plus(),
+                    PhosphorIcons.plus,
                     size: 14,
                     color: Colors.white,
                   ),

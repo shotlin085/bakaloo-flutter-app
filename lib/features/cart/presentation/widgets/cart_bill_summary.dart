@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:gap/gap.dart';
-import 'package:phosphor_flutter/phosphor_flutter.dart';
+import 'package:phosphoricons_flutter/phosphoricons_flutter.dart';
 
 import 'package:bakaloo_flutter_app/features/cart/domain/entities/bill_summary_entity.dart';
 
@@ -61,7 +61,7 @@ class CartBillSummary extends StatelessWidget {
               Row(
                 children: <Widget>[
                   PhosphorIcon(
-                    PhosphorIcons.receipt(),
+                    PhosphorIcons.receipt,
                     size: 18.sp,
                     color: _ink,
                   ),
@@ -118,7 +118,7 @@ class CartBillSummary extends StatelessWidget {
               if (delivery.isFree) ...<Widget>[
                 Gap(6.h),
                 _SubNote(
-                  icon: PhosphorIcons.sealCheck(PhosphorIconsStyle.fill),
+                  icon: PhosphorIcons.sealCheckFill,
                   text: free.threshold != null
                       ? 'Free delivery unlocked on orders above ₹${_fmt(free.threshold!)}'
                       : 'Free delivery unlocked',
@@ -128,7 +128,7 @@ class CartBillSummary extends StatelessWidget {
                 if (distanceKnown) ...<Widget>[
                   Gap(6.h),
                   _SubNote(
-                    icon: PhosphorIcons.mapPin(),
+                    icon: PhosphorIcons.mapPin,
                     text: '${summary.distance.label} from store',
                     color: _muted,
                   ),
@@ -136,7 +136,7 @@ class CartBillSummary extends StatelessWidget {
                 if (free.enabled && free.amountToUnlock > 0) ...<Widget>[
                   Gap(6.h),
                   _SubNote(
-                    icon: PhosphorIcons.moped(),
+                    icon: PhosphorIcons.moped,
                     text:
                         'Add ₹${_fmt(free.amountToUnlock)} more for free delivery',
                     color: _green,
@@ -480,7 +480,7 @@ class _CouponDiscountRow extends StatelessWidget {
         Row(
           children: <Widget>[
             PhosphorIcon(
-              PhosphorIcons.tag(PhosphorIconsStyle.fill),
+              PhosphorIcons.tagFill,
               size: 14.sp,
               color: _green,
             ),

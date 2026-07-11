@@ -6,7 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:gap/gap.dart';
 import 'package:go_router/go_router.dart';
-import 'package:phosphor_flutter/phosphor_flutter.dart';
+import 'package:phosphoricons_flutter/phosphoricons_flutter.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import 'package:bakaloo_flutter_app/core/constants/api_constants.dart';
@@ -881,27 +881,27 @@ double _screenUtilWidth(double logicalWidth) {
 PhosphorIconData _categoryIconForLabel(String value) {
   final normalized = value.trim().toLowerCase();
   if (normalized.contains('fruit') || normalized.contains('vegetable')) {
-    return PhosphorIcons.carrot();
+    return PhosphorIcons.carrot;
   }
   if (normalized.contains('dairy') || normalized.contains('egg')) {
-    return PhosphorIcons.egg();
+    return PhosphorIcons.egg;
   }
   if (normalized.contains('bakery') || normalized.contains('bread')) {
-    return PhosphorIcons.bread();
+    return PhosphorIcons.bread;
   }
   if (normalized.contains('drink') || normalized.contains('juice')) {
-    return PhosphorIcons.drop();
+    return PhosphorIcons.drop;
   }
   if (normalized.contains('electronics')) {
-    return PhosphorIcons.headphones();
+    return PhosphorIcons.headphones;
   }
   if (normalized.contains('beauty')) {
-    return PhosphorIcons.sparkle();
+    return PhosphorIcons.sparkle;
   }
   if (normalized.contains('fresh')) {
-    return PhosphorIcons.appleLogo();
+    return PhosphorIcons.appleLogo;
   }
-  return PhosphorIcons.squaresFour();
+  return PhosphorIcons.squaresFour;
 }
 
 class _ManifestFeeStrip extends StatefulWidget {
@@ -1076,7 +1076,7 @@ class _FeeStripFallback extends StatelessWidget {
         child: Row(
           children: <Widget>[
             PhosphorIcon(
-              PhosphorIcons.ticket(PhosphorIconsStyle.fill),
+              PhosphorIcons.ticketFill,
               color: Colors.white,
               size: 17.sp,
             ),
@@ -1916,7 +1916,7 @@ class _ManifestArchedProductSection extends StatelessWidget {
                 ),
                 const Gap(4),
                 PhosphorIcon(
-                  PhosphorIcons.caretRight(PhosphorIconsStyle.bold),
+                  PhosphorIcons.caretRightBold,
                   size: 14,
                   color: Colors.black87,
                 ),
@@ -2069,18 +2069,14 @@ class _ManifestArchedProductSection extends StatelessWidget {
                                 fit: BoxFit.cover,
                                 memCacheWidth: 160,
                                 memCacheHeight: 160,
-                                errorWidget: Icon(
-                                  PhosphorIcons.package(
-                                    PhosphorIconsStyle.duotone,
-                                  ),
+                                errorWidget: PhosphorIcon(
+                                  PhosphorIcons.packageDuotone,
                                   size: 24.sp,
                                   color: Colors.grey,
                                 ),
                               )
-                            : Icon(
-                                PhosphorIcons.package(
-                                  PhosphorIconsStyle.duotone,
-                                ),
+                            : PhosphorIcon(
+                                PhosphorIcons.packageDuotone,
                                 size: 24.sp,
                                 color: Colors.grey,
                               ),

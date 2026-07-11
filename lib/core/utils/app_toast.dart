@@ -2,7 +2,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:gap/gap.dart';
-import 'package:phosphor_flutter/phosphor_flutter.dart';
+import 'package:phosphoricons_flutter/phosphoricons_flutter.dart';
 
 import 'package:bakaloo_flutter_app/core/theme/app_colors.dart';
 import 'package:bakaloo_flutter_app/core/theme/app_text_styles.dart';
@@ -272,13 +272,13 @@ class _ToastCard extends StatelessWidget {
   static PhosphorIconData _icon(ToastType type) {
     switch (type) {
       case ToastType.error:
-        return PhosphorIcons.xCircle();
+        return PhosphorIcons.xCircle;
       case ToastType.warning:
-        return PhosphorIcons.warning();
+        return PhosphorIcons.warning;
       case ToastType.success:
-        return PhosphorIcons.checkCircle();
+        return PhosphorIcons.checkCircle;
       case ToastType.info:
-        return PhosphorIcons.info();
+        return PhosphorIcons.info;
     }
   }
 }

@@ -9,7 +9,7 @@ import 'package:flutter_slidable/flutter_slidable.dart';
 import 'package:gap/gap.dart';
 import 'package:go_router/go_router.dart';
 import 'package:lottie/lottie.dart';
-import 'package:phosphor_flutter/phosphor_flutter.dart';
+import 'package:phosphoricons_flutter/phosphoricons_flutter.dart';
 import 'package:timeago/timeago.dart' as timeago;
 
 import 'package:bakaloo_flutter_app/core/notifications/notification_router.dart';
@@ -194,7 +194,7 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
                   }
                   return Center(
                     child: PhosphorIcon(
-                      PhosphorIcons.bellZ(),
+                      PhosphorIcons.bellZ,
                       size: 72.sp,
                       color: AppColors.textDisabled,
                     ),
@@ -376,7 +376,7 @@ class _NotificationTile extends StatelessWidget {
             onPressed: (_) => onMarkRead(),
             backgroundColor: AppColors.primaryGreen,
             foregroundColor: Colors.white,
-            icon: PhosphorIcons.checkCircle(),
+            icon: PhosphorIcons.checkCircle,
             label: 'Read',
           ),
         ],
@@ -389,7 +389,7 @@ class _NotificationTile extends StatelessWidget {
             onPressed: (_) => onDelete(),
             backgroundColor: AppColors.errorRed,
             foregroundColor: Colors.white,
-            icon: PhosphorIcons.trash(),
+            icon: PhosphorIcons.trash,
             label: 'Delete',
           ),
         ],
@@ -499,15 +499,15 @@ class _NotificationTile extends StatelessWidget {
     final normalized = type.trim().toUpperCase();
     switch (normalized) {
       case 'ORDER_STATUS':
-        return PhosphorIcons.package();
+        return PhosphorIcons.package;
       case 'PAYMENT':
-        return PhosphorIcons.checkCircle();
+        return PhosphorIcons.checkCircle;
       case 'PROMOTION':
-        return PhosphorIcons.ticket();
+        return PhosphorIcons.ticket;
       case 'DELIVERY':
-        return PhosphorIcons.motorcycle();
+        return PhosphorIcons.motorcycle;
       default:
-        return PhosphorIcons.bell();
+        return PhosphorIcons.bell;
     }
   }
 }
