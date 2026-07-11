@@ -1,10 +1,12 @@
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:phosphoricons_flutter/phosphoricons_flutter.dart';
 
 import 'package:bakaloo_flutter_app/core/constants/api_constants.dart';
 import 'package:bakaloo_flutter_app/core/theme/app_colors.dart';
+import 'package:bakaloo_flutter_app/features/cart/presentation/providers/cart_provider.dart';
 import 'package:bakaloo_flutter_app/features/products/domain/entities/product_entity.dart';
 import 'package:bakaloo_flutter_app/shared/widgets/retro_price_badge.dart';
 
@@ -149,7 +151,7 @@ class ProductRecommendationsStrip extends StatelessWidget {
   }
 }
 
-class ProductRecommendationCard extends StatefulWidget {
+class ProductRecommendationCard extends ConsumerStatefulWidget {
   const ProductRecommendationCard({
     required this.product,
     this.onTap,
@@ -166,11 +168,12 @@ class ProductRecommendationCard extends StatefulWidget {
   final bool showAdBadge;
 
   @override
-  State<ProductRecommendationCard> createState() =>
+  ConsumerState<ProductRecommendationCard> createState() =>
       _ProductRecommendationCardState();
 }
 
-class _ProductRecommendationCardState extends State<ProductRecommendationCard> {
+class _ProductRecommendationCardState
+    extends ConsumerState<ProductRecommendationCard> {
   bool _isPressed = false;
 
   String? get _imageUrl {
@@ -236,6 +239,15 @@ class _ProductRecommendationCardState extends State<ProductRecommendationCard> {
         : widget.product.unit;
     final variantTag = _variantTag;
     final returnPolicyLabel = _returnPolicyLabel;
+    // Previously this card never watched the cart at all — tapping ADD did
+    // silently add the item (via widget.onAdd, wired to the screen's own
+    // _addToCart), but the button never reflected it, so repeated taps
+    // looked completely unresponsive. Multi-option products stay pinned to
+    // "ADD" (opens the variant picker sheet, same as the shared ProductCard)
+    // since a single combined quantity wouldn't mean anything for them.
+    final quantity = widget.product.hasMultipleOptions
+        ? 0
+        : ref.watch(cartItemQuantityProvider(widget.product.id));
 
     return GestureDetector(
       onTapDown: (_) {
@@ -348,7 +360,7 @@ class _ProductRecommendationCardState extends State<ProductRecommendationCard> {
                         ),
                       ),
                     ),
-                    if (widget.product.inStock)
+                    if (widget.product.inStock && quantity <= 0)
                       Positioned(
                         right: 8.w,
                         bottom: 8.h,
@@ -399,6 +411,103 @@ class _ProductRecommendationCardState extends State<ProductRecommendationCard> {
                                   ),
                               ],
                             ),
+                          ),
+                        ),
+                      ),
+                    if (widget.product.inStock && quantity > 0)
+                      Positioned(
+                        right: 8.w,
+                        bottom: 8.h,
+                        child: Container(
+                          width: 76.w,
+                          height: 32.h,
+                          decoration: BoxDecoration(
+                            color: AppColors.pdViolet,
+                            borderRadius: BorderRadius.circular(8.r),
+                            boxShadow: <BoxShadow>[
+                              BoxShadow(
+                                color: Colors.black.withValues(alpha: 0.1),
+                                blurRadius: 3,
+                                offset: const Offset(0, 1),
+                              ),
+                            ],
+                          ),
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                            children: <Widget>[
+                              GestureDetector(
+                                behavior: HitTestBehavior.opaque,
+                                onTap: () async {
+                                  final notifier =
+                                      ref.read(cartProvider.notifier);
+                                  final result = quantity == 1
+                                      ? await notifier
+                                          .removeItem(widget.product.id)
+                                      : await notifier.updateItem(
+                                          widget.product.id,
+                                          quantity - 1,
+                                        );
+                                  if (!context.mounted || result.isSuccess) {
+                                    return;
+                                  }
+                                  showCartSnackBar(
+                                    context,
+                                    result.failure!.message,
+                                  );
+                                },
+                                child: SizedBox(
+                                  width: 22.w,
+                                  height: double.infinity,
+                                  child: Center(
+                                    child: PhosphorIcon(
+                                      PhosphorIcons.minus,
+                                      size: 12.sp,
+                                      color: Colors.white,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                              Text(
+                                '$quantity',
+                                style: TextStyle(
+                                  fontFamily: 'Inter',
+                                  fontSize: 13.sp,
+                                  fontWeight: FontWeight.w700,
+                                  color: Colors.white,
+                                  height: 1,
+                                ),
+                              ),
+                              GestureDetector(
+                                behavior: HitTestBehavior.opaque,
+                                onTap: () async {
+                                  if (quantity >= 50) return;
+                                  final result = await ref
+                                      .read(cartProvider.notifier)
+                                      .updateItem(
+                                        widget.product.id,
+                                        quantity + 1,
+                                      );
+                                  if (!context.mounted || result.isSuccess) {
+                                    return;
+                                  }
+                                  showCartSnackBar(
+                                    context,
+                                    result.failure!.message,
+                                  );
+                                },
+                                child: SizedBox(
+                                  width: 22.w,
+                                  height: double.infinity,
+                                  child: Center(
+                                    child: PhosphorIcon(
+                                      PhosphorIcons.plus,
+                                      size: 12.sp,
+                                      color: Colors.white,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ],
                           ),
                         ),
                       ),
