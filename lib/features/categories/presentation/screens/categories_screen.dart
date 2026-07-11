@@ -578,10 +578,26 @@ class _CategoryProductPaneState extends ConsumerState<_CategoryProductPane> {
     // (e.g. 20), so the header used to read "20 products" until the
     // user scrolled far enough to fetch the rest and it happened to
     // catch up to the real total.
-    final loadedCount = productListAsync.asData?.value.items.length ?? 0;
+    //
+    // BUT the category's stored product_count is a simple "is this
+    // product active" tally with no awareness of which shops actually
+    // serve this customer's delivery location — the product-list query
+    // applies that shop-allocation scoping, the count query doesn't. A
+    // category can legitimately report more products than this customer
+    // can actually see (e.g. "5 products" while only 3 are sold by a shop
+    // that delivers here). Once the list has fully loaded (no more pages
+    // left to fetch), loadedCount is the true, customer-accurate figure
+    // and should win over the stale metadata total; before that, still
+    // fall back to totalCount so the header doesn't flash a low
+    // first-page number while more pages are on the way.
+    final viewState = productListAsync.asData?.value;
+    final loadedCount = viewState?.items.length ?? 0;
     final totalCount = widget.highlightedCategory.productCount;
-    final countLabel =
-        totalCount > 0 ? '$totalCount products' : '$loadedCount products';
+    final fullyLoaded =
+        viewState != null && !viewState.hasMore && !viewState.isLoadingMore;
+    final countLabel = fullyLoaded
+        ? '$loadedCount products'
+        : (totalCount > 0 ? '$totalCount products' : '$loadedCount products');
 
     return CustomScrollView(
       key: widget.key,
