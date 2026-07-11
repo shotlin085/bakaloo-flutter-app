@@ -1791,7 +1791,7 @@ class _SearchResultTile extends ConsumerWidget {
                   ),
                   const Gap(AppDimensions.spacing4),
                   Text(
-                    product.unit,
+                    product.displayUnit,
                     style: AppTextStyles.bodySmall,
                   ),
                   const Gap(AppDimensions.spacing8),

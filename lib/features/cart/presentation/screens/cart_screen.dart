@@ -13,6 +13,7 @@ import 'package:bakaloo_flutter_app/features/cart/domain/entities/cart_item_enti
 import 'package:bakaloo_flutter_app/features/cart/domain/entities/savings_breakdown_entity.dart';
 import 'package:bakaloo_flutter_app/features/cart/presentation/providers/cart_enhancement_providers.dart';
 import 'package:bakaloo_flutter_app/features/cart/presentation/providers/cart_provider.dart';
+import 'package:bakaloo_flutter_app/features/cart/presentation/widgets/add_to_wishlist_prompt_sheet.dart';
 import 'package:bakaloo_flutter_app/features/cart/presentation/widgets/cart_address_header.dart';
 import 'package:bakaloo_flutter_app/features/cart/presentation/widgets/cart_bill_summary.dart';
 import 'package:bakaloo_flutter_app/features/cart/presentation/widgets/cart_bottom_bar.dart';
@@ -32,6 +33,7 @@ import 'package:bakaloo_flutter_app/features/checkout/presentation/providers/sto
 import 'package:bakaloo_flutter_app/features/checkout/presentation/screens/coupons_screen.dart';
 import 'package:bakaloo_flutter_app/features/cart/presentation/widgets/schedule_delivery_sheet.dart';
 import 'package:bakaloo_flutter_app/features/checkout/presentation/widgets/store_hours_sheet.dart';
+import 'package:bakaloo_flutter_app/features/wishlist/presentation/providers/wishlist_ids_provider.dart';
 import 'package:bakaloo_flutter_app/routing/route_names.dart';
 import 'package:bakaloo_flutter_app/shared/widgets/confirmation_dialog.dart';
 import 'package:bakaloo_flutter_app/shared/widgets/empty_state.dart';
@@ -280,7 +282,7 @@ class _CartScreenState extends ConsumerState<CartScreen> {
               ),
               onDecrease: () {
                 if (item.quantity <= 1) {
-                  _removeItem(context, item.productId, shopProductId: item.shopProductId);
+                  _removeItem(context, item);
                   return;
                 }
                 _updateItemQuantity(
@@ -290,7 +292,7 @@ class _CartScreenState extends ConsumerState<CartScreen> {
                   shopProductId: item.shopProductId,
                 );
               },
-              onRemove: () => _removeItem(context, item.productId, shopProductId: item.shopProductId),
+              onRemove: () => _removeItem(context, item),
             ),
             if (index != items.length - 1)
               Padding(
@@ -390,17 +392,21 @@ class _CartScreenState extends ConsumerState<CartScreen> {
       itemCount: itemCount,
       selectedSlot: effectiveSlot,
       nextAvailableLabel: nextAvailableLabel,
-      onScheduleTap: () => _openScheduleSheet(context),
+      onScheduleTap: () => _openScheduleSheet(context, initialScheduled: true),
+      onExpressTap: () => _openScheduleSheet(context, initialScheduled: false),
       onViewHoursTap: () => StoreHoursSheet.show(context),
     );
   }
 
-  Future<void> _openScheduleSheet(BuildContext context) async {
+  Future<void> _openScheduleSheet(
+    BuildContext context, {
+    required bool initialScheduled,
+  }) async {
     await showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
-      builder: (_) => const ScheduleDeliverySheet(),
+      builder: (_) => ScheduleDeliverySheet(initialScheduled: initialScheduled),
     );
   }
 
@@ -416,12 +422,32 @@ class _CartScreenState extends ConsumerState<CartScreen> {
       return;
     }
 
+    // Snapshot before clearing — CartNotifier.clearCart() sets state to
+    // CartEntity.empty() synchronously, so the item list is gone by the
+    // time this call resolves.
+    final clearedItems = switch (ref.read(cartProvider)) {
+      AsyncData(:final value) => value.items,
+      _ => const <CartItemEntity>[],
+    };
+
     final result = await ref.read(cartProvider.notifier).clearCart();
-    if (!result.isSuccess && context.mounted) {
+    if (!context.mounted) {
+      return;
+    }
+    if (!result.isSuccess) {
       showCartSnackBar(context, result.failure!.message);
-    } else if (result.isSuccess) {
-      // Reset delivery slot to ASAP when cart is cleared
-      ref.read(checkoutProvider.notifier).clearDeliverySlot();
+      return;
+    }
+
+    // Reset delivery slot to ASAP when cart is cleared
+    ref.read(checkoutProvider.notifier).clearDeliverySlot();
+
+    final wishlistIds = ref.read(wishlistIdsProvider);
+    final notWishlisted = clearedItems
+        .where((item) => !wishlistIds.contains(item.productId))
+        .toList(growable: false);
+    if (notWishlisted.isNotEmpty) {
+      await showAddToWishlistPrompt(context, items: notWishlisted);
     }
   }
 
@@ -456,10 +482,23 @@ class _CartScreenState extends ConsumerState<CartScreen> {
     ref.read(addressProvider.notifier).refresh();
   }
 
-  Future<void> _removeItem(BuildContext context, String productId, {String? shopProductId}) async {
-    final result = await ref.read(cartProvider.notifier).removeItem(productId, shopProductId: shopProductId);
-    if (!result.isSuccess && context.mounted) {
+  Future<void> _removeItem(BuildContext context, CartItemEntity item) async {
+    final result = await ref.read(cartProvider.notifier).removeItem(
+          item.productId,
+          shopProductId: item.shopProductId,
+        );
+    if (!context.mounted) {
+      return;
+    }
+    if (!result.isSuccess) {
       showCartSnackBar(context, result.failure!.message);
+      return;
+    }
+
+    final alreadyWishlisted =
+        ref.read(wishlistIdsProvider).contains(item.productId);
+    if (!alreadyWishlisted) {
+      await showAddToWishlistPrompt(context, items: <CartItemEntity>[item]);
     }
   }
 

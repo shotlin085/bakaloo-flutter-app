@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:gap/gap.dart';
+import 'package:go_router/go_router.dart';
 import 'package:phosphor_flutter/phosphor_flutter.dart';
 
 import 'package:bakaloo_flutter_app/core/theme/app_colors.dart';
@@ -244,38 +245,53 @@ class _OptionRow extends ConsumerWidget {
         ),
         child: Row(
           children: <Widget>[
-            // ── Image with discount badge ───────────────────────────────
-            _OptionThumb(option: option),
-            Gap(12.w),
-            // ── Label + price ───────────────────────────────────────────
+            // ── Image + label/price — tapping this opens the product page.
+            // Kept out of the trailing ADD/stepper's tap area so adding to
+            // cart and navigating to the detail page can't both fire off a
+            // single tap.
             Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisSize: MainAxisSize.min,
-                children: <Widget>[
-                  Row(
-                    children: <Widget>[
-                      if (option.hasFoodMarker) ...<Widget>[
-                        _FoodMarkerDot(option: option),
-                        Gap(5.w),
-                      ],
-                      Expanded(
-                        child: Text(
-                          option.displayUnit,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: AppTextStyles.bodyLarge.copyWith(
-                            fontSize: 14.sp,
-                            fontWeight: FontWeight.w700,
-                            color: AppColors.textPrimary,
+              child: InkWell(
+                borderRadius: BorderRadius.circular(14.r),
+                onTap: () {
+                  Navigator.of(context).pop();
+                  context.push('/product/${option.id}');
+                },
+                child: Row(
+                  children: <Widget>[
+                    _OptionThumb(option: option),
+                    Gap(12.w),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        mainAxisSize: MainAxisSize.min,
+                        children: <Widget>[
+                          Row(
+                            children: <Widget>[
+                              if (option.hasFoodMarker) ...<Widget>[
+                                _FoodMarkerDot(option: option),
+                                Gap(5.w),
+                              ],
+                              Expanded(
+                                child: Text(
+                                  option.displayUnit,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: AppTextStyles.bodyLarge.copyWith(
+                                    fontSize: 14.sp,
+                                    fontWeight: FontWeight.w700,
+                                    color: AppColors.textPrimary,
+                                  ),
+                                ),
+                              ),
+                            ],
                           ),
-                        ),
+                          Gap(6.h),
+                          _PriceRow(option: option),
+                        ],
                       ),
-                    ],
-                  ),
-                  Gap(6.h),
-                  _PriceRow(option: option),
-                ],
+                    ),
+                  ],
+                ),
               ),
             ),
             Gap(12.w),

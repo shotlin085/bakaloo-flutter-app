@@ -174,7 +174,7 @@ class _ProductImageGalleryState extends State<ProductImageGallery> {
                                 )
                               : CachedNetworkImage(
                                   imageUrl: imageUrl,
-                                  fit: BoxFit.contain,
+                                  fit: BoxFit.cover,
                                   memCacheWidth: _decodeDimension(context),
                                   memCacheHeight: _decodeDimension(context),
                                   fadeInDuration: Duration.zero,

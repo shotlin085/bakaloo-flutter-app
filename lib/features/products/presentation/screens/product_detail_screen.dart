@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:share_plus/share_plus.dart';
@@ -26,6 +27,7 @@ import 'package:bakaloo_flutter_app/features/products/presentation/widgets/produ
 import 'package:bakaloo_flutter_app/features/products/presentation/widgets/product_recommendation_wrappers.dart';
 import 'package:bakaloo_flutter_app/features/products/presentation/widgets/product_store_row.dart';
 import 'package:bakaloo_flutter_app/features/products/presentation/widgets/product_trust_badges.dart';
+import 'package:bakaloo_flutter_app/features/products/presentation/widgets/product_variant_selector.dart';
 import 'package:bakaloo_flutter_app/features/products/presentation/widgets/product_vendor_section.dart';
 import 'package:bakaloo_flutter_app/features/wishlist/presentation/providers/wishlist_ids_provider.dart';
 import 'package:bakaloo_flutter_app/features/wishlist/presentation/providers/wishlist_provider.dart';
@@ -47,21 +49,21 @@ class ProductDetailScreen extends ConsumerStatefulWidget {
 
 class _ProductDetailScreenState extends ConsumerState<ProductDetailScreen> {
   late final ScrollController _scrollController;
-  late final ProductDetailSocketDelegate _socketDelegate;
+  late ProductDetailSocketDelegate _socketDelegate;
   bool _isAppBarCollapsed = false;
   double _scrollOffset = 0;
   bool _hasLoggedView = false;
+  // Which family member is currently displayed. Starts as widget.id but can
+  // be swapped in place via the "Select Unit" chip row (product_variant_
+  // selector.dart) without a route change — see _selectVariant.
+  late String _selectedProductId;
 
   @override
   void initState() {
     super.initState();
+    _selectedProductId = widget.id;
     _scrollController = ScrollController()..addListener(_onScroll);
-    _socketDelegate = ProductDetailSocketDelegate(
-      ref: ref,
-      productId: widget.id,
-      onProductDataChanged: _refreshProductData,
-      onCartChanged: () => ref.read(cartProvider.notifier).refresh(),
-    )..setup();
+    _socketDelegate = _createSocketDelegate();
   }
 
   @override
@@ -71,6 +73,31 @@ class _ProductDetailScreenState extends ConsumerState<ProductDetailScreen> {
       ..dispose();
     _socketDelegate.dispose();
     super.dispose();
+  }
+
+  ProductDetailSocketDelegate _createSocketDelegate() {
+    return ProductDetailSocketDelegate(
+      ref: ref,
+      productId: _selectedProductId,
+      onProductDataChanged: _refreshProductData,
+      onCartChanged: () => ref.read(cartProvider.notifier).refresh(),
+    )..setup();
+  }
+
+  // The socket delegate filters live stock/price events by a fixed
+  // productId set at construction time, so swapping variants needs a fresh
+  // delegate bound to the newly selected id — otherwise socket pushes for
+  // the new variant would be silently ignored.
+  void _selectVariant(String productId) {
+    if (productId == _selectedProductId) {
+      return;
+    }
+    _socketDelegate.dispose();
+    setState(() {
+      _selectedProductId = productId;
+      _hasLoggedView = false;
+    });
+    _socketDelegate = _createSocketDelegate();
   }
 
   void _onScroll() {
@@ -87,14 +114,14 @@ class _ProductDetailScreenState extends ConsumerState<ProductDetailScreen> {
 
   void _refreshProductData() {
     ref
-      ..invalidate(productDetailProvider(widget.id))
-      ..invalidate(pairWithProductsProvider(widget.id))
-      ..invalidate(relatedProductsProvider(widget.id));
+      ..invalidate(productDetailProvider(_selectedProductId))
+      ..invalidate(pairWithProductsProvider(_selectedProductId))
+      ..invalidate(relatedProductsProvider(_selectedProductId));
   }
 
   @override
   Widget build(BuildContext context) {
-    final productAsync = ref.watch(productDetailProvider(widget.id));
+    final productAsync = ref.watch(productDetailProvider(_selectedProductId));
 
     return productAsync.when(
       loading: () => const Scaffold(
@@ -136,151 +163,173 @@ class _ProductDetailScreenState extends ConsumerState<ProductDetailScreen> {
           );
         }
 
-        return Scaffold(
-          backgroundColor: AppColors.bgPrimary,
-          body: AnimatedBuilder(
-            animation: _scrollController,
-            builder: (context, _) => CustomScrollView(
-              controller: _scrollController,
-              slivers: <Widget>[
-                ProductImageGallery(
-                  images: effectiveProduct.images,
-                  thumbnailUrl: effectiveProduct.thumbnailUrl,
-                  productName: effectiveProduct.name,
-                  price: effectiveProduct.price,
-                  salePrice: effectiveProduct.salePrice,
-                  avgRating: effectiveProduct.avgRating,
-                  ratingCount: effectiveProduct.ratingCount,
-                  highlights: effectiveProduct.highlights,
-                  isCollapsed: _isAppBarCollapsed,
-                  scrollOffset: _scrollOffset,
-                  onSearch: _navigateToSearch,
-                  onShare: () => _shareProduct(effectiveProduct),
-                  onBack: _handleBack,
-                  onImageChanged: (index) => _logProductImageSwipe(
-                    effectiveProduct,
-                    index,
-                  ),
-                  onHighlightsToggle: () => _logProductHighlightsView(
-                    effectiveProduct,
-                  ),
-                ),
-                SliverToBoxAdapter(
-                  child: RepaintBoundary(
-                    child: ProductInfoHeader(
-                      product: effectiveProduct,
-                      isWishlisted: isWishlisted,
-                      onWishlistToggle: () => _toggleWishlist(
-                        effectiveProduct,
-                        action: isWishlisted ? 'remove' : 'add',
-                      ),
-                    ),
-                  ),
-                ),
-                SliverToBoxAdapter(
-                  child: RepaintBoundary(
-                    child: ProductStoreRow(productId: effectiveProduct.id),
-                  ),
-                ),
-                SliverToBoxAdapter(
-                  child: RepaintBoundary(
-                    child: ProductTrustBadges(
-                      product: effectiveProduct,
-                      onBrandTap: () => _navigateToBrand(effectiveProduct),
-                    ),
-                  ),
-                ),
-                if (effectiveAttributes.isNotEmpty)
-                  SliverToBoxAdapter(
-                    child: RepaintBoundary(
-                      child: ProductDetailsSection(
-                        attributes: effectiveAttributes,
-                        onExpand: () => _logProductDetailsExpand(
-                          effectiveProduct,
-                          'details',
-                        ),
-                      ),
-                    ),
-                  ),
-                if ((effectiveProduct.description ?? '').trim().isNotEmpty)
-                  SliverToBoxAdapter(
-                    child: RepaintBoundary(
-                      child: ProductDescriptionSection(
-                        description: effectiveProduct.description,
-                        onExpand: () => _logProductDetailsExpand(
-                          effectiveProduct,
-                          'description',
-                        ),
-                      ),
-                    ),
-                  ),
-                if (effectiveProduct.hasVendorDetails)
-                  SliverToBoxAdapter(
-                    child: RepaintBoundary(
-                      child: ProductVendorSection(
-                        vendorName: effectiveProduct.vendorName,
-                        vendorAddress: effectiveProduct.vendorAddress,
-                        vendorFssai: effectiveProduct.vendorFssai,
-                        onExpand: () => _logProductDetailsExpand(
-                          effectiveProduct,
-                          'vendor',
-                        ),
-                      ),
-                    ),
-                  ),
-                SliverToBoxAdapter(
-                  child: RepaintBoundary(
-                    child: PairWithWrapper(
-                      productId: effectiveProduct.id,
-                      enabled: _scrollOffset >= 80,
-                      onProductTap: (targetProduct) => _handlePairWithTap(
-                        effectiveProduct,
-                        targetProduct,
-                      ),
-                      onSeeAll: _openRecommendedProducts,
-                      onAddToCart: _addToCart,
-                    ),
-                  ),
-                ),
-                SliverToBoxAdapter(
-                  child: RepaintBoundary(
-                    child: SimilarWrapper(
-                      productId: effectiveProduct.id,
-                      enabled: _scrollOffset >= 180,
-                      onProductTap: (targetProduct) => _handleSimilarTap(
-                        effectiveProduct,
-                        targetProduct,
-                      ),
-                      onSeeAll: () => _openSimilarProducts(effectiveProduct),
-                      onAddToCart: _addToCart,
-                    ),
-                  ),
-                ),
-                SliverToBoxAdapter(
-                  child: RepaintBoundary(
-                    child: RecentlyViewedWrapper(
-                      productId: effectiveProduct.id,
-                      enabled: _scrollOffset >= 180,
-                      onProductTap: (targetProduct) =>
-                          _openProduct(targetProduct),
-                      onAddToCart: _addToCart,
-                    ),
-                  ),
-                ),
-                const SliverToBoxAdapter(
-                  child: RepaintBoundary(
-                    child: SizedBox(height: 80),
-                  ),
-                ),
-              ],
-            ),
+        // The gallery photo up top can be light-toned (wood/plant lifestyle
+        // shots), which made the platform-default light status bar icons
+        // (white time/battery/signal) unreadable against it — force dark
+        // icons here regardless of collapsed state, matching the pattern
+        // already used on the Home screen.
+        return AnnotatedRegion<SystemUiOverlayStyle>(
+          value: const SystemUiOverlayStyle(
+            statusBarIconBrightness: Brightness.dark,
+            statusBarBrightness: Brightness.light,
+            systemNavigationBarIconBrightness: Brightness.dark,
           ),
-          bottomNavigationBar: ProductBottomBar(
-            product: effectiveProduct,
-            quantity: cartQty,
-            onAddToCart: () => _addToCart(effectiveProduct),
-            onViewCart: () => context.push(RouteNames.cart),
-            onQuantityChange: (qty) => _updateCart(effectiveProduct, qty),
+          child: Scaffold(
+            backgroundColor: AppColors.bgPrimary,
+            body: AnimatedBuilder(
+              animation: _scrollController,
+              builder: (context, _) => CustomScrollView(
+                controller: _scrollController,
+                slivers: <Widget>[
+                  ProductImageGallery(
+                    images: effectiveProduct.images,
+                    thumbnailUrl: effectiveProduct.thumbnailUrl,
+                    productName: effectiveProduct.name,
+                    price: effectiveProduct.price,
+                    salePrice: effectiveProduct.salePrice,
+                    avgRating: effectiveProduct.avgRating,
+                    ratingCount: effectiveProduct.ratingCount,
+                    highlights: effectiveProduct.highlights,
+                    isCollapsed: _isAppBarCollapsed,
+                    scrollOffset: _scrollOffset,
+                    onSearch: _navigateToSearch,
+                    onShare: () => _shareProduct(effectiveProduct),
+                    onBack: _handleBack,
+                    onImageChanged: (index) => _logProductImageSwipe(
+                      effectiveProduct,
+                      index,
+                    ),
+                    onHighlightsToggle: () => _logProductHighlightsView(
+                      effectiveProduct,
+                    ),
+                  ),
+                  SliverToBoxAdapter(
+                    child: RepaintBoundary(
+                      child: ProductInfoHeader(
+                        product: effectiveProduct,
+                        isWishlisted: isWishlisted,
+                        onWishlistToggle: () => _toggleWishlist(
+                          effectiveProduct,
+                          action: isWishlisted ? 'remove' : 'add',
+                        ),
+                      ),
+                    ),
+                  ),
+                  if (effectiveProduct.hasMultipleOptions)
+                    SliverToBoxAdapter(
+                      child: RepaintBoundary(
+                        child: ProductVariantSelector(
+                          familyProductId: widget.id,
+                          selectedProductId: _selectedProductId,
+                          onSelect: _selectVariant,
+                        ),
+                      ),
+                    ),
+                  SliverToBoxAdapter(
+                    child: RepaintBoundary(
+                      child: ProductStoreRow(productId: effectiveProduct.id),
+                    ),
+                  ),
+                  SliverToBoxAdapter(
+                    child: RepaintBoundary(
+                      child: ProductTrustBadges(
+                        product: effectiveProduct,
+                        onBrandTap: () => _navigateToBrand(effectiveProduct),
+                      ),
+                    ),
+                  ),
+                  if (effectiveAttributes.isNotEmpty)
+                    SliverToBoxAdapter(
+                      child: RepaintBoundary(
+                        child: ProductDetailsSection(
+                          attributes: effectiveAttributes,
+                          onExpand: () => _logProductDetailsExpand(
+                            effectiveProduct,
+                            'details',
+                          ),
+                        ),
+                      ),
+                    ),
+                  if ((effectiveProduct.description ?? '').trim().isNotEmpty)
+                    SliverToBoxAdapter(
+                      child: RepaintBoundary(
+                        child: ProductDescriptionSection(
+                          description: effectiveProduct.description,
+                          onExpand: () => _logProductDetailsExpand(
+                            effectiveProduct,
+                            'description',
+                          ),
+                        ),
+                      ),
+                    ),
+                  if (effectiveProduct.hasVendorDetails)
+                    SliverToBoxAdapter(
+                      child: RepaintBoundary(
+                        child: ProductVendorSection(
+                          vendorName: effectiveProduct.vendorName,
+                          vendorAddress: effectiveProduct.vendorAddress,
+                          vendorFssai: effectiveProduct.vendorFssai,
+                          onExpand: () => _logProductDetailsExpand(
+                            effectiveProduct,
+                            'vendor',
+                          ),
+                        ),
+                      ),
+                    ),
+                  SliverToBoxAdapter(
+                    child: RepaintBoundary(
+                      child: SimilarWrapper(
+                        productId: effectiveProduct.id,
+                        enabled: _scrollOffset >= 80,
+                        onProductTap: (targetProduct) => _handleSimilarTap(
+                          effectiveProduct,
+                          targetProduct,
+                        ),
+                        onSeeAll: () => _openSimilarProducts(effectiveProduct),
+                        onAddToCart: _addToCart,
+                      ),
+                    ),
+                  ),
+                  SliverToBoxAdapter(
+                    child: RepaintBoundary(
+                      child: RecentlyViewedWrapper(
+                        productId: effectiveProduct.id,
+                        enabled: _scrollOffset >= 180,
+                        onProductTap: (targetProduct) =>
+                            _openProduct(targetProduct),
+                        onAddToCart: _addToCart,
+                      ),
+                    ),
+                  ),
+                  SliverToBoxAdapter(
+                    child: RepaintBoundary(
+                      child: PairWithWrapper(
+                        productId: effectiveProduct.id,
+                        enabled: _scrollOffset >= 180,
+                        onProductTap: (targetProduct) => _handlePairWithTap(
+                          effectiveProduct,
+                          targetProduct,
+                        ),
+                        onSeeAll: _openRecommendedProducts,
+                        onAddToCart: _addToCart,
+                      ),
+                    ),
+                  ),
+                  const SliverToBoxAdapter(
+                    child: RepaintBoundary(
+                      child: SizedBox(height: 80),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            bottomNavigationBar: ProductBottomBar(
+              product: effectiveProduct,
+              quantity: cartQty,
+              onAddToCart: () => _addSelectedVariantToCart(effectiveProduct),
+              onViewCart: () => context.push(RouteNames.cart),
+              onQuantityChange: (qty) => _updateCart(effectiveProduct, qty),
+            ),
           ),
         );
       },
@@ -305,7 +354,7 @@ class _ProductDetailScreenState extends ConsumerState<ProductDetailScreen> {
   }
 
   void _openProduct(ProductEntity product) {
-    if (product.id == widget.id) {
+    if (product.id == _selectedProductId) {
       return;
     }
     context.push('/product/${product.id}');
@@ -448,6 +497,10 @@ class _ProductDetailScreenState extends ConsumerState<ProductDetailScreen> {
       );
   }
 
+  // Used by the recommendation rails (Pair With / Similar / Recently
+  // Viewed), which have no inline unit selector of their own — a
+  // multi-option product tapped from one of those rows still needs the
+  // picker sheet to choose which variant to add.
   Future<void> _addToCart(ProductEntity product) async {
     if (!product.inStock) {
       showCartSnackBar(context, 'This product is currently unavailable.');
@@ -459,6 +512,24 @@ class _ProductDetailScreenState extends ConsumerState<ProductDetailScreen> {
       return;
     }
 
+    await _addProductToCart(product);
+  }
+
+  // Used by this screen's own bottom bar. The "Select Unit" chip row
+  // (when present) already lets the customer choose the exact variant
+  // in place, so — unlike _addToCart — this skips straight to adding
+  // whichever variant is currently displayed instead of popping the
+  // options sheet again on top of it.
+  Future<void> _addSelectedVariantToCart(ProductEntity product) async {
+    if (!product.inStock) {
+      showCartSnackBar(context, 'This product is currently unavailable.');
+      return;
+    }
+
+    await _addProductToCart(product);
+  }
+
+  Future<void> _addProductToCart(ProductEntity product) async {
     final authGate = ref.read(authGateControllerProvider);
     final allowed = await authGate.protectAddToCart(context, product);
     if (!allowed || !mounted) {

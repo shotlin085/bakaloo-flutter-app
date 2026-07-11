@@ -114,7 +114,7 @@ class CartItemCard extends StatelessWidget {
                     Padding(
                       padding: EdgeInsets.only(top: 4.h),
                       child: Text(
-                        item.unit ?? '1 unit',
+                        item.netQuantity ?? item.unit ?? '1 unit',
                         style: TextStyle(
                           fontSize: 12.sp,
                           fontWeight: FontWeight.w400,

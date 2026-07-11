@@ -116,7 +116,7 @@ class _ProductCardState extends State<ProductCard> {
   // Grid card (reference layout)
   //
   //   ┌───────────────────────────┐  ← white rounded box
-  //   │  image  (♡, veg, dots)    │
+  //   │  image  (♡, veg)          │
   //   │ ───────────────────────── │  ← faint divider
   //   │  95 g            [ ADD ]  │
   //   │                  3 options│
@@ -136,7 +136,7 @@ class _ProductCardState extends State<ProductCard> {
     final tightGrid = widget.width < 112;
     final compactGrid = widget.width < 126;
     final imageHeight = cardWidth * 0.84;
-    final unitFontSize = tightGrid ? 11.sp : 12.sp;
+    final unitFontSize = tightGrid ? 9.sp : 10.sp;
     final priceFontSize = tightGrid ? 14.sp : 16.sp;
     final comparePriceFontSize = tightGrid ? 10.sp : 11.5.sp;
     final titleFontSize = tightGrid ? 11.6.sp : 12.8.sp;
@@ -195,17 +195,20 @@ class _ProductCardState extends State<ProductCard> {
                 child: Row(
                   children: <Widget>[
                     Expanded(
-                      child: Text(
-                        product.displayUnit.trim().isNotEmpty
-                            ? product.displayUnit
-                            : product.unit,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
-                          fontSize: unitFontSize,
-                          fontWeight: FontWeight.w600,
-                          color: const Color(0xFF5A5A5A),
-                          height: 1.1,
+                      child: FittedBox(
+                        fit: BoxFit.scaleDown,
+                        alignment: Alignment.centerLeft,
+                        child: Text(
+                          product.displayUnit.trim().isNotEmpty
+                              ? product.displayUnit
+                              : product.unit,
+                          maxLines: 1,
+                          style: TextStyle(
+                            fontSize: unitFontSize,
+                            fontWeight: FontWeight.w600,
+                            color: const Color(0xFF5A5A5A),
+                            height: 1.1,
+                          ),
                         ),
                       ),
                     ),
@@ -658,7 +661,6 @@ class _ProductCardImageArea extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final imageCount = product.images.length;
     return SizedBox(
       height: imageHeight,
       width: double.infinity,
@@ -757,13 +759,6 @@ class _ProductCardImageArea extends StatelessWidget {
               bottom: 8.h,
               child: _FoodMarkerBox(product: product),
             ),
-          // Multi-image carousel dots (indicator only)
-          if (imageCount > 1)
-            Positioned(
-              left: 8.w,
-              bottom: 8.h,
-              child: _ImageDots(count: imageCount),
-            ),
           // Rails keep the compact overlay (unit chip + ADD) so the fixed
           // rail height is preserved.
           if (!isGridStyle) ...<Widget>[
@@ -861,37 +856,6 @@ class _FoodMarkerBox extends StatelessWidget {
                 color: color,
               ),
             ),
-    );
-  }
-}
-
-/// Carousel-style dots indicator (cosmetic — reflects image count).
-class _ImageDots extends StatelessWidget {
-  const _ImageDots({required this.count});
-
-  final int count;
-
-  @override
-  Widget build(BuildContext context) {
-    final dots = count.clamp(1, 4);
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: List<Widget>.generate(dots, (index) {
-        final active = index == 0;
-        return Padding(
-          padding: EdgeInsets.only(right: index == dots - 1 ? 0 : 4.w),
-          child: Container(
-            width: active ? 6.w : 5.w,
-            height: active ? 6.w : 5.w,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              color: active
-                  ? const Color(0xFF5B2A86)
-                  : const Color(0xFFCBC3D6),
-            ),
-          ),
-        );
-      }),
     );
   }
 }
@@ -1055,18 +1019,18 @@ class _ZeptoAddQtyButton extends ConsumerWidget {
     // Inline grid ADD buttons sit next to the unit label in a narrow 3-col
     // cell, so they are kept compact to leave room for "200 g" / "6 eggs".
     final gridButtonWidth = tight
-        ? 50.w
+        ? 42.w
         : compact
-            ? 56.w
-            : 64.w;
-    final controlWidth = tight ? 20.w : 22.w;
-    final quantityWidth = tight ? 14.w : 16.w;
-    final iconSize = tight ? 12.0 : 13.0;
+            ? 48.w
+            : 56.w;
+    final controlWidth = tight ? 17.w : 19.w;
+    final quantityWidth = tight ? 12.w : 14.w;
+    final iconSize = tight ? 11.0 : 12.0;
     final addFontSize = tight
-        ? 11.sp
+        ? 10.sp
         : compact
-            ? 11.5.sp
-            : 12.5.sp;
+            ? 10.5.sp
+            : 11.5.sp;
 
     if (quantity > 0) {
       return Container(

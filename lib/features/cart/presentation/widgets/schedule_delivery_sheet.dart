@@ -26,7 +26,13 @@ const _kWhite = Colors.white;
 /// and a time-slot grid. Tapping "Confirm schedule" calls
 /// [CheckoutNotifier.selectDeliverySlot] and closes the sheet.
 class ScheduleDeliverySheet extends ConsumerStatefulWidget {
-  const ScheduleDeliverySheet({super.key});
+  const ScheduleDeliverySheet({super.key, this.initialScheduled = false});
+
+  /// Which tab the sheet opens on: `true` for the cart's "Schedule" entry
+  /// point, `false` for the "Express" entry point. Explicit per-entry-point
+  /// control so each button reliably lands on the tab it advertises,
+  /// instead of both funnelling into the same ambiguous default.
+  final bool initialScheduled;
 
   @override
   ConsumerState<ScheduleDeliverySheet> createState() =>
@@ -43,11 +49,10 @@ class _ScheduleDeliverySheetState
   @override
   void initState() {
     super.initState();
-    // Restore existing selection if user re-opens the sheet
+    _isScheduled = widget.initialScheduled;
+    // Restore a previously-picked quick-delivery toggle so it isn't lost
+    // just because the customer re-opened the sheet via either shortcut.
     final existing = ref.read(checkoutProvider).selectedDeliverySlot;
-    if (existing != null && existing.isScheduled) {
-      _isScheduled = true;
-    }
     if (existing != null && existing.isAsap) {
       _quickDeliverySelected = existing.quickDeliverySelected;
     }

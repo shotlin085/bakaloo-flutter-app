@@ -43,6 +43,8 @@ class TabCategorySection {
                 price: product.price,
                 stockQuantity: product.stockQuantity,
                 unit: product.unit,
+                netQuantity: product.netQuantity,
+                optionLabel: product.optionLabel,
                 salePrice: product.salePrice,
                 categoryId: product.categoryId,
                 categoryName: product.categoryName,

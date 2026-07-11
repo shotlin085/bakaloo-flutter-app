@@ -357,6 +357,9 @@ class CartNotifier extends _$CartNotifier {
       salePrice: product?.salePrice,
       quantity: quantity.clamp(1, 50),
       total: (product?.effectivePrice ?? 0) * quantity.clamp(1, 50),
+      unit: product?.unit,
+      netQuantity: product?.netQuantity,
+      optionLabel: product?.optionLabel,
       thumbnailUrl: product?.thumbnailUrl ??
           (product?.images.isNotEmpty == true ? product!.images.first : null),
     );

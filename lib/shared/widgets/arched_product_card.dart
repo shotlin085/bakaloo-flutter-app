@@ -414,7 +414,7 @@ class _ArchedProductCardState extends State<ArchedProductCard> {
             Padding(
               padding: EdgeInsets.fromLTRB(11.w, 1.h, 11.w, 0),
               child: Text(
-                product.unit,
+                product.displayUnit,
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 style: TextStyle(

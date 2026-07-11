@@ -36,6 +36,7 @@ abstract class CartItemModel with _$CartItemModel {
     @JsonKey(name: 'salePrice', fromJson: _cartNullableDoubleFromJson)
     double? salePrice,
     String? unit,
+    @JsonKey(name: 'netQuantity') String? netQuantity,
     String? thumbnailUrl,
     @JsonKey(name: 'shopProductId') String? shopProductId,
     @JsonKey(name: 'shopId') String? shopId,
@@ -58,6 +59,7 @@ abstract class CartItemModel with _$CartItemModel {
       quantity: quantity,
       total: total,
       unit: unit,
+      netQuantity: netQuantity,
       thumbnailUrl: thumbnailUrl,
       shopProductId: shopProductId,
       shopId: shopId,

@@ -121,6 +121,35 @@ class WishlistNotifier extends _$WishlistNotifier {
     );
   }
 
+  /// Adds a product to the wishlist by id alone — for callers (e.g. the
+  /// "Save this for later?" cart-removal prompt) that only have a
+  /// [CartItemEntity] on hand, not the full [ProductEntity] [toggleWishlist]
+  /// needs for its optimistic-UI step. The API call itself only ever needed
+  /// the id; this just skips fabricating a fake product to get there.
+  /// Callers are expected to already know the product isn't wishlisted
+  /// (e.g. via [wishlistIdsProvider]) — this always sends `isInWishlist:
+  /// false` since it's an add-only entry point.
+  Future<WishlistActionResult> addToWishlistById(String productId) async {
+    if (!_isAuthenticated) {
+      return const WishlistActionResult(
+        failure: AuthFailure(message: 'Please log in to save favourites.'),
+      );
+    }
+
+    final result = await ref.read(toggleWishlistUseCaseProvider).call(
+          productId,
+          isInWishlist: false,
+        );
+
+    return result.fold(
+      (failure) => WishlistActionResult(failure: failure),
+      (wishlist) {
+        state = AsyncData(wishlist);
+        return const WishlistActionResult();
+      },
+    );
+  }
+
   Future<WishlistActionResult> moveAllToCart() async {
     if (!_isAuthenticated) {
       return const WishlistActionResult(

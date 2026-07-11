@@ -379,11 +379,15 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
   // only displayed the chosen delivery slot read-only, with no way to
   // change it without navigating back to the cart.
   Future<void> _openScheduleSheet(BuildContext context) async {
+    // No separate Express/Schedule entry points here (unlike the cart
+    // screen) — land on whichever tab matches the slot already chosen.
+    final alreadyScheduled =
+        ref.read(checkoutProvider).selectedDeliverySlot?.isScheduled ?? false;
     await showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
-      builder: (_) => const ScheduleDeliverySheet(),
+      builder: (_) => ScheduleDeliverySheet(initialScheduled: alreadyScheduled),
     );
   }
 
@@ -891,9 +895,10 @@ class _OrderItemReviewRow extends StatelessWidget {
                         ),
                       ),
                     )
-                  else if (item.unit != null && item.unit!.isNotEmpty)
+                  else if ((item.netQuantity ?? item.unit) != null &&
+                      (item.netQuantity ?? item.unit)!.isNotEmpty)
                     Text(
-                      item.unit!,
+                      item.netQuantity ?? item.unit!,
                       style: AppTextStyles.bodySmall.copyWith(
                         fontSize: 11.sp,
                         color: AppColors.textSecondary,
