@@ -112,29 +112,35 @@ class ProductRecommendationsStrip extends StatelessWidget {
               ],
             ),
           ),
-          SizedBox(
-            height: 310.h,
-            child: ListView.builder(
-              scrollDirection: Axis.horizontal,
-              physics: const BouncingScrollPhysics(),
-              padding: EdgeInsets.only(left: 16.w, right: 16.w),
-              itemCount: products.length,
-              itemBuilder: (context, index) {
-                final product = products[index];
-                return RepaintBoundary(
-                  child: ProductRecommendationCard(
-                    product: product,
-                    onTap: onProductTap == null
-                        ? null
-                        : () => onProductTap!(product),
-                    onAdd: onAddToCart == null
-                        ? null
-                        : () => onAddToCart!(product),
-                    showVariantTag: showVariantTag,
-                    showAdBadge: showAdBadge,
+          // A horizontal ListView forces every item to the SizedBox's exact
+          // height regardless of its own content, which was the source of
+          // the large blank gap under cards missing the optional
+          // variant-tag/return-policy/rating rows other cards in the same
+          // rail have. A Row inside a SingleChildScrollView lets each card
+          // size to its own content instead (small, bounded item counts —
+          // recommendation rails — so losing lazy building is a non-issue).
+          SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            physics: const BouncingScrollPhysics(),
+            padding: EdgeInsets.only(left: 16.w, right: 16.w),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: <Widget>[
+                for (final product in products)
+                  RepaintBoundary(
+                    child: ProductRecommendationCard(
+                      product: product,
+                      onTap: onProductTap == null
+                          ? null
+                          : () => onProductTap!(product),
+                      onAdd: onAddToCart == null
+                          ? null
+                          : () => onAddToCart!(product),
+                      showVariantTag: showVariantTag,
+                      showAdBadge: showAdBadge,
+                    ),
                   ),
-                );
-              },
+              ],
             ),
           ),
         ],
@@ -264,48 +270,56 @@ class _ProductRecommendationCardState extends State<ProductRecommendationCard> {
             borderRadius: BorderRadius.circular(12.r),
           ),
           child: Column(
+            mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: <Widget>[
               SizedBox(
                 height: 145.h,
+                width: double.infinity,
                 child: Stack(
-                  clipBehavior: Clip.none,
                   children: <Widget>[
                     Positioned.fill(
-                      child: Container(
-                        decoration: BoxDecoration(
-                          color: const Color(0xFFFAFAFA),
-                          borderRadius: BorderRadius.vertical(
-                            top: Radius.circular(12.r),
-                          ),
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.vertical(
+                          top: Radius.circular(12.r),
                         ),
-                        child: _imageUrl == null
-                            ? Center(
-                                child: PhosphorIcon(
-                                  PhosphorIcons.image,
-                                  size: 28.sp,
-                                  color: const Color(0xFFBBBBBB),
-                                ),
-                              )
-                            : CachedNetworkImage(
-                                imageUrl: optimizedImage.url ?? _imageUrl!,
-                                fit: BoxFit.contain,
-                                memCacheWidth: 168,
-                                memCacheHeight: 168,
-                                fadeInDuration: Duration.zero,
-                                filterQuality: FilterQuality.high,
-                                placeholder: (context, url) => const ColoredBox(
-                                  color: Color(0xFFFAFAFA),
-                                  child: SizedBox.expand(),
-                                ),
-                                errorWidget: (context, url, error) => Center(
+                        child: DecoratedBox(
+                          decoration: const BoxDecoration(
+                            color: Color(0xFFFAFAFA),
+                          ),
+                          child: _imageUrl == null
+                              ? Center(
                                   child: PhosphorIcon(
-                                    PhosphorIcons.imageBroken,
-                                    size: 24.sp,
+                                    PhosphorIcons.image,
+                                    size: 28.sp,
                                     color: const Color(0xFFBBBBBB),
                                   ),
+                                )
+                              : SizedBox.expand(
+                                  child: CachedNetworkImage(
+                                    imageUrl: optimizedImage.url ?? _imageUrl!,
+                                    fit: BoxFit.cover,
+                                    memCacheWidth: optimizedImage.memCacheWidth,
+                                    memCacheHeight:
+                                        optimizedImage.memCacheHeight,
+                                    fadeInDuration: Duration.zero,
+                                    filterQuality: FilterQuality.high,
+                                    placeholder: (context, url) =>
+                                        const ColoredBox(
+                                      color: Color(0xFFFAFAFA),
+                                      child: SizedBox.expand(),
+                                    ),
+                                    errorWidget: (context, url, error) =>
+                                        Center(
+                                      child: PhosphorIcon(
+                                        PhosphorIcons.imageBroken,
+                                        size: 24.sp,
+                                        color: const Color(0xFFBBBBBB),
+                                      ),
+                                    ),
+                                  ),
                                 ),
-                              ),
+                        ),
                       ),
                     ),
                     Positioned(
@@ -317,6 +331,13 @@ class _ProductRecommendationCardState extends State<ProductRecommendationCard> {
                         decoration: BoxDecoration(
                           shape: BoxShape.circle,
                           color: Colors.white.withValues(alpha: 0.96),
+                          boxShadow: <BoxShadow>[
+                            BoxShadow(
+                              color: Colors.black.withValues(alpha: 0.1),
+                              blurRadius: 3,
+                              offset: const Offset(0, 1),
+                            ),
+                          ],
                         ),
                         child: Center(
                           child: PhosphorIcon(
@@ -327,57 +348,81 @@ class _ProductRecommendationCardState extends State<ProductRecommendationCard> {
                         ),
                       ),
                     ),
-                    Positioned(
-                      right: 10.w,
-                      bottom: -16.h,
-                      child: GestureDetector(
-                        behavior: HitTestBehavior.opaque,
-                        onTap: widget.onAdd,
-                        child: Container(
-                          width: 76.w,
-                          height: 32.h,
-                          decoration: BoxDecoration(
-                            color: Colors.white,
-                            border: Border.all(
-                              color: AppColors.pdViolet,
-                              width: 1.5,
-                            ),
-                            borderRadius: BorderRadius.circular(8.r),
-                          ),
-                          child: Column(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: <Widget>[
-                              Text(
-                                'ADD',
-                                style: TextStyle(
-                                  fontFamily: 'Inter',
-                                  fontSize: 13.sp,
-                                  fontWeight: FontWeight.w700,
-                                  color: AppColors.pdViolet,
-                                  height: 1,
-                                ),
+                    if (widget.product.inStock)
+                      Positioned(
+                        right: 8.w,
+                        bottom: 8.h,
+                        child: GestureDetector(
+                          behavior: HitTestBehavior.opaque,
+                          onTap: widget.onAdd,
+                          child: Container(
+                            width: 76.w,
+                            height: 32.h,
+                            decoration: BoxDecoration(
+                              color: Colors.white,
+                              border: Border.all(
+                                color: AppColors.pdViolet,
+                                width: 1.5,
                               ),
-                              if (_variantCount != null)
+                              borderRadius: BorderRadius.circular(8.r),
+                              boxShadow: <BoxShadow>[
+                                BoxShadow(
+                                  color: Colors.black.withValues(alpha: 0.1),
+                                  blurRadius: 3,
+                                  offset: const Offset(0, 1),
+                                ),
+                              ],
+                            ),
+                            child: Column(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: <Widget>[
                                 Text(
-                                  '${_variantCount!} options',
+                                  'ADD',
                                   style: TextStyle(
                                     fontFamily: 'Inter',
-                                    fontSize: 9.sp,
-                                    fontWeight: FontWeight.w400,
+                                    fontSize: 13.sp,
+                                    fontWeight: FontWeight.w700,
                                     color: AppColors.pdViolet,
                                     height: 1,
                                   ),
                                 ),
-                            ],
+                                if (_variantCount != null)
+                                  Text(
+                                    '${_variantCount!} options',
+                                    style: TextStyle(
+                                      fontFamily: 'Inter',
+                                      fontSize: 9.sp,
+                                      fontWeight: FontWeight.w400,
+                                      color: AppColors.pdViolet,
+                                      height: 1,
+                                    ),
+                                  ),
+                              ],
+                            ),
                           ),
                         ),
                       ),
-                    ),
+                    if (!widget.product.inStock)
+                      Positioned.fill(
+                        child: Container(
+                          color: AppColors.overlayDark,
+                          alignment: Alignment.center,
+                          child: Text(
+                            'Out of stock',
+                            style: TextStyle(
+                              fontFamily: 'Inter',
+                              fontSize: 13.sp,
+                              fontWeight: FontWeight.w700,
+                              color: Colors.white,
+                            ),
+                          ),
+                        ),
+                      ),
                   ],
                 ),
               ),
               Padding(
-                padding: EdgeInsets.fromLTRB(10.w, 22.h, 10.w, 6.h),
+                padding: EdgeInsets.fromLTRB(10.w, 10.h, 10.w, 6.h),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: <Widget>[

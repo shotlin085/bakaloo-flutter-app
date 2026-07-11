@@ -44,27 +44,29 @@ class ProductRecentlyViewedSection extends StatelessWidget {
               ),
             ),
           ),
-          SizedBox(
-            height: 310.h,
-            child: ListView.builder(
-              scrollDirection: Axis.horizontal,
-              physics: const BouncingScrollPhysics(),
-              padding: EdgeInsets.only(left: 16.w, right: 16.w),
-              itemCount: products.length,
-              itemBuilder: (context, index) {
-                final product = products[index];
-                return RepaintBoundary(
-                  child: ProductRecommendationCard(
-                    product: product,
-                    onTap: onProductTap == null
-                        ? null
-                        : () => onProductTap!(product),
-                    onAdd: onAddToCart == null
-                        ? null
-                        : () => onAddToCart!(product),
+          // Row + SingleChildScrollView instead of a height-locked ListView
+          // so each card sizes to its own content — see the matching
+          // comment in `product_pair_with_section.dart` for why.
+          SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            physics: const BouncingScrollPhysics(),
+            padding: EdgeInsets.only(left: 16.w, right: 16.w),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: <Widget>[
+                for (final product in products)
+                  RepaintBoundary(
+                    child: ProductRecommendationCard(
+                      product: product,
+                      onTap: onProductTap == null
+                          ? null
+                          : () => onProductTap!(product),
+                      onAdd: onAddToCart == null
+                          ? null
+                          : () => onAddToCart!(product),
+                    ),
                   ),
-                );
-              },
+              ],
             ),
           ),
         ],
