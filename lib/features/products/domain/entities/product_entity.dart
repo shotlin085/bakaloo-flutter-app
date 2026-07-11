@@ -95,8 +95,13 @@ abstract class ProductEntity with _$ProductEntity {
   /// Display label for the option/unit row. Priority: optionLabel > netQuantity > unit.
   String get displayUnit => optionLabel ?? netQuantity ?? unit;
 
+  // A count under 11 reads as "barely reviewed" and undersells a genuinely
+  // good product — below that threshold only the average star shows, no
+  // number. 11+ is treated as enough reviews for the count itself to be a
+  // meaningful trust signal.
   String get formattedRating {
     if (avgRating <= 0) return '';
+    if (ratingCount <= 10) return avgRating.toStringAsFixed(1);
     final count = ratingCount >= 1000
         ? '${(ratingCount / 1000).toStringAsFixed(1)}k'
         : '$ratingCount';

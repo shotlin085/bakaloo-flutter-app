@@ -73,22 +73,27 @@ class RatingBadge extends StatelessWidget {
               color: const Color(0xFF1A1A1A),
             ),
           ),
-          SizedBox(width: 6.w),
-          Container(
-            width: 1,
-            height: 14.h,
-            color: const Color(0xFFE0E0E0),
-          ),
-          SizedBox(width: 6.w),
-          Text(
-            _formattedCount,
-            style: TextStyle(
-              fontFamily: 'Inter',
-              fontSize: 12.sp,
-              fontWeight: FontWeight.w500,
-              color: const Color(0xFF999999),
+          // Below 11 reviews, the count reads as "barely reviewed" and
+          // undersells the product — only the average star shows until
+          // there's enough reviews for the count to be a real trust signal.
+          if (count > 10) ...<Widget>[
+            SizedBox(width: 6.w),
+            Container(
+              width: 1,
+              height: 14.h,
+              color: const Color(0xFFE0E0E0),
             ),
-          ),
+            SizedBox(width: 6.w),
+            Text(
+              _formattedCount,
+              style: TextStyle(
+                fontFamily: 'Inter',
+                fontSize: 12.sp,
+                fontWeight: FontWeight.w500,
+                color: const Color(0xFF999999),
+              ),
+            ),
+          ],
         ],
       ),
     );

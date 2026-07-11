@@ -22,6 +22,7 @@ import 'package:bakaloo_flutter_app/features/orders/domain/entities/order_timeli
 import 'package:bakaloo_flutter_app/features/orders/presentation/providers/active_order_provider.dart';
 import 'package:bakaloo_flutter_app/features/orders/presentation/providers/order_detail_provider.dart';
 import 'package:bakaloo_flutter_app/features/orders/presentation/providers/order_list_provider.dart';
+import 'package:bakaloo_flutter_app/features/reviews/presentation/screens/order_review_screen.dart';
 import 'package:bakaloo_flutter_app/routing/route_names.dart';
 import 'package:bakaloo_flutter_app/shared/widgets/confirmation_dialog.dart';
 import 'package:bakaloo_flutter_app/shared/widgets/safe_product_image.dart';
@@ -244,7 +245,11 @@ class _OrderDetailScreenState extends ConsumerState<OrderDetailScreen> {
                 onCancel: () => _cancelOrder(order),
                 onReorder: () => _reorder(order),
                 onDownloadInvoice: () => _downloadInvoice(order),
-                onWriteReview: () => context.push(RouteNames.myReviews),
+                onWriteReview: () => Navigator.of(context).push(
+                  MaterialPageRoute<bool>(
+                    builder: (_) => OrderReviewScreen(order: order),
+                  ),
+                ),
               ),
             ],
           );
