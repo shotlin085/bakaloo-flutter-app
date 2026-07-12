@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:dio/dio.dart';
@@ -110,6 +111,12 @@ class ProfileNotifier extends _$ProfileNotifier {
       (profile) {
         state = AsyncData(profile);
         ref.invalidate(userStatsProvider);
+        // Keep the auth session's cached identity in sync — otherwise this
+        // save "reverts" on the next app restart (see syncCachedUser's doc
+        // comment in auth_notifier.dart for why).
+        unawaited(
+          ref.read(authStateProvider.notifier).syncCachedUser(profile.user),
+        );
         return const ProfileActionResult();
       },
     );

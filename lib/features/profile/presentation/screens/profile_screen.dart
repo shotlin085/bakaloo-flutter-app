@@ -30,6 +30,7 @@ import 'package:bakaloo_flutter_app/features/profile/presentation/widgets/menu_s
 import 'package:bakaloo_flutter_app/features/profile/presentation/widgets/menu_tile.dart';
 import 'package:bakaloo_flutter_app/features/profile/presentation/widgets/profile_header.dart';
 import 'package:bakaloo_flutter_app/features/profile/presentation/widgets/stats_row.dart';
+import 'package:bakaloo_flutter_app/features/tutorials/presentation/screens/tutorial_list_screen.dart';
 import 'package:bakaloo_flutter_app/features/wallet/presentation/providers/wallet_provider.dart';
 import 'package:bakaloo_flutter_app/features/wallet/domain/entities/wallet_entity.dart';
 import 'package:bakaloo_flutter_app/routing/app_router.dart';
@@ -229,6 +230,16 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                         onTap: () => launchUrl(
                           Uri.parse('${ApiConstants.webBaseUrl}/terms'),
                           mode: LaunchMode.inAppWebView,
+                        ),
+                      ),
+                      _divider(),
+                      MenuTile(
+                        icon: PhosphorIcons.videoCameraLight,
+                        label: 'Tutorial',
+                        onTap: () => Navigator.of(context).push(
+                          MaterialPageRoute<void>(
+                            builder: (_) => const TutorialListScreen(),
+                          ),
                         ),
                       ),
                     ],

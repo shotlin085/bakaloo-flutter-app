@@ -148,6 +148,7 @@ class ApiConstants {
   static String notificationRead(String id) => '/notifications/$id/read';
 
   static const banners = '/banners';
+  static const tutorials = '/tutorials';
   static const activeTheme = '/theme/active';
   static const tabThemes = '/theme/tabs';
   static const sectionManifest = '/theme/tabs';

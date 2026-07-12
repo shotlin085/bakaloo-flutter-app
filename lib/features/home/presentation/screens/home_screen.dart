@@ -38,6 +38,8 @@ import 'package:bakaloo_flutter_app/shared/widgets/skeleton_loader.dart';
 import 'package:bakaloo_flutter_app/features/products/presentation/widgets/show_product_options.dart';
 import 'package:bakaloo_flutter_app/features/location/presentation/providers/location_prompt_provider.dart';
 import 'package:bakaloo_flutter_app/features/location/presentation/widgets/location_prompt_sheet.dart';
+import 'package:bakaloo_flutter_app/features/profile/presentation/providers/profile_provider.dart';
+import 'package:bakaloo_flutter_app/features/profile/presentation/widgets/name_prompt_dialog.dart';
 import 'package:bakaloo_flutter_app/shared/widgets/address_bottom_sheet.dart';
 
 double _horizontalRailExtent(
@@ -121,6 +123,13 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
   // session can prompt again. See _locationServiceStatusSub.
   bool _locationPromptShownThisSession = false;
   StreamSubscription<ServiceStatus>? _locationServiceStatusSub;
+  // Guards against the post-frame callback firing more than once per
+  // widget lifetime (e.g. a rapid rebuild) — unlike the location prompt,
+  // this one doesn't need to reset on any external event: the gate is
+  // simply "does the profile have a name" (re-checked fresh from
+  // profileProvider every time), so once it's true there's nothing left
+  // to show for the rest of this session anyway.
+  bool _namePromptAttemptedThisSession = false;
 
   double get _stickyRevealStartDistance => 48.h;
   double get _stickyRevealEndDistance => 24.h;
@@ -185,8 +194,13 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
         _updateStickyHeaderTriggerOffset();
         _handleHomeScroll();
         // Initial check — slight delay so home UI settles first
-        Future<void>.delayed(const Duration(milliseconds: 800), () {
-          if (mounted) _maybeShowLocationPrompt();
+        Future<void>.delayed(const Duration(milliseconds: 800), () async {
+          if (!mounted) return;
+          await _maybeShowLocationPrompt();
+          // Sequenced after the location prompt (awaited above) so the two
+          // never stack — if location's sheet is showing, this simply waits
+          // for it to close first.
+          if (mounted) unawaited(_maybeShowNamePrompt());
         });
       }
     });
@@ -283,6 +297,41 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
       await showLocationPromptSheet(context);
     } catch (_) {
       // Non-critical — silently ignore
+    }
+  }
+
+  /// Prompts for a name once per cold start when the logged-in user's
+  /// profile doesn't have one yet — OTP-only signup never asks for a name,
+  /// so this is the one place that eventually collects it. Dismissing
+  /// without saving just means it asks again on the next app open, since
+  /// the gate is re-derived fresh from the profile each time, not a
+  /// one-shot "already asked" flag.
+  ///
+  /// Deliberately checks `profileProvider` (a live GET /users/me), NOT
+  /// `currentUserProvider` — the latter is the cached/JWT-derived auth
+  /// identity, and the access-token JWT never carries a `name` claim at
+  /// all. Whenever that cache is empty (fresh install, cleared app data,
+  /// or just a restore that fell through to decoding the JWT) the session
+  /// gets rebuilt with name always null regardless of what's actually
+  /// saved server-side, which made this dialog reappear for users who'd
+  /// already provided a name. The profile fetch is the actual source of
+  /// truth for this field.
+  Future<void> _maybeShowNamePrompt() async {
+    if (!mounted || _namePromptAttemptedThisSession) return;
+    _namePromptAttemptedThisSession = true;
+    try {
+      // Home is reachable while browsing as a guest (no auth redirect for
+      // this route) — skip entirely rather than fetching a profile that
+      // doesn't exist for an anonymous session.
+      if (ref.read(currentUserProvider) == null) return;
+
+      final profileData = await ref.read(profileProvider.future);
+      if (!mounted) return;
+      final hasName = (profileData.user.name ?? '').trim().isNotEmpty;
+      if (hasName) return;
+      await showNamePromptDialog(context, ref);
+    } catch (_) {
+      // Non-critical — silently ignore (e.g. profile fetch failed offline)
     }
   }
 

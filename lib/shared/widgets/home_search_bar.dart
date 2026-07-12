@@ -1,6 +1,5 @@
 import 'dart:async';
 
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:gap/gap.dart';
@@ -8,12 +7,12 @@ import 'package:gap/gap.dart';
 import 'package:bakaloo_flutter_app/core/theme/remote_theme_model.dart';
 
 const List<String> _searchHints = <String>[
-  'atta, dal, cold drinks',
-  'Amul butter',
-  'fresh vegetables',
+  'vegetables',
+  'Milk',
+  'fruits',
   'snacks',
-  'dishwash liquid',
-  'Safai Abhiyaan products',
+  'ice cream',
+  'grocery',
 ];
 const String _searchIconAsset = 'assets/icon/bakaloo-search-icon.png';
 const String _scanIconAsset = 'assets/icon/bakaloo-scan-icon.png';
@@ -44,13 +43,12 @@ class _HomeSearchBarState extends State<HomeSearchBar> {
   static const Color _borderColor = Color(0xFFEAE7F0);
   static const Color _hintColor = Color(0xFF6B6770);
 
-  List<String> get _resolvedSearchHints {
-    final themeHints = widget.searchTheme?.searchHints;
-    if (themeHints != null && themeHints.isNotEmpty) {
-      return themeHints;
-    }
-    return _searchHints;
-  }
+  // Deliberately ignores widget.searchTheme?.searchHints — that field is
+  // driven by the per-tab remote theme config (All/Fresh/Dairy/Price Drop
+  // each fetch their own theme row), which led to mismatched hints like
+  // "iPhone, Samsung Galaxy" showing up under grocery tabs. The rotating
+  // preview text is meant to be one fixed, global list regardless of tab.
+  List<String> get _resolvedSearchHints => _searchHints;
 
   @override
   void initState() {
@@ -61,11 +59,7 @@ class _HomeSearchBarState extends State<HomeSearchBar> {
   @override
   void didUpdateWidget(covariant HomeSearchBar oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (oldWidget.animateHints != widget.animateHints ||
-        !listEquals(
-          oldWidget.searchTheme?.searchHints,
-          widget.searchTheme?.searchHints,
-        )) {
+    if (oldWidget.animateHints != widget.animateHints) {
       _syncHintRotation();
     }
   }

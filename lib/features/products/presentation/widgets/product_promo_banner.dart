@@ -2,6 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:phosphoricons_flutter/phosphoricons_flutter.dart';
 
+/// Full-width violet delivery-promise strip shown right below the image
+/// gallery. Deliberately just the one "Delivered in minutes with Bakaloo"
+/// line + the real brand mark watermark — no extra icon/heading beyond
+/// that, per direct product feedback on an earlier build of this banner.
 class ProductPromoBanner extends StatelessWidget {
   const ProductPromoBanner({
     required this.scrollOffset,
@@ -14,7 +18,7 @@ class ProductPromoBanner extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       width: double.infinity,
-      height: 64.h,
+      height: 56.h,
       decoration: const BoxDecoration(
         gradient: LinearGradient(
           begin: Alignment.centerLeft,
@@ -28,22 +32,21 @@ class ProductPromoBanner extends StatelessWidget {
       ),
       child: ClipRect(
         child: Stack(
+          alignment: Alignment.center,
           children: <Widget>[
-            // Faint brand watermark on the right.
+            // Faint brand watermark bleeding off the right edge.
             Positioned(
-              right: -8.w,
-              top: -6.h,
-              bottom: -6.h,
+              right: -14.w,
+              top: -10.h,
+              bottom: -10.h,
               child: Transform.translate(
                 offset: Offset(scrollOffset * 0.12, 0),
-                child: Text(
-                  'B',
-                  style: TextStyle(
-                    fontFamily: 'Poppins',
-                    fontSize: 72.sp,
-                    fontWeight: FontWeight.w800,
-                    color: Colors.white.withValues(alpha: 0.12),
-                    height: 1,
+                child: Opacity(
+                  opacity: 0.16,
+                  child: Image.asset(
+                    'assets/icon/brand_watermark.png',
+                    height: 68.h,
+                    fit: BoxFit.contain,
                   ),
                 ),
               ),
@@ -51,53 +54,35 @@ class ProductPromoBanner extends StatelessWidget {
             Padding(
               padding: EdgeInsets.symmetric(horizontal: 16.w),
               child: Row(
+                crossAxisAlignment: CrossAxisAlignment.center,
                 children: <Widget>[
                   PhosphorIcon(
                     PhosphorIcons.scooterFill,
-                    size: 26.sp,
+                    size: 32.sp,
                     color: Colors.white,
                   ),
-                  SizedBox(width: 12.w),
-                  Expanded(
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: <Widget>[
-                        Text(
-                          'Fast groceries. Happy you.',
+                  SizedBox(width: 10.w),
+                  RichText(
+                    text: TextSpan(
+                      children: <InlineSpan>[
+                        TextSpan(
+                          text: 'Delivered in minutes with ',
                           style: TextStyle(
                             fontFamily: 'Inter',
                             fontSize: 13.sp,
-                            fontWeight: FontWeight.w700,
-                            color: Colors.white,
+                            fontWeight: FontWeight.w400,
+                            color: Colors.white.withValues(alpha: 0.92),
                             height: 1.2,
                           ),
                         ),
-                        SizedBox(height: 2.h),
-                        RichText(
-                          text: TextSpan(
-                            children: <InlineSpan>[
-                              TextSpan(
-                                text: 'Delivered in minutes with ',
-                                style: TextStyle(
-                                  fontFamily: 'Inter',
-                                  fontSize: 12.sp,
-                                  fontWeight: FontWeight.w400,
-                                  color: Colors.white.withValues(alpha: 0.92),
-                                  height: 1.2,
-                                ),
-                              ),
-                              TextSpan(
-                                text: 'Bakaloo',
-                                style: TextStyle(
-                                  fontFamily: 'Inter',
-                                  fontSize: 12.sp,
-                                  fontWeight: FontWeight.w800,
-                                  color: const Color(0xFFFFD54F),
-                                  height: 1.2,
-                                ),
-                              ),
-                            ],
+                        TextSpan(
+                          text: 'Bakaloo',
+                          style: TextStyle(
+                            fontFamily: 'Inter',
+                            fontSize: 13.sp,
+                            fontWeight: FontWeight.w800,
+                            color: const Color(0xFFFFD54F),
+                            height: 1.2,
                           ),
                         ),
                       ],

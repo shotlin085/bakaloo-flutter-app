@@ -61,6 +61,9 @@ abstract class ApiClient {
   @GET(ApiConstants.banners)
   Future<ApiResponse<List<dynamic>>> getBanners();
 
+  @GET(ApiConstants.tutorials)
+  Future<ApiResponse<List<dynamic>>> getTutorials();
+
   @GET(ApiConstants.categories)
   Future<ApiResponse<List<dynamic>>> getCategories();
 

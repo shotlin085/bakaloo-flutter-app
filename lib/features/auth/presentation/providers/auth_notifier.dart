@@ -174,6 +174,34 @@ class AuthNotifier extends _$AuthNotifier {
     unawaited(_triggerAllocationAutoAssign());
   }
 
+  /// Keeps the persisted + in-memory auth user in sync after a profile
+  /// edit (name/email/birthday saved via ProfileNotifier.updateProfile).
+  ///
+  /// Without this, a saved name "reverts" the next time the app is closed
+  /// and reopened: HiveService.userBox is only ever written once, at
+  /// login (auth_repository_impl.dart), and restoreSession() rebuilds
+  /// AuthAuthenticated from that same stale cache on every cold start —
+  /// so anything ProfileNotifier saved to the backend was never reflected
+  /// back into the identity this app actually reads from on relaunch.
+  Future<void> syncCachedUser(UserEntity updated) async {
+    if (state case AuthAuthenticated()) {
+      state = AuthAuthenticated(user: updated);
+    }
+    await HiveService.userBox.put(
+      'user',
+      UserModel(
+        id: updated.id,
+        phone: updated.phone,
+        role: updated.role,
+        name: updated.name,
+        email: updated.email,
+        avatarUrl: updated.avatarUrl,
+        loyaltyPoints: updated.loyaltyPoints,
+        referralCode: updated.referralCode,
+      ).toJson(),
+    );
+  }
+
   Future<void> logout() async {
     // Only hit the network logout endpoint if there's actually a session to
     // invalidate. Without this guard, every 401 from an anonymous session
