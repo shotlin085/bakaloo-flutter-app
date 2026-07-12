@@ -62,6 +62,21 @@ class ReviewRepositoryImpl implements ReviewRepository {
   }
 
   @override
+  Future<Either<Failure, Map<String, ({int rating, String? comment})>>>
+      getOrderReviews(String orderId) async {
+    try {
+      final result = await _remoteDataSource.getOrderReviews(orderId);
+      return Right(result);
+    } on DioException catch (error) {
+      return Left(handleDioError(error));
+    } catch (_) {
+      return const Left(
+        UnknownFailure(message: 'Unable to load your reviews for this order.'),
+      );
+    }
+  }
+
+  @override
   Future<Either<Failure, ReviewEntity>> createReview(
     ReviewCreateParams params,
   ) async {

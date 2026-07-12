@@ -176,7 +176,6 @@ class _AddressMapPickerScreenState extends State<AddressMapPickerScreen>
             right: 0,
             bottom: 0,
             child: _BottomLocationSheet(
-              details: _resolvedLocation,
               isResolving: _isResolvingLocation,
               isConfirming: _isConfirming,
               distanceLabel: _distanceLabel,
@@ -1160,14 +1159,12 @@ class _TooltipBubble extends StatelessWidget {
 
 class _BottomLocationSheet extends StatelessWidget {
   const _BottomLocationSheet({
-    required this.details,
     required this.isResolving,
     required this.isConfirming,
     required this.distanceLabel,
     required this.onConfirm,
   });
 
-  final _ResolvedLocationDetails? details;
   final bool isResolving;
   final bool isConfirming;
   final String distanceLabel;
@@ -1175,9 +1172,6 @@ class _BottomLocationSheet extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final areaName = details?.areaName ?? 'Fetching address...';
-    final fullAddress = details?.fullAddress ?? 'Pin the map to update address';
-
     return DecoratedBox(
       decoration: const BoxDecoration(
         boxShadow: <BoxShadow>[AppShadows.floatingShadow],
@@ -1207,32 +1201,6 @@ class _BottomLocationSheet extends StatelessWidget {
                 ),
               ),
               Gap(16.h),
-              AnimatedSwitcher(
-                duration: const Duration(milliseconds: 220),
-                switchInCurve: Curves.easeOutCubic,
-                switchOutCurve: Curves.easeInCubic,
-                child: Column(
-                  key: ValueKey<String>('${areaName}_$fullAddress'),
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: <Widget>[
-                    Text(
-                      areaName,
-                      style: AppTextStyles.h3.copyWith(
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                    Gap(6.h),
-                    Text(
-                      fullAddress,
-                      style: AppTextStyles.bodySmall.copyWith(
-                        color: AppColors.textSecondary,
-                        fontSize: 13.sp,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              Gap(10.h),
               Row(
                 children: <Widget>[
                   if (isResolving)

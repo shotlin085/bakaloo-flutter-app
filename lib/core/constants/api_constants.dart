@@ -137,6 +137,7 @@ class ApiConstants {
   static const myReviews = '/reviews/my-reviews';
   static String reviewsForProduct(String id) => '/reviews/products/$id';
   static String reviewEligibility(String id) => '/reviews/eligibility/$id';
+  static String orderReviews(String orderId) => '/reviews/order/$orderId';
   static String reviewById(String id) => '/reviews/$id';
 
   static const notifications = '/notifications';

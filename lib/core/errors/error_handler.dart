@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:dio/dio.dart';
 import 'package:bakaloo_flutter_app/core/errors/failure.dart';
 
@@ -89,6 +91,18 @@ Failure _mapResponseError(Response<dynamic>? response) {
 }
 
 String _extractMessage(dynamic data, {required String fallback}) {
+  // Requests that force `ResponseType.bytes` (e.g. invoice PDF download)
+  // still get bytes back from Dio on a non-2xx error response, even though
+  // the backend actually sent a JSON error envelope. Decode it before
+  // falling back to a generic message.
+  if (data is List<int>) {
+    try {
+      return _extractMessage(jsonDecode(utf8.decode(data)), fallback: fallback);
+    } catch (_) {
+      return fallback;
+    }
+  }
+
   if (data is Map<String, dynamic>) {
     final message = data['message'] ?? data['error'] ?? data['detail'];
     if (message is String && message.trim().isNotEmpty) {

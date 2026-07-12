@@ -64,8 +64,6 @@ class _AddEditAddressScreenState extends ConsumerState<AddEditAddressScreen> {
   String _selectedLabel = 'Home';
   double? _latitude;
   double? _longitude;
-  String? _areaName;
-  String? _displayAddress;
   String? _city;
   String? _state;
   String? _pincode;
@@ -177,20 +175,6 @@ class _AddEditAddressScreenState extends ConsumerState<AddEditAddressScreen> {
     _pincodeController.text = _pincode!;
     _latitude = address.latitude;
     _longitude = address.longitude;
-    _areaName = _deriveAreaName(
-      displayName: null,
-      addressLine1: address.addressLine1,
-      addressLine2: address.addressLine2,
-      city: address.city,
-    );
-    _displayAddress = _composeDisplayAddress(
-      displayName: null,
-      addressLine1: address.addressLine1,
-      addressLine2: address.addressLine2,
-      city: address.city,
-      state: address.state,
-      pincode: address.pincode,
-    );
   }
 
   void _handleFormStateChanged() {
@@ -322,11 +306,6 @@ class _AddEditAddressScreenState extends ConsumerState<AddEditAddressScreen> {
       return;
     }
 
-    final resolvedCity = _firstNonEmpty(<String?>[
-      result.city,
-      fallback?.city,
-      _city,
-    ]);
     final resolvedState = _firstNonEmpty(<String?>[
       result.state,
       fallback?.state,
@@ -337,52 +316,17 @@ class _AddEditAddressScreenState extends ConsumerState<AddEditAddressScreen> {
       fallback?.pincode,
       _pincode,
     ]);
-    final resolvedDisplayName = _firstNonEmpty(<String?>[
-      result.displayName,
-      fallback?.displayName,
-    ]);
-    final resolvedLine1 = _firstNonEmpty(<String?>[
-      result.addressLine1,
-      fallback?.addressLine1,
-    ]);
-    final resolvedLine2 = _firstNonEmpty(<String?>[
-      result.addressLine2,
-      fallback?.addressLine2,
-    ]);
 
     setState(() {
       _latitude = result.point.lat;
       _longitude = result.point.lng;
-      _city = resolvedCity;
       _state = resolvedState;
       _pincode = resolvedPincode;
-      _areaName = _deriveAreaName(
-        displayName: resolvedDisplayName,
-        addressLine1: resolvedLine1,
-        addressLine2: resolvedLine2,
-        city: resolvedCity,
-      );
-      _displayAddress = _composeDisplayAddress(
-        displayName: resolvedDisplayName,
-        addressLine1: resolvedLine1,
-        addressLine2: resolvedLine2,
-        city: resolvedCity,
-        state: resolvedState,
-        pincode: resolvedPincode,
-      );
-      // Pre-fill the editable fields with the geocoded guess instead of
-      // leaving them blank — the user reviews and corrects them rather
-      // than typing the whole address from scratch. A fresh pin pick is a
-      // deliberate "this is my location" action, so it's expected to
-      // refresh these to match the new spot rather than leave stale text
-      // from a previous pick in place.
-      if ((resolvedLine1 ?? '').trim().isNotEmpty) {
-        _addressController.text = resolvedLine1!.trim();
-      }
-      if ((resolvedLine2 ?? '').trim().isNotEmpty) {
-        _landmarkController.text = resolvedLine2!.trim();
-      }
-      _cityController.text = resolvedCity ?? '';
+      // Reverse-geocoded Address/Landmark/City guesses were landing wrong
+      // often enough (wrong locality, wrong pincode) that only the two most
+      // reliable fields — State and PIN Code — are auto-filled from the map
+      // pin. Address, House No., Building, Landmark and City are always
+      // left for the user to type themselves.
       _stateController.text = resolvedState ?? '';
       _pincodeController.text = resolvedPincode ?? '';
     });
@@ -604,10 +548,6 @@ class _AddEditAddressScreenState extends ConsumerState<AddEditAddressScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final headerTitle = _areaName ?? 'Choose your delivery pin';
-    final headerSubtitle = _displayAddress ??
-        'Pick your exact building or gate on the map to auto-fill city, state and pincode.';
-
     return Scaffold(
       backgroundColor: AppColors.bgPrimary,
       appBar: AppBar(
@@ -686,8 +626,6 @@ class _AddEditAddressScreenState extends ConsumerState<AddEditAddressScreen> {
                         onCurrentLocationTap: _openMapPickerFromCurrentLocation,
                       ),
                       _AddressHeader(
-                        areaName: headerTitle,
-                        address: headerSubtitle,
                         buttonLabel: _hasPinnedLocation ? 'Change' : 'Pick',
                         statusMessage: _pincodeMessage,
                         statusColor: switch (_pincodeStatus) {
@@ -723,18 +661,6 @@ class _AddEditAddressScreenState extends ConsumerState<AddEditAddressScreen> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: <Widget>[
                       _FormField(
-                        controller: _addressController,
-                        label: 'Address *',
-                        textInputAction: TextInputAction.next,
-                        validator: (String? value) {
-                          if ((value ?? '').trim().isEmpty) {
-                            return 'Address is required.';
-                          }
-                          return null;
-                        },
-                      ),
-                      Gap(12.h),
-                      _FormField(
                         controller: _houseNoController,
                         label: 'House No. & Floor *',
                         textInputAction: TextInputAction.next,
@@ -750,6 +676,18 @@ class _AddEditAddressScreenState extends ConsumerState<AddEditAddressScreen> {
                         controller: _buildingController,
                         label: 'Building & Block No. (Optional)',
                         textInputAction: TextInputAction.next,
+                      ),
+                      Gap(12.h),
+                      _FormField(
+                        controller: _addressController,
+                        label: 'Address *',
+                        textInputAction: TextInputAction.next,
+                        validator: (String? value) {
+                          if ((value ?? '').trim().isEmpty) {
+                            return 'Address is required.';
+                          }
+                          return null;
+                        },
                       ),
                       Gap(12.h),
                       _FormField(
@@ -966,16 +904,12 @@ class _CompactMapPreview extends StatelessWidget {
 
 class _AddressHeader extends StatelessWidget {
   const _AddressHeader({
-    required this.areaName,
-    required this.address,
     required this.buttonLabel,
     required this.onChangeTap,
     this.statusMessage,
     this.statusColor,
   });
 
-  final String areaName;
-  final String address;
   final String buttonLabel;
   final VoidCallback onChangeTap;
   final String? statusMessage;
@@ -986,38 +920,18 @@ class _AddressHeader extends StatelessWidget {
     return Padding(
       padding: EdgeInsets.fromLTRB(16.w, 16.h, 16.w, 16.h),
       child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
+        crossAxisAlignment: CrossAxisAlignment.center,
         children: <Widget>[
           Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: <Widget>[
-                Text(
-                  areaName,
-                  style: AppTextStyles.h3.copyWith(
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-                Gap(6.h),
-                Text(
-                  address,
-                  style: AppTextStyles.bodyMedium.copyWith(
-                    color: AppColors.textSecondary,
-                    fontSize: 13.sp,
-                  ),
-                ),
-                if ((statusMessage ?? '').trim().isNotEmpty) ...<Widget>[
-                  Gap(8.h),
-                  Text(
+            child: (statusMessage ?? '').trim().isNotEmpty
+                ? Text(
                     statusMessage!,
                     style: AppTextStyles.bodySmall.copyWith(
                       color: statusColor ?? AppColors.textSecondary,
                       fontWeight: FontWeight.w600,
                     ),
-                  ),
-                ],
-              ],
-            ),
+                  )
+                : const SizedBox.shrink(),
           ),
           Gap(12.w),
           OutlinedButton(
@@ -1314,44 +1228,6 @@ String? _firstNonEmpty(List<String?> values) {
   return null;
 }
 
-String _deriveAreaName({
-  required String? displayName,
-  required String? addressLine1,
-  required String? addressLine2,
-  required String? city,
-}) {
-  final display = (displayName ?? '').trim();
-  if (display.isNotEmpty) {
-    return display.split(',').first.trim();
-  }
-  return _firstNonEmpty(<String?>[
-        addressLine2,
-        city,
-        addressLine1,
-      ]) ??
-      'Selected location';
-}
-
-String _composeDisplayAddress({
-  required String? displayName,
-  required String? addressLine1,
-  required String? addressLine2,
-  required String? city,
-  required String? state,
-  required String? pincode,
-}) {
-  final display = (displayName ?? '').trim();
-  if (display.isNotEmpty) {
-    return display;
-  }
-  return <String>[
-    if ((addressLine2 ?? '').trim().isNotEmpty) addressLine2!.trim(),
-    if ((addressLine1 ?? '').trim().isNotEmpty) addressLine1!.trim(),
-    if ((city ?? '').trim().isNotEmpty) city!.trim(),
-    if ((state ?? '').trim().isNotEmpty) state!.trim(),
-    if ((pincode ?? '').trim().isNotEmpty) pincode!.trim(),
-  ].join(', ');
-}
 
 String? _emptyToNull(String value) {
   final trimmed = value.trim();

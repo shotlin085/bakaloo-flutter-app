@@ -277,6 +277,11 @@ abstract class ApiClient {
     @Path('productId') String productId,
   );
 
+  @GET('/reviews/order/{orderId}')
+  Future<HttpResponse<dynamic>> getOrderReviews(
+    @Path('orderId') String orderId,
+  );
+
   @POST(ApiConstants.reviews)
   Future<HttpResponse<dynamic>> createReview(
     @Body() Map<String, dynamic> body,

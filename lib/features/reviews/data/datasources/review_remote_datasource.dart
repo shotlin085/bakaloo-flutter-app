@@ -104,6 +104,40 @@ class ReviewRemoteDataSource {
     );
   }
 
+  /// Existing reviews the current user already submitted for this specific
+  /// order, keyed by productId — powers the order-review screen's
+  /// "already reviewed" read-only state so re-opening a partially (or
+  /// fully) reviewed order doesn't show blank stars for products that
+  /// already have one.
+  Future<Map<String, ({int rating, String? comment})>> getOrderReviews(
+    String orderId,
+  ) async {
+    final response = await _apiClient.getOrderReviews(orderId);
+    final payload =
+        _parsePayload(response.data, ApiConstants.orderReviews(orderId));
+    final data = payload['data'];
+    if (data is! List) {
+      return const <String, ({int rating, String? comment})>{};
+    }
+
+    final result = <String, ({int rating, String? comment})>{};
+    for (final item in data.whereType<Map>()) {
+      final map = Map<String, dynamic>.from(item);
+      final productId = _readNullableString(
+        map,
+        <String>['productId', 'product_id'],
+      );
+      if (productId == null) {
+        continue;
+      }
+      result[productId] = (
+        rating: (_toInt(map['rating']) ?? 0).clamp(0, 5),
+        comment: _readNullableString(map, <String>['comment']),
+      );
+    }
+    return result;
+  }
+
   Future<ReviewEntity> createReview(Map<String, dynamic> body) async {
     final response = await _apiClient.createReview(body);
     final payload = _parsePayload(response.data, ApiConstants.reviews);

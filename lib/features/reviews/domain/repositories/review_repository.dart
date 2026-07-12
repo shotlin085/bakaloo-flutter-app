@@ -78,6 +78,10 @@ abstract class ReviewRepository {
     String productId,
   );
 
+  /// This user's existing reviews for one order, keyed by productId.
+  Future<Either<Failure, Map<String, ({int rating, String? comment})>>>
+      getOrderReviews(String orderId);
+
   Future<Either<Failure, ReviewEntity>> createReview(
     ReviewCreateParams params,
   );

@@ -60,10 +60,12 @@ class _OrderReviewScreenState extends ConsumerState<OrderReviewScreen> {
     super.dispose();
   }
 
-  int get _ratedCount => _ratings.values.where((r) => r > 0).length;
+  int _ratedCount(Set<String> alreadyReviewed) => _ratings.entries
+      .where((e) => e.value > 0 && !alreadyReviewed.contains(e.key))
+      .length;
 
-  Future<void> _submit() async {
-    if (_ratedCount == 0) {
+  Future<void> _submit(Set<String> alreadyReviewed) async {
+    if (_ratedCount(alreadyReviewed) == 0) {
       AppToast.show(context, '⚠️ Rate at least one product to submit.', type: ToastType.warning);
       return;
     }
@@ -73,10 +75,15 @@ class _OrderReviewScreenState extends ConsumerState<OrderReviewScreen> {
     });
 
     var succeeded = 0;
-    var alreadyReviewed = 0;
+    var alreadyReviewedCount = 0;
     String? hardFailureMessage;
 
     for (final item in widget.order.items) {
+      // Already reviewed for this exact order — the card renders read-only
+      // for these, so there's nothing new to submit.
+      if (alreadyReviewed.contains(item.productId)) {
+        continue;
+      }
       final rating = _ratings[item.productId] ?? 0;
       if (rating <= 0) {
         continue;
@@ -102,7 +109,7 @@ class _OrderReviewScreenState extends ConsumerState<OrderReviewScreen> {
       // as an error to the customer.
       final message = result.failure!.message;
       if (message.toLowerCase().contains('already reviewed')) {
-        alreadyReviewed++;
+        alreadyReviewedCount++;
       } else {
         hardFailureMessage ??= message;
       }
@@ -120,12 +127,17 @@ class _OrderReviewScreenState extends ConsumerState<OrderReviewScreen> {
       AppToast.show(
         context,
         hardFailureMessage ??
-            (alreadyReviewed > 0
+            (alreadyReviewedCount > 0
                 ? 'You already reviewed these products for this order.'
                 : 'Unable to submit your review right now.'),
       );
       return;
     }
+
+    // A fresh submit changes which products are "already reviewed" for
+    // this order — refresh so the read-only state is correct if the
+    // customer navigates back into this screen again.
+    ref.invalidate(orderReviewsProvider(widget.order.id));
 
     await _showConfirmation(succeeded);
     if (!mounted) {
@@ -161,6 +173,13 @@ class _OrderReviewScreenState extends ConsumerState<OrderReviewScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final existingReviewsAsync =
+        ref.watch(orderReviewsProvider(widget.order.id));
+    final existingReviews = existingReviewsAsync.asData?.value ??
+        const <String, ({int rating, String? comment})>{};
+    final alreadyReviewed = existingReviews.keys.toSet();
+    final ratedCount = _ratedCount(alreadyReviewed);
+
     return Scaffold(
       backgroundColor: AppColors.bgPrimary,
       appBar: AppBar(
@@ -169,7 +188,9 @@ class _OrderReviewScreenState extends ConsumerState<OrderReviewScreen> {
           Padding(
             padding: EdgeInsets.only(right: 12.w),
             child: TextButton(
-              onPressed: (_submitting || _ratedCount == 0) ? null : _submit,
+              onPressed: (_submitting || ratedCount == 0)
+                  ? null
+                  : () => _submit(alreadyReviewed),
               child: _submitting
                   ? SizedBox(
                       width: 18.w,
@@ -177,9 +198,9 @@ class _OrderReviewScreenState extends ConsumerState<OrderReviewScreen> {
                       child: const CircularProgressIndicator(strokeWidth: 2),
                     )
                   : Text(
-                      _ratedCount > 0 ? 'Submit ($_ratedCount)' : 'Submit',
+                      ratedCount > 0 ? 'Submit ($ratedCount)' : 'Submit',
                       style: AppTextStyles.buttonMedium.copyWith(
-                        color: _ratedCount > 0
+                        color: ratedCount > 0
                             ? AppColors.primaryGreen
                             : AppColors.textDisabled,
                         fontWeight: FontWeight.w700,
@@ -195,6 +216,14 @@ class _OrderReviewScreenState extends ConsumerState<OrderReviewScreen> {
         separatorBuilder: (_, __) => Gap(14.h),
         itemBuilder: (context, index) {
           final item = widget.order.items[index];
+          final existing = existingReviews[item.productId];
+          if (existing != null) {
+            return _AlreadyReviewedCard(
+              item: item,
+              rating: existing.rating,
+              comment: existing.comment,
+            );
+          }
           return _ProductReviewCard(
             item: item,
             rating: _ratings[item.productId] ?? 0,
@@ -317,6 +346,140 @@ class _ProductReviewCard extends StatelessWidget {
               isDense: true,
             ),
           ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Read-only twin of _ProductReviewCard for a product that already has a
+/// review for THIS order — filled stars matching what was actually
+/// submitted, no tap targets, no editable comment box. Placing the same
+/// order again for this product starts a fresh (editable) card on that
+/// new order's own review screen, since the constraint is per order.
+class _AlreadyReviewedCard extends StatelessWidget {
+  const _AlreadyReviewedCard({
+    required this.item,
+    required this.rating,
+    required this.comment,
+  });
+
+  final OrderItemEntity item;
+  final int rating;
+  final String? comment;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: EdgeInsets.all(12.w),
+      decoration: BoxDecoration(
+        color: AppColors.bgSection,
+        borderRadius: BorderRadius.circular(AppDimensions.radiusLg),
+        border: Border.all(color: AppColors.borderLight),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: <Widget>[
+          Row(
+            children: <Widget>[
+              Container(
+                width: 52.w,
+                height: 52.w,
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(AppDimensions.radiusMd),
+                ),
+                clipBehavior: Clip.antiAlias,
+                child: (item.thumbnailUrl ?? '').isNotEmpty
+                    ? CachedNetworkImage(
+                        imageUrl: item.thumbnailUrl!,
+                        memCacheWidth: 260,
+                        fit: BoxFit.cover,
+                        errorWidget: (_, __, ___) => Center(
+                          child: PhosphorIcon(
+                            PhosphorIcons.image,
+                            color: AppColors.textDisabled,
+                          ),
+                        ),
+                      )
+                    : Center(
+                        child: PhosphorIcon(
+                          PhosphorIcons.image,
+                          color: AppColors.textDisabled,
+                        ),
+                      ),
+              ),
+              Gap(12.w),
+              Expanded(
+                child: Text(
+                  item.name,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: AppTextStyles.labelLarge.copyWith(
+                    fontWeight: FontWeight.w700,
+                    color: AppColors.textSecondary,
+                  ),
+                ),
+              ),
+              Container(
+                padding: EdgeInsets.symmetric(horizontal: 10.w, vertical: 5.h),
+                decoration: BoxDecoration(
+                  color: AppColors.primaryGreen.withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(AppDimensions.radiusFull),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: <Widget>[
+                    PhosphorIcon(
+                      PhosphorIcons.checkCircleFill,
+                      size: 13.sp,
+                      color: AppColors.primaryGreen,
+                    ),
+                    Gap(4.w),
+                    Text(
+                      'Reviewed',
+                      style: AppTextStyles.bodySmall.copyWith(
+                        color: AppColors.primaryGreen,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          Gap(10.h),
+          Row(
+            children: List<Widget>.generate(5, (index) {
+              final isSelected = index < rating;
+              return SizedBox(
+                width: 38.w,
+                height: 38.w,
+                child: Center(
+                  child: PhosphorIcon(
+                    isSelected ? PhosphorIcons.starFill : PhosphorIcons.star,
+                    size: 26.sp,
+                    color: isSelected
+                        ? AppColors.ratingGold
+                        : AppColors.borderLight,
+                  ),
+                ),
+              );
+            }),
+          ),
+          if ((comment ?? '').trim().isNotEmpty) ...<Widget>[
+            Gap(4.h),
+            Padding(
+              padding: EdgeInsets.symmetric(horizontal: 4.w),
+              child: Text(
+                comment!.trim(),
+                style: AppTextStyles.bodyMedium.copyWith(
+                  color: AppColors.textSecondary,
+                  fontStyle: FontStyle.italic,
+                ),
+              ),
+            ),
+          ],
         ],
       ),
     );

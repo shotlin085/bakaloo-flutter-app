@@ -12,6 +12,7 @@ import 'package:bakaloo_flutter_app/features/reviews/domain/repositories/review_
 import 'package:bakaloo_flutter_app/features/reviews/domain/usecases/create.dart';
 import 'package:bakaloo_flutter_app/features/reviews/domain/usecases/delete.dart';
 import 'package:bakaloo_flutter_app/features/reviews/domain/usecases/eligibility.dart';
+import 'package:bakaloo_flutter_app/features/reviews/domain/usecases/get_order_reviews.dart';
 import 'package:bakaloo_flutter_app/features/reviews/domain/usecases/get_reviews.dart';
 import 'package:bakaloo_flutter_app/features/reviews/domain/usecases/my_reviews.dart';
 import 'package:bakaloo_flutter_app/features/reviews/domain/usecases/update.dart';
@@ -50,6 +51,11 @@ final reviewEligibilityUseCaseProvider =
   return EligibilityUseCase(ref.watch(reviewRepositoryProvider));
 });
 
+final getOrderReviewsUseCaseProvider =
+    Provider<GetOrderReviewsUseCase>((Ref ref) {
+  return GetOrderReviewsUseCase(ref.watch(reviewRepositoryProvider));
+});
+
 final createReviewUseCaseProvider = Provider<CreateUseCase>((Ref ref) {
   return CreateUseCase(ref.watch(reviewRepositoryProvider));
 });
@@ -76,6 +82,18 @@ Future<ReviewEligibilityEntity> reviewEligibility(
   return result.fold(
     (failure) => throw StateError(failure.message),
     (eligibility) => eligibility,
+  );
+}
+
+@riverpod
+Future<Map<String, ({int rating, String? comment})>> orderReviews(
+  Ref ref,
+  String orderId,
+) async {
+  final result = await ref.read(getOrderReviewsUseCaseProvider).call(orderId);
+  return result.fold(
+    (failure) => throw StateError(failure.message),
+    (reviews) => reviews,
   );
 }
 
