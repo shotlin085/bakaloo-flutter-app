@@ -44,6 +44,8 @@ class _TutorialPlayerScreenState extends State<TutorialPlayerScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final isShort = widget.tutorial.isShort;
+
     return Scaffold(
       backgroundColor: Colors.white,
       appBar: AppBar(
@@ -68,45 +70,52 @@ class _TutorialPlayerScreenState extends State<TutorialPlayerScreen> {
         ),
       ),
       body: SafeArea(
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: <Widget>[
-            // The video surface itself keeps its own (dark, YouTube-style)
-            // background while loading/playing — only the page chrome
-            // around it needed to move off black.
-            YoutubePlayer(
-              controller: _controller,
-              // Both already the package defaults — kept explicit since
-              // this is exactly the "tap fullscreen -> rotate to landscape"
-              // behavior that was reported as not working; on a real device
-              // this handles it automatically, an emulator's own
-              // auto-rotate setting is what actually gates it there.
-              autoFullScreen: true,
-              enableFullScreenOnVerticalDrag: true,
-            ),
-            Gap(16.h),
-            Padding(
-              padding: EdgeInsets.symmetric(horizontal: 16.w),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: <Widget>[
-                  Text(
-                    widget.tutorial.title,
-                    style: AppTextStyles.h3,
-                  ),
-                  if (widget.tutorial.language != null) ...<Widget>[
-                    Gap(6.h),
-                    Text(
-                      widget.tutorial.language!,
-                      style: AppTextStyles.bodySmall.copyWith(
-                        color: AppColors.textSecondary,
-                      ),
-                    ),
-                  ],
-                ],
+        child: SingleChildScrollView(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: <Widget>[
+              // The video surface itself keeps its own (dark, YouTube-style)
+              // background while loading/playing — only the page chrome
+              // around it needed to move off black.
+              YoutubePlayer(
+                controller: _controller,
+                // A Short is filmed vertical (9:16) — forcing it into the
+                // default 16:9 box is what made it render as a tiny
+                // letterboxed sliver surrounded by black, both inline and
+                // in fullscreen. A normal tutorial recording stays 16:9.
+                aspectRatio: isShort ? 9 / 16 : 16 / 9,
+                // Package defaults, kept explicit. With the aspect ratio
+                // now correct for both shapes, rotating to landscape
+                // fullscreen (or pillarboxing a Short if rotated) is
+                // handled correctly by the underlying player.
+                autoFullScreen: true,
+                enableFullScreenOnVerticalDrag: true,
               ),
-            ),
-          ],
+              Gap(16.h),
+              Padding(
+                padding: EdgeInsets.symmetric(horizontal: 16.w),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: <Widget>[
+                    Text(
+                      widget.tutorial.title,
+                      style: AppTextStyles.h3,
+                    ),
+                    if (widget.tutorial.language != null) ...<Widget>[
+                      Gap(6.h),
+                      Text(
+                        widget.tutorial.language!,
+                        style: AppTextStyles.bodySmall.copyWith(
+                          color: AppColors.textSecondary,
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+              Gap(24.h),
+            ],
+          ),
         ),
       ),
     );
