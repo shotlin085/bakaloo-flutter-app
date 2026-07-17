@@ -1,12 +1,18 @@
 import 'dart:async';
 
+import 'package:firebase_crashlytics/firebase_crashlytics.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
+import 'package:bakaloo_flutter_app/core/notifications/fcm_token_helper.dart';
 import 'package:bakaloo_flutter_app/core/notifications/local_notification_service.dart';
 import 'package:bakaloo_flutter_app/core/notifications/notification_router.dart';
+import 'package:bakaloo_flutter_app/features/auth/presentation/providers/auth_notifier.dart';
+import 'package:bakaloo_flutter_app/features/auth/presentation/providers/auth_state.dart';
+import 'package:bakaloo_flutter_app/features/notifications/presentation/providers/notification_provider.dart';
 import 'package:bakaloo_flutter_app/routing/app_router.dart';
 
 part 'fcm_service.g.dart';
@@ -27,9 +33,76 @@ FCMService fcmService(Ref ref) {
   return service;
 }
 
+String _platformNameFor(TargetPlatform platform) {
+  return switch (platform) {
+    TargetPlatform.iOS => 'ios',
+    TargetPlatform.android => 'android',
+    TargetPlatform.macOS => 'ios',
+    TargetPlatform.windows => 'android',
+    TargetPlatform.linux => 'android',
+    TargetPlatform.fuchsia => 'android',
+  };
+}
+
 @Riverpod(keepAlive: true)
 Future<void> initializeFcm(Ref ref) async {
   await ref.watch(fcmServiceProvider).init();
+
+  // The login flow (auth_notifier.dart) registers the FCM token once, right
+  // after a fresh OTP verification — but that alone misses two real cases:
+  // a persisted session that skips the login screen entirely on this
+  // launch, and a token that rotates later in the session (reinstall, OS
+  // token refresh). Previously neither ever reached the backend — the
+  // token-refresh callback below was wired up but never invoked, so a
+  // rotated token was captured and silently dropped forever. Both gaps hit
+  // iOS hardest, since APNs-backed tokens rotate more readily than
+  // Android's, and the backend only keeps one active token per user — a
+  // stale token silently blocks all delivery to the device that should be
+  // active.
+  Future<void> registerToken(String token) async {
+    final trimmed = token.trim();
+    if (trimmed.isEmpty) return;
+    try {
+      await ref.read(registerFcmTokenUseCaseProvider).call(
+            token: trimmed,
+            platform: _platformNameFor(defaultTargetPlatform),
+          );
+    } catch (err, stack) {
+      // Previously swallowed with no trace at all — logging this (rather
+      // than the message-app-must-not-crash requirement being an excuse to
+      // go silent) is what would have surfaced this class of bug earlier.
+      unawaited(
+        FirebaseCrashlytics.instance.recordError(
+          err,
+          stack,
+          reason: 'FCM token registration failed',
+          fatal: false,
+        ),
+      );
+    }
+  }
+
+  ref.watch(fcmServiceProvider).setTokenRefreshCallback(registerToken);
+
+  ref.listen<AuthState>(
+    authNotifierProvider,
+    (previous, next) {
+      if (next is! AuthAuthenticated) return;
+      getFcmTokenAwaitingApns(FirebaseMessaging.instance).then((token) {
+        if (token != null) unawaited(registerToken(token));
+      }).catchError((Object err, StackTrace stack) {
+        unawaited(
+          FirebaseCrashlytics.instance.recordError(
+            err,
+            stack,
+            reason: 'FCM getToken failed on auth-authenticated re-registration',
+            fatal: false,
+          ),
+        );
+      });
+    },
+    fireImmediately: true,
+  );
 }
 
 class FCMService {

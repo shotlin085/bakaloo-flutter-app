@@ -13,6 +13,7 @@ class CartSavingsBreakdown extends StatelessWidget {
     'mrp_discount': _SavingsIconData(Color(0xFFF5A623), '%'),
     'handling_waiver': _SavingsIconData(Color(0xFFFF6B35), '₹'),
     'late_night_waiver': _SavingsIconData(Color(0xFF0AC26B), '✓'),
+    'first_time_offer': _SavingsIconData(Color(0xFF0AC26B), '🎁'),
   };
 
   @override

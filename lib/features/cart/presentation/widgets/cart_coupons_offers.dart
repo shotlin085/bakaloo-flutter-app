@@ -34,11 +34,13 @@ class CartCouponsOffers extends ConsumerWidget {
 
     final highlightedCoupon =
         checkoutState.appliedCoupon ?? _pickBestCoupon(coupons, subtotal);
+    final isHighlightedCouponApplied = highlightedCoupon != null &&
+        checkoutState.appliedCoupon?.code == highlightedCoupon.code;
     final couponHeadline = highlightedCoupon != null
         ? 'Save ${highlightedCoupon.displayDiscount} with ${highlightedCoupon.code}'
         : 'View all coupons';
     final couponSubline = highlightedCoupon != null
-        ? checkoutState.appliedCoupon?.code == highlightedCoupon.code
+        ? isHighlightedCouponApplied
             ? 'Applied to this checkout'
             : subtotal >= highlightedCoupon.minOrderAmount
                 ? 'Ready for this basket'
@@ -87,8 +89,15 @@ class CartCouponsOffers extends ConsumerWidget {
               iconColor: AppColors.primaryGreen,
               title: couponHeadline,
               subtitle: couponSubline,
-              actionLabel: 'Apply',
-              actionOnTap: onViewCoupons,
+              // Previously this always said "Apply" and only ever opened the
+              // coupon list — even while a coupon was already applied, with
+              // no way to detach it from here. Reported bug: a coupon that
+              // stops being usable (e.g. hits its per-user limit) had no
+              // remove affordance, so it stayed stuck showing as applied.
+              actionLabel: isHighlightedCouponApplied ? 'Remove' : 'Apply',
+              actionOnTap: isHighlightedCouponApplied
+                  ? () => ref.read(checkoutProvider.notifier).removeCoupon()
+                  : onViewCoupons,
               onTap: onViewCoupons,
               actionOutlined: true,
             ),

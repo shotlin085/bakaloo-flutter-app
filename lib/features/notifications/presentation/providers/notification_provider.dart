@@ -5,6 +5,7 @@ import 'package:riverpod_annotation/riverpod_annotation.dart';
 
 import 'package:bakaloo_flutter_app/core/di/providers.dart';
 import 'package:bakaloo_flutter_app/core/errors/failure.dart';
+import 'package:bakaloo_flutter_app/core/notifications/fcm_token_helper.dart';
 import 'package:bakaloo_flutter_app/core/socket/socket_models/notification_event.dart';
 import 'package:bakaloo_flutter_app/core/socket/socket_service.dart';
 import 'package:bakaloo_flutter_app/features/notifications/data/datasources/notification_remote_datasource.dart';
@@ -310,7 +311,7 @@ class NotificationNotifier extends _$NotificationNotifier {
   }
 
   Future<NotificationActionResult> registerCurrentFcmToken() async {
-    final token = await FirebaseMessaging.instance.getToken();
+    final token = await getFcmTokenAwaitingApns(FirebaseMessaging.instance);
     if (token == null || token.trim().isEmpty) {
       return const NotificationActionResult();
     }

@@ -37,6 +37,7 @@ import 'package:bakaloo_flutter_app/shared/widgets/product_card.dart';
 import 'package:bakaloo_flutter_app/shared/widgets/skeleton_loader.dart';
 import 'package:bakaloo_flutter_app/features/products/presentation/widgets/show_product_options.dart';
 import 'package:bakaloo_flutter_app/features/location/presentation/providers/location_prompt_provider.dart';
+import 'package:bakaloo_flutter_app/features/notifications/presentation/providers/notification_provider.dart';
 import 'package:bakaloo_flutter_app/features/location/presentation/widgets/location_prompt_sheet.dart';
 import 'package:bakaloo_flutter_app/features/profile/presentation/providers/profile_provider.dart';
 import 'package:bakaloo_flutter_app/features/profile/presentation/widgets/name_prompt_dialog.dart';
@@ -383,6 +384,13 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
     if (state == AppLifecycleState.resumed) {
       unawaited(_refreshThemeDrivenLayout());
       unawaited(_maybeShowLocationPrompt());
+      // The live socket listener (app_bottom_nav.dart) only updates unread
+      // state while connected — a notification that arrived while the app
+      // was backgrounded (socket disconnected, or delivered as a plain
+      // push with the app not running) never refreshed it. Without this,
+      // the header bell badge stayed stale until the customer either
+      // opened the Notifications tab directly or force-restarted the app.
+      ref.invalidate(notificationProvider);
     }
   }
 

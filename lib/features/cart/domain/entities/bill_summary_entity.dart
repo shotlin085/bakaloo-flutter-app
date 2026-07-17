@@ -30,6 +30,7 @@ abstract class BillSummaryEntity with _$BillSummaryEntity {
     @Default(PaymentMethodsInfo()) PaymentMethodsInfo paymentMethods,
     @Default(CartMilestoneProgress()) CartMilestoneProgress cartMilestone,
     @Default(QuickDeliveryInfo()) QuickDeliveryInfo quickDelivery,
+    FirstTimeOfferInfo? firstTimeOffer,
   }) = _BillSummaryEntity;
 
   factory BillSummaryEntity.fromJson(Map<String, dynamic> json) =>
@@ -261,6 +262,26 @@ abstract class PaymentMethodsInfo with _$PaymentMethodsInfo {
 
   factory PaymentMethodsInfo.fromJson(Map<String, dynamic> json) =>
       _$PaymentMethodsInfoFromJson(json);
+}
+
+/// The auto-applied first-order offer (e.g. "Get Rs 51 Veg @ Rs.1"), resolved
+/// and priced entirely server-side — unlike a coupon code, it needs no
+/// customer action, so it's `null` whenever the customer isn't eligible
+/// (not first-time, no matching active offer, or a multi-shop cart). When
+/// present, [discount]/[freeDelivery] are already netted into
+/// [BillSummaryEntity.totalPayable] / [BillSummaryEntity.couponDiscount].
+@freezed
+abstract class FirstTimeOfferInfo with _$FirstTimeOfferInfo {
+  const factory FirstTimeOfferInfo({
+    @Default('') String id,
+    @Default('') String name,
+    @Default('') String rewardType,
+    @Default(0) double discount,
+    @Default(false) bool freeDelivery,
+  }) = _FirstTimeOfferInfo;
+
+  factory FirstTimeOfferInfo.fromJson(Map<String, dynamic> json) =>
+      _$FirstTimeOfferInfoFromJson(json);
 }
 
 /// Whether the paid "Quick Delivery" ASAP upgrade is available right now —

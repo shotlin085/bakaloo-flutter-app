@@ -6,6 +6,7 @@ import 'package:phosphoricons_flutter/phosphoricons_flutter.dart';
 
 import 'package:bakaloo_flutter_app/core/providers/store_provider.dart';
 import 'package:bakaloo_flutter_app/core/theme/remote_theme_model.dart';
+import 'package:bakaloo_flutter_app/features/notifications/presentation/providers/unread_count_provider.dart';
 import 'package:bakaloo_flutter_app/features/wallet/presentation/providers/wallet_provider.dart';
 
 /// Premium white-lavender top header.
@@ -299,7 +300,7 @@ class _WalletPill extends ConsumerWidget {
   }
 }
 
-class _CircleNotificationButton extends StatelessWidget {
+class _CircleNotificationButton extends ConsumerWidget {
   const _CircleNotificationButton({
     required this.size,
     required this.onTap,
@@ -309,34 +310,75 @@ class _CircleNotificationButton extends StatelessWidget {
   final VoidCallback? onTap;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    // This bell is the app's only always-visible notification affordance
+    // (shown on the home screen, not just inside the Notifications list
+    // itself) — it previously never reflected unread state at all, on
+    // either platform, so a customer had no way to tell a notification had
+    // arrived without opening the tab proactively.
+    final unread = ref.watch(unreadCountProvider);
+
     return GestureDetector(
       onTap: onTap,
       behavior: HitTestBehavior.opaque,
-      child: Container(
+      child: SizedBox(
         width: size,
         height: size,
-        decoration: const BoxDecoration(
-          shape: BoxShape.circle,
-          boxShadow: <BoxShadow>[
-            BoxShadow(
-              color: Color(0x242A1A47),
-              blurRadius: 12,
-              offset: Offset(0, 4),
-            ),
-          ],
-        ),
-        child: ClipOval(
-          child: ColoredBox(
-            color: Colors.white,
-            child: Center(
-              child: PhosphorIcon(
-                PhosphorIcons.bell,
-                size: 22.sp,
-                color: const Color(0xFF2A1A47),
+        child: Stack(
+          clipBehavior: Clip.none,
+          children: <Widget>[
+            Container(
+              width: size,
+              height: size,
+              decoration: const BoxDecoration(
+                shape: BoxShape.circle,
+                boxShadow: <BoxShadow>[
+                  BoxShadow(
+                    color: Color(0x242A1A47),
+                    blurRadius: 12,
+                    offset: Offset(0, 4),
+                  ),
+                ],
+              ),
+              child: ClipOval(
+                child: ColoredBox(
+                  color: Colors.white,
+                  child: Center(
+                    child: PhosphorIcon(
+                      PhosphorIcons.bell,
+                      size: 22.sp,
+                      color: const Color(0xFF2A1A47),
+                    ),
+                  ),
+                ),
               ),
             ),
-          ),
+            if (unread > 0)
+              Positioned(
+                top: -2.h,
+                right: -2.w,
+                child: Container(
+                  padding: EdgeInsets.symmetric(horizontal: 5.w, vertical: 2.h),
+                  constraints: BoxConstraints(minWidth: 18.w, minHeight: 18.w),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFE23744),
+                    borderRadius: BorderRadius.circular(999.r),
+                    border: Border.all(color: Colors.white, width: 1.5.w),
+                  ),
+                  alignment: Alignment.center,
+                  child: Text(
+                    unread > 9 ? '9+' : '$unread',
+                    style: TextStyle(
+                      fontSize: 10.sp,
+                      fontWeight: FontWeight.w700,
+                      color: Colors.white,
+                      height: 1,
+                      fontFamily: 'Inter',
+                    ),
+                  ),
+                ),
+              ),
+          ],
         ),
       ),
     );

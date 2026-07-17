@@ -49,21 +49,78 @@ class BillSummaryNotifier extends _$BillSummaryNotifier {
     return result.fold(
       (failure) => throw StateError(failure.message),
       (summary) {
-        // The backend always returns couponDiscount: 0 because the applied
-        // coupon lives in client-side Riverpod state, not in the server session.
-        // Patch the summary here with the locally-stored discount so both the
-        // discount row and the final "To pay" amount are correct.
-        if (appliedCoupon != null && appliedCoupon.discountAmount > 0) {
-          final discount = appliedCoupon.discountAmount;
-          final basePayable =
-              summary.totalPayable > 0 ? summary.totalPayable : summary.toPay.finalAmount;
-          final newPayable = (basePayable - discount).clamp(0.0, double.infinity);
-          return summary.copyWith(
-            couponDiscount: discount,
-            totalPayable: newPayable,
+        // A manually-typed coupon code lives in client-side Riverpod state,
+        // not the server session, so it isn't reflected in the backend
+        // response at all. `summary.couponDiscount`/`totalPayable` may
+        // already carry an auto-applied first-time-offer discount though
+        // (backend-resolved, no customer action needed) — a manual coupon
+        // takes priority over that and replaces it rather than stacking on
+        // top (single discount slot, matching OrdersService.placeOrder()'s
+        // rule), so the first-time-offer amount is added back before the
+        // coupon discount is subtracted.
+        //
+        // CASHBACK/FREE_DELIVERY coupons always have discountAmount == 0
+        // by backend design (they don't reduce the bill — a cashback is a
+        // separate wallet credit after delivery, free delivery waives the
+        // delivery fee instead of subtracting from the total). Previously
+        // this guard only checked discountAmount > 0, so applying one of
+        // these silently changed nothing on screen — the customer saw the
+        // "applied" banner but the bill looked untouched, indistinguishable
+        // from the coupon not working at all.
+        if (appliedCoupon == null) {
+          return summary;
+        }
+
+        final hasDiscount = appliedCoupon.discountAmount > 0;
+        final hasFreeDelivery = appliedCoupon.freeDelivery;
+        final hasCashback = appliedCoupon.cashbackAmount > 0;
+        if (!hasDiscount && !hasFreeDelivery && !hasCashback) {
+          return summary;
+        }
+
+        final discount = appliedCoupon.discountAmount;
+        final basePayable =
+            summary.totalPayable > 0 ? summary.totalPayable : summary.toPay.finalAmount;
+        final basePayableBeforeAutoDiscount = basePayable + summary.couponDiscount;
+        var newPayable =
+            (basePayableBeforeAutoDiscount - discount).clamp(0.0, double.infinity);
+
+        var deliveryFee = summary.deliveryFee;
+        if (hasFreeDelivery && !deliveryFee.isFree) {
+          // The FTO's own free-delivery waiver (if any) is already reflected
+          // in basePayableBeforeAutoDiscount's delivery component via the
+          // backend response — only waive here (and refund the fee into the
+          // payable total) when delivery wasn't already free.
+          newPayable = (newPayable - deliveryFee.amount).clamp(0.0, double.infinity);
+          deliveryFee = deliveryFee.copyWith(amount: 0, isFree: true, freeIn: 0);
+        }
+
+        // The "Your savings" breakdown is computed server-side from the
+        // auto-applied first-time-offer only (the backend has no idea a
+        // manual coupon exists client-side) — when the coupon replaces the
+        // FTO above, drop its now-stale line here too, or the savings card
+        // and the main bill row disagree about which reward is active.
+        var savings = summary.savings;
+        final ftoLine = savings.items
+            .where((item) => item.type == 'first_time_offer')
+            .toList();
+        if (ftoLine.isNotEmpty) {
+          final ftoAmount = ftoLine.first.amount;
+          savings = savings.copyWith(
+            total: (savings.total - ftoAmount).clamp(0.0, double.infinity),
+            items: savings.items
+                .where((item) => item.type != 'first_time_offer')
+                .toList(),
           );
         }
-        return summary;
+
+        return summary.copyWith(
+          couponDiscount: discount,
+          totalPayable: newPayable,
+          deliveryFee: deliveryFee,
+          savings: savings,
+          firstTimeOffer: null,
+        );
       },
     );
   }

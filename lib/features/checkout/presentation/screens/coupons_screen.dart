@@ -116,7 +116,11 @@ class _CouponsScreenState extends ConsumerState<CouponsScreen> {
           children: <Widget>[
             // Applied coupon banner
             if (checkoutState.appliedCoupon != null) ...<Widget>[
-              _AppliedBanner(coupon: checkoutState.appliedCoupon!),
+              _AppliedBanner(
+                coupon: checkoutState.appliedCoupon!,
+                onRemove: () =>
+                    ref.read(checkoutProvider.notifier).removeCoupon(),
+              ),
               Gap(20.h),
             ],
 
@@ -281,8 +285,9 @@ class _CouponsScreenState extends ConsumerState<CouponsScreen> {
 // ─── Applied Banner ────────────────────────────────────────────────────────────
 
 class _AppliedBanner extends StatelessWidget {
-  const _AppliedBanner({required this.coupon});
+  const _AppliedBanner({required this.coupon, required this.onRemove});
   final CouponEntity coupon;
+  final VoidCallback onRemove;
 
   @override
   Widget build(BuildContext context) {
@@ -330,6 +335,24 @@ class _AppliedBanner extends StatelessWidget {
                   ),
                 ),
               ],
+            ),
+          ),
+          // Previously there was no way to detach a coupon once applied —
+          // reported bug: a coupon that becomes invalid (e.g. hits its
+          // per-user limit) stayed stuck showing as "applied" with no
+          // remove option anywhere in the app.
+          TextButton(
+            onPressed: onRemove,
+            style: TextButton.styleFrom(
+              foregroundColor: AppColors.textSecondary,
+              padding: EdgeInsets.symmetric(horizontal: 8.w),
+            ),
+            child: Text(
+              'Remove',
+              style: AppTextStyles.labelLarge.copyWith(
+                fontWeight: FontWeight.w700,
+                fontSize: 13.sp,
+              ),
             ),
           ),
         ],

@@ -3,13 +3,13 @@
 <plist version="1.0">
 <dict>
 	<key>API_KEY</key>
-	<string>AIzaSyBJJqvLI-10Smy4kp3OwPX0Ooi46PFhOR8</string>
+	<string>AIzaSyDvDv1pAYwdsnid-muOtYQdhe6e_rtb938</string>
 	<key>GCM_SENDER_ID</key>
 	<string>802646854363</string>
 	<key>PLIST_VERSION</key>
 	<string>1</string>
 	<key>BUNDLE_ID</key>
-	<string>com.bakaloo.bakalooFlutterApp</string>
+	<string>com.bakaloo.india</string>
 	<key>PROJECT_ID</key>
 	<string>bakaloo</string>
 	<key>STORAGE_BUCKET</key>
@@ -25,6 +25,6 @@
 	<key>IS_SIGNIN_ENABLED</key>
 	<true/>
 	<key>GOOGLE_APP_ID</key>
-	<string>1:802646854363:ios:e903b3cfb80476f6665afe</string>
+	<string>1:802646854363:ios:78658b41d84542e1665afe</string>
 </dict>
 </plist>

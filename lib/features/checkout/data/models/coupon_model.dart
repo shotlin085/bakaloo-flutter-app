@@ -10,6 +10,8 @@ class CouponModel {
     required this.maxDiscount,
     this.description,
     this.terms,
+    this.cashbackAmount = 0,
+    this.freeDelivery = false,
   });
 
   final String code;
@@ -20,6 +22,8 @@ class CouponModel {
   final double maxDiscount;
   final String? description;
   final String? terms;
+  final double cashbackAmount;
+  final bool freeDelivery;
 
   factory CouponModel.fromJson(Map<String, dynamic> json) {
     return CouponModel(
@@ -58,6 +62,12 @@ class CouponModel {
         'description',
       ),
       terms: _readTerms(json['terms']),
+      cashbackAmount: _readDouble(
+        json,
+        'cashbackAmount',
+        fallbackKey: 'cashback_amount',
+      ),
+      freeDelivery: json['freeDelivery'] == true || json['free_delivery'] == true,
     );
   }
 
@@ -71,13 +81,22 @@ class CouponModel {
       maxDiscount: maxDiscount,
       description: description,
       terms: terms,
+      cashbackAmount: cashbackAmount,
+      freeDelivery: freeDelivery,
     );
   }
 
   static CouponDiscountType _parseDiscountType(String raw) {
-    return raw.trim().toUpperCase() == 'PERCENTAGE'
-        ? CouponDiscountType.PERCENTAGE
-        : CouponDiscountType.FLAT;
+    switch (raw.trim().toUpperCase()) {
+      case 'PERCENTAGE':
+        return CouponDiscountType.PERCENTAGE;
+      case 'CASHBACK':
+        return CouponDiscountType.CASHBACK;
+      case 'FREE_DELIVERY':
+        return CouponDiscountType.FREE_DELIVERY;
+      default:
+        return CouponDiscountType.FLAT;
+    }
   }
 
   static String _readString(

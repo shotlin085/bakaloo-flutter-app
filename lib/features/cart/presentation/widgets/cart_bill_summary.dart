@@ -90,9 +90,19 @@ class CartBillSummary extends StatelessWidget {
               ),
               Gap(14.h),
 
-              // ── Coupon discount ─────────────────────────────────
+              // ── Coupon / first-time-offer discount ──────────────
+              // Both share one "discount slot" on the backend (a manually
+              // applied coupon always takes priority over the auto-applied
+              // first-time offer), so the same amount field covers either —
+              // only the label/icon change based on which one is active.
               if (summary.couponDiscount > 0) ...<Widget>[
-                _CouponDiscountRow(amount: summary.couponDiscount),
+                _CouponDiscountRow(
+                  amount: summary.couponDiscount,
+                  label: summary.firstTimeOffer?.name ?? 'Coupon discount',
+                  icon: summary.firstTimeOffer != null
+                      ? PhosphorIcons.giftFill
+                      : PhosphorIcons.tagFill,
+                ),
                 Gap(14.h),
               ],
 
@@ -466,9 +476,15 @@ class _SubNote extends StatelessWidget {
 // ─────────────────────────────────────────────────────────────────────────────
 
 class _CouponDiscountRow extends StatelessWidget {
-  const _CouponDiscountRow({required this.amount});
+  const _CouponDiscountRow({
+    required this.amount,
+    this.label = 'Coupon discount',
+    this.icon = PhosphorIcons.tagFill,
+  });
 
   final double amount;
+  final String label;
+  final IconData icon;
 
   static const Color _green = Color(0xFF0AC26B);
 
@@ -477,24 +493,30 @@ class _CouponDiscountRow extends StatelessWidget {
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: <Widget>[
-        Row(
-          children: <Widget>[
-            PhosphorIcon(
-              PhosphorIcons.tagFill,
-              size: 14.sp,
-              color: _green,
-            ),
-            Gap(6.w),
-            Text(
-              'Coupon discount',
-              style: TextStyle(
-                fontSize: 14.sp,
-                fontWeight: FontWeight.w500,
+        Flexible(
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: <Widget>[
+              PhosphorIcon(
+                icon,
+                size: 14.sp,
                 color: _green,
-                fontFamily: 'Inter',
               ),
-            ),
-          ],
+              Gap(6.w),
+              Flexible(
+                child: Text(
+                  label,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontSize: 14.sp,
+                    fontWeight: FontWeight.w500,
+                    color: _green,
+                    fontFamily: 'Inter',
+                  ),
+                ),
+              ),
+            ],
+          ),
         ),
         Text(
           '−₹${amount.toStringAsFixed(0)}',

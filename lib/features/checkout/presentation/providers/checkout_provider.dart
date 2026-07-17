@@ -192,7 +192,18 @@ class CheckoutNotifier extends _$CheckoutNotifier {
     return result.fold(
       (failure) {
         final message = _mapCouponError(failure.message);
-        state = state.copyWith(errorMessage: message);
+        // Re-validating the coupon that's currently applied (e.g. the user
+        // re-tapped it, or a background re-check ran) and getting an error
+        // back means it's no longer usable — detach it instead of leaving
+        // it showing as "applied" with no way to tell it's actually stuck.
+        // Reported bug: an error occurred, but the coupon stayed set on the
+        // cart with no automatic (or, previously, even manual) removal.
+        final isCurrentlyAppliedCoupon =
+            state.appliedCoupon?.code == normalizedCode;
+        state = state.copyWith(
+          errorMessage: message,
+          appliedCoupon: isCurrentlyAppliedCoupon ? null : state.appliedCoupon,
+        );
         return false;
       },
       (coupon) {

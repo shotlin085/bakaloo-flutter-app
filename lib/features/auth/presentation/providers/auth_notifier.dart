@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:dio/dio.dart';
+import 'package:firebase_crashlytics/firebase_crashlytics.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -11,6 +12,7 @@ import 'package:bakaloo_flutter_app/core/constants/api_constants.dart';
 import 'package:bakaloo_flutter_app/core/constants/storage_keys.dart';
 import 'package:bakaloo_flutter_app/core/di/providers.dart';
 import 'package:bakaloo_flutter_app/core/errors/failure.dart';
+import 'package:bakaloo_flutter_app/core/notifications/fcm_token_helper.dart';
 import 'package:bakaloo_flutter_app/core/socket/socket_service.dart';
 import 'package:bakaloo_flutter_app/core/storage/app_cache_manager.dart';
 import 'package:bakaloo_flutter_app/core/storage/hive_service.dart';
@@ -315,8 +317,8 @@ class AuthNotifier extends _$AuthNotifier {
   Future<void> _triggerAllocationAutoAssign() async {
     try {
       await ref.read(dioClientProvider).post<dynamic>(
-        ApiConstants.allocationAutoAssign,
-      );
+            ApiConstants.allocationAutoAssign,
+          );
     } on DioException catch (e) {
       // 401 means token expired — ignore; the refresh interceptor will handle it.
       // Any other error is non-fatal: the anonymous fallback keeps products visible.
@@ -330,7 +332,7 @@ class AuthNotifier extends _$AuthNotifier {
 
   Future<void> _registerFcmToken() async {
     try {
-      final token = await FirebaseMessaging.instance.getToken();
+      final token = await getFcmTokenAwaitingApns(FirebaseMessaging.instance);
       if (token == null || token.isEmpty) {
         return;
       }
@@ -351,10 +353,28 @@ class AuthNotifier extends _$AuthNotifier {
       );
 
       await HiveService.settingsBox.put(StorageKeys.lastFcmToken, token);
-    } on DioException {
-      // FCM registration must not block authentication success.
-    } catch (_) {
-      // Ignore token registration failures and keep the session alive.
+    } on DioException catch (err, stack) {
+      // FCM registration must not block authentication success — but a
+      // silent failure here previously left no trace anywhere (the iOS
+      // "no notifications at all" bug was invisible until traced through
+      // the code). Record it non-fatally instead of swallowing it outright.
+      unawaited(
+        FirebaseCrashlytics.instance.recordError(
+          err,
+          stack,
+          reason: 'FCM token registration failed (network)',
+          fatal: false,
+        ),
+      );
+    } catch (err, stack) {
+      unawaited(
+        FirebaseCrashlytics.instance.recordError(
+          err,
+          stack,
+          reason: 'FCM token registration failed',
+          fatal: false,
+        ),
+      );
     }
   }
 
