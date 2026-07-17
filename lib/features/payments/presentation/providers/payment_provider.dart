@@ -21,6 +21,7 @@ import 'package:bakaloo_flutter_app/features/payments/domain/usecases/create_pay
 import 'package:bakaloo_flutter_app/features/payments/domain/usecases/get_history.dart';
 import 'package:bakaloo_flutter_app/features/payments/domain/usecases/verify_payment.dart';
 import 'package:bakaloo_flutter_app/features/payments/presentation/service/razorpay_service.dart';
+import 'package:bakaloo_flutter_app/features/wallet/presentation/providers/wallet_provider.dart';
 import 'package:bakaloo_flutter_app/routing/app_router.dart';
 
 part 'payment_provider.freezed.dart';
@@ -261,6 +262,13 @@ class PaymentNotifier extends _$PaymentNotifier {
       },
       (_) {
         ref.invalidate(walletBalanceProvider);
+        // The Wallet tab is backed by the separate, keepAlive `walletProvider`
+        // (WalletNotifier) — invalidating only walletBalanceProvider above
+        // left that screen showing the pre-debit balance until a manual
+        // pull-to-refresh or app restart. verifyTopup()/transfer() in
+        // wallet_provider.dart already invalidate both; this path was missing it.
+        // ignore: cascade_invocations
+        ref.invalidate(walletProvider);
         // ignore: cascade_invocations
         ref.invalidate(cartProvider); // Clear cart after wallet payment success
         ref.read(checkoutProvider.notifier).resetForNewOrder();
