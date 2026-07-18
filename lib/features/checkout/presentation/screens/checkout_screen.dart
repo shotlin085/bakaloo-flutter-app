@@ -372,6 +372,31 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
     if (!context.mounted || selected == null) {
       return;
     }
+
+    // Re-verify the picked address is actually deliverable before
+    // accepting it — the add-address screen only checks this once, at
+    // creation time. Nothing previously stopped a customer from switching
+    // to a different saved address outside every shop's service area at
+    // this final step and having the order fail (or previously, go
+    // through unchecked). Fails open on a network/validation error rather
+    // than blocking checkout on a transient hiccup — the backend's own
+    // order-placement check remains the authoritative backstop regardless.
+    final validation = await ref
+        .read(validatePincodeUseCaseProvider)
+        .call(selected.pincode);
+    final available = validation.fold((_) => true, (result) => result.available);
+    if (!available) {
+      if (!context.mounted) {
+        return;
+      }
+      AppToast.show(
+        context,
+        '📍 We don\'t deliver to this address yet. Please choose a different one.',
+        type: ToastType.warning,
+      );
+      return;
+    }
+
     ref.read(checkoutProvider.notifier).selectAddress(selected);
   }
 
