@@ -45,6 +45,7 @@ abstract class CartItemModel with _$CartItemModel {
     @JsonKey(name: 'foodType') String? foodType,
     @JsonKey(name: 'originTag') String? originTag,
     @JsonKey(name: 'displayDeliveryMinutes') int? displayDeliveryMinutes,
+    @JsonKey(name: 'categoryId') String? categoryId,
   }) = _CartItemModel;
 
   factory CartItemModel.fromJson(Map<String, dynamic> json) =>
@@ -68,6 +69,7 @@ abstract class CartItemModel with _$CartItemModel {
       foodType: foodType,
       originTag: originTag,
       displayDeliveryMinutes: displayDeliveryMinutes,
+      categoryId: categoryId,
     );
   }
 }

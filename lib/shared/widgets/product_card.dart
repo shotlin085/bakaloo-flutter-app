@@ -8,9 +8,11 @@ import 'package:bakaloo_flutter_app/core/constants/api_constants.dart';
 import 'package:bakaloo_flutter_app/core/theme/app_colors.dart';
 import 'package:bakaloo_flutter_app/core/theme/app_dimensions.dart';
 import 'package:bakaloo_flutter_app/core/theme/app_text_styles.dart';
+import 'package:bakaloo_flutter_app/core/utils/app_toast.dart';
 import 'package:bakaloo_flutter_app/features/auth/presentation/providers/auth_gate_controller.dart';
 import 'package:bakaloo_flutter_app/features/cart/presentation/providers/cart_provider.dart';
 import 'package:bakaloo_flutter_app/features/products/domain/entities/product_entity.dart';
+import 'package:bakaloo_flutter_app/features/purchase_limits/presentation/providers/purchase_limits_provider.dart';
 import 'package:bakaloo_flutter_app/features/wishlist/presentation/providers/wishlist_provider.dart';
 import 'package:bakaloo_flutter_app/shared/widgets/app_image.dart';
 
@@ -1010,6 +1012,12 @@ class _ZeptoAddQtyButton extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    // Purchase-limits: null == unrestricted (the common case, zero extra
+    // visual/logic changes). Watched (not read) so this button live-updates
+    // — e.g. right after this exact tap pushes the product to its limit.
+    final purchaseLimitStatus =
+        ref.watch(purchaseLimitStatusProvider(product.id));
+    final isAtLimit = purchaseLimitStatus?.isAtLimit ?? false;
     final greenBorder = accentColor ?? AppColors.primaryGreen;
     final buttonHeight = tight ? 30.h : 32.h;
     // Inline grid ADD buttons sit next to the unit label in a narrow 3-col
@@ -1090,19 +1098,33 @@ class _ZeptoAddQtyButton extends ConsumerWidget {
             InkWell(
               onTap: () async {
                 if (quantity >= 50) return;
+                // Re-checked fresh on every tap (ref.read, not the watched
+                // value above) so a stale cache can never let a mutation
+                // through — block before it ever reaches the network.
+                final status =
+                    ref.read(purchaseLimitStatusProvider(product.id));
+                if (status?.isAtLimit ?? false) {
+                  AppToast.show(context, 'Maximum product order complete');
+                  return;
+                }
                 final result = await ref
                     .read(cartProvider.notifier)
                     .updateItem(product.id, quantity + 1);
                 if (!context.mounted || result.isSuccess) return;
                 showCartSnackBar(context, result.failure!.message);
               },
+              splashColor: isAtLimit ? Colors.transparent : null,
+              highlightColor: isAtLimit ? Colors.transparent : null,
               child: SizedBox(
                 width: controlWidth,
                 child: Center(
-                  child: PhosphorIcon(
-                    PhosphorIcons.plus,
-                    size: iconSize,
-                    color: Colors.white,
+                  child: Opacity(
+                    opacity: isAtLimit ? 0.4 : 1,
+                    child: PhosphorIcon(
+                      PhosphorIcons.plus,
+                      size: iconSize,
+                      color: Colors.white,
+                    ),
                   ),
                 ),
               ),
@@ -1116,6 +1138,11 @@ class _ZeptoAddQtyButton extends ConsumerWidget {
     final bool showOptions = product.hasMultipleOptions;
     // Categories screen uses a compact square "+" button (no "ADD" label).
     final bool compactPlus = forceCompactPlus && isGrid && !showOptions;
+    // A multi-option family's ADD button opens a sheet of sibling options
+    // rather than adding this exact representative product — this card's
+    // own isAtLimit status shouldn't grey out (or block) that sheet, since
+    // other options inside it may not be restricted at all.
+    final bool disableDirectAdd = isAtLimit && !showOptions;
 
     return Container(
       decoration: BoxDecoration(
@@ -1142,6 +1169,16 @@ class _ZeptoAddQtyButton extends ConsumerWidget {
                     onOptionsTap!.call();
                     return;
                   }
+                  // Re-checked fresh on every tap (ref.read, not the
+                  // watched value above) so a stale cache can never let a
+                  // mutation through — block before it ever reaches the
+                  // network.
+                  final status =
+                      ref.read(purchaseLimitStatusProvider(product.id));
+                  if (status?.isAtLimit ?? false) {
+                    AppToast.show(context, 'Maximum product order complete');
+                    return;
+                  }
                   final allowed = await authGate.protectAddToCart(
                     context,
                     product,
@@ -1159,7 +1196,11 @@ class _ZeptoAddQtyButton extends ConsumerWidget {
                 }
               : null,
           borderRadius: BorderRadius.circular(8.r),
-          child: Container(
+          splashColor: disableDirectAdd ? Colors.transparent : null,
+          highlightColor: disableDirectAdd ? Colors.transparent : null,
+          child: Opacity(
+            opacity: disableDirectAdd ? 0.4 : 1,
+            child: Container(
             // Multi-option grid buttons grow taller to stack "ADD" over the
             // "N options" line INSIDE the green border (reference layout).
             height: isGrid && showOptions ? buttonHeight + 16.h : buttonHeight,
@@ -1215,6 +1256,7 @@ class _ZeptoAddQtyButton extends ConsumerWidget {
                         size: tight ? 15.0 : 18.0,
                         color: greenBorder,
                       ),
+          ),
           ),
         ),
       ),

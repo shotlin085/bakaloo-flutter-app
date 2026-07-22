@@ -11,6 +11,7 @@ class CartItemCard extends StatelessWidget {
     required this.onIncrease,
     required this.onDecrease,
     required this.onRemove,
+    this.disableIncrease = false,
     super.key,
   });
 
@@ -18,6 +19,11 @@ class CartItemCard extends StatelessWidget {
   final VoidCallback onIncrease;
   final VoidCallback onDecrease;
   final VoidCallback onRemove;
+  // Purchase-limits: greys out (and visually suppresses ripple on) the "+"
+  // stepper when this line is at its limit. onIncrease stays wired
+  // regardless — the actual block-and-toast happens in cart_screen.dart's
+  // _updateItemQuantity, this only controls the affordance.
+  final bool disableIncrease;
 
   @override
   Widget build(BuildContext context) {
@@ -188,6 +194,7 @@ class CartItemCard extends StatelessWidget {
                   quantity: item.quantity,
                   onDecrease: onDecrease,
                   onIncrease: onIncrease,
+                  disableIncrease: disableIncrease,
                 ),
                 SizedBox(height: 12.h),
                 Text(
@@ -218,6 +225,7 @@ class _CartStepper extends StatelessWidget {
     required this.quantity,
     required this.onDecrease,
     required this.onIncrease,
+    this.disableIncrease = false,
   });
 
   static const Color _violetSurface = Color(0xFFEDE9FD);
@@ -225,6 +233,7 @@ class _CartStepper extends StatelessWidget {
   final int quantity;
   final VoidCallback onDecrease;
   final VoidCallback onIncrease;
+  final bool disableIncrease;
 
   @override
   Widget build(BuildContext context) {
@@ -263,6 +272,7 @@ class _CartStepper extends StatelessWidget {
             icon: Icons.add_rounded,
             onPressed: onIncrease,
             isFilled: true,
+            disabled: disableIncrease,
           ),
         ],
       ),
@@ -275,11 +285,16 @@ class _StepButton extends StatefulWidget {
     required this.icon,
     required this.onPressed,
     required this.isFilled,
+    this.disabled = false,
   });
 
   final IconData icon;
   final VoidCallback onPressed;
   final bool isFilled; // true = solid violet (+), false = ghost (–)
+  // Purely visual — onPressed always stays wired so a stale cache can
+  // still be caught (and toasted) at the call site instead of the tap
+  // silently doing nothing.
+  final bool disabled;
 
   @override
   State<_StepButton> createState() => _StepButtonState();
@@ -298,23 +313,26 @@ class _StepButtonState extends State<_StepButton> {
       duration: const Duration(milliseconds: 90),
       curve: Curves.easeOut,
       child: GestureDetector(
-        onTapDown: (_) => setState(() => _scale = 0.88),
+        onTapDown: widget.disabled ? null : (_) => setState(() => _scale = 0.88),
         onTapUp: (_) {
           setState(() => _scale = 1);
           widget.onPressed();
         },
         onTapCancel: () => setState(() => _scale = 1),
-        child: Container(
-          width: 40.h,
-          height: 40.h,
-          decoration: BoxDecoration(
-            color: widget.isFilled ? _violet : _violetSurface,
-            shape: BoxShape.circle,
-          ),
-          child: Icon(
-            widget.icon,
-            size: 18.sp,
-            color: widget.isFilled ? Colors.white : _violet,
+        child: Opacity(
+          opacity: widget.disabled ? 0.4 : 1,
+          child: Container(
+            width: 40.h,
+            height: 40.h,
+            decoration: BoxDecoration(
+              color: widget.isFilled ? _violet : _violetSurface,
+              shape: BoxShape.circle,
+            ),
+            child: Icon(
+              widget.icon,
+              size: 18.sp,
+              color: widget.isFilled ? Colors.white : _violet,
+            ),
           ),
         ),
       ),

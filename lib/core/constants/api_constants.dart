@@ -95,6 +95,8 @@ class ApiConstants {
   static const cartDeliveryInstructions = '/cart/delivery-instructions';
   static String cartItem(String productId) => '/cart/items/$productId';
 
+  static const purchaseLimitsMyStatus = '/purchase-limits/my-status';
+
   static const addresses = '/addresses';
   static const validatePincode = '/addresses/validate-pincode';
   static String addressById(String id) => '/addresses/$id';

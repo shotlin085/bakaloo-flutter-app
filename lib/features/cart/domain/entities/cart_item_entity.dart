@@ -25,6 +25,9 @@ abstract class CartItemEntity with _$CartItemEntity {
     String? foodType,
     String? originTag,
     int? displayDeliveryMinutes,
+    // Lets the cart screen's own "+" button evaluate a CATEGORY-scoped
+    // purchase-limit rule from a cart line alone.
+    String? categoryId,
   }) = _CartItemEntity;
 
   /// Mirrors [ProductEntity.displayUnit]: prefer the specific option label,

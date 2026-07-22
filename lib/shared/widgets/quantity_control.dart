@@ -14,6 +14,7 @@ class QuantityControl extends StatefulWidget {
     required this.onDecrement,
     this.width = 88,
     this.height = 36,
+    this.disableIncrement = false,
     super.key,
   });
 
@@ -23,6 +24,13 @@ class QuantityControl extends StatefulWidget {
   final VoidCallback? onDecrement;
   final double width;
   final double height;
+  // Purchase-limits: greys out (and visually suppresses ripple on) the
+  // "ADD"/"+" affordance when this product is at its limit. onAdd/
+  // onIncrement stay wired regardless of this flag — the actual
+  // block-and-toast happens at the call site, this only controls the
+  // affordance so a stale cache can still be caught (and toasted) instead
+  // of the tap silently doing nothing.
+  final bool disableIncrement;
 
   @override
   State<QuantityControl> createState() => _QuantityControlState();
@@ -70,6 +78,7 @@ class _QuantityControlState extends State<QuantityControl> {
             ? _AddButton(
                 key: const ValueKey<String>('add-state'),
                 onTap: widget.onAdd,
+                disabled: widget.disableIncrement,
               )
             : _QtySelector(
                 key: ValueKey<int>(widget.quantity),
@@ -77,6 +86,7 @@ class _QuantityControlState extends State<QuantityControl> {
                 countScale: _countScale,
                 onIncrement: widget.onIncrement,
                 onDecrement: widget.onDecrement,
+                disableIncrement: widget.disableIncrement,
               ),
       ),
     );
@@ -86,28 +96,34 @@ class _QuantityControlState extends State<QuantityControl> {
 class _AddButton extends StatelessWidget {
   const _AddButton({
     required this.onTap,
+    this.disabled = false,
     super.key,
   });
 
   final VoidCallback? onTap;
+  final bool disabled;
 
   @override
   Widget build(BuildContext context) {
-    return OutlinedButton(
-      onPressed: onTap,
-      style: OutlinedButton.styleFrom(
-        side: const BorderSide(color: AppColors.primaryGreen),
-        backgroundColor: AppColors.bgCard,
-        foregroundColor: AppColors.primaryGreen,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(AppDimensions.radiusMd),
+    return Opacity(
+      opacity: disabled ? 0.4 : 1,
+      child: OutlinedButton(
+        onPressed: onTap,
+        style: OutlinedButton.styleFrom(
+          side: const BorderSide(color: AppColors.primaryGreen),
+          backgroundColor: AppColors.bgCard,
+          foregroundColor: AppColors.primaryGreen,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(AppDimensions.radiusMd),
+          ),
+          padding: EdgeInsets.zero,
+          overlayColor: disabled ? Colors.transparent : null,
         ),
-        padding: EdgeInsets.zero,
-      ),
-      child: Text(
-        'ADD',
-        style: AppTextStyles.buttonSmall.copyWith(
-          color: AppColors.primaryGreen,
+        child: Text(
+          'ADD',
+          style: AppTextStyles.buttonSmall.copyWith(
+            color: AppColors.primaryGreen,
+          ),
         ),
       ),
     );
@@ -120,6 +136,7 @@ class _QtySelector extends StatelessWidget {
     required this.countScale,
     required this.onIncrement,
     required this.onDecrement,
+    this.disableIncrement = false,
     super.key,
   });
 
@@ -127,6 +144,7 @@ class _QtySelector extends StatelessWidget {
   final double countScale;
   final VoidCallback? onIncrement;
   final VoidCallback? onDecrement;
+  final bool disableIncrement;
 
   @override
   Widget build(BuildContext context) {
@@ -159,6 +177,7 @@ class _QtySelector extends StatelessWidget {
           _IconTapButton(
             icon: PhosphorIcons.plus,
             onTap: onIncrement,
+            disabled: disableIncrement,
           ),
         ],
       ),
@@ -170,23 +189,33 @@ class _IconTapButton extends StatelessWidget {
   const _IconTapButton({
     required this.icon,
     required this.onTap,
+    this.disabled = false,
   });
 
   final PhosphorIconData icon;
   final VoidCallback? onTap;
+  // Purely visual — onTap always stays wired so a stale cache can still
+  // be caught (and toasted) at the call site instead of the tap silently
+  // doing nothing.
+  final bool disabled;
 
   @override
   Widget build(BuildContext context) {
     return InkWell(
       onTap: onTap,
       borderRadius: BorderRadius.circular(AppDimensions.radiusMd),
+      splashColor: disabled ? Colors.transparent : null,
+      highlightColor: disabled ? Colors.transparent : null,
       child: SizedBox(
         width: 26.w,
         child: Center(
-          child: PhosphorIcon(
-            icon,
-            size: 15,
-            color: AppColors.textOnGreen,
+          child: Opacity(
+            opacity: disabled ? 0.4 : 1,
+            child: PhosphorIcon(
+              icon,
+              size: 15,
+              color: AppColors.textOnGreen,
+            ),
           ),
         ),
       ),

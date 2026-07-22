@@ -25,6 +25,8 @@ import 'package:bakaloo_flutter_app/features/cart/presentation/widgets/cart_orde
 import 'package:bakaloo_flutter_app/features/cart/presentation/widgets/cart_savings_banner.dart';
 import 'package:bakaloo_flutter_app/features/cart/presentation/widgets/cart_savings_breakdown.dart';
 import 'package:bakaloo_flutter_app/features/cart/presentation/widgets/cart_tip_section.dart';
+import 'package:bakaloo_flutter_app/core/utils/app_toast.dart';
+import 'package:bakaloo_flutter_app/features/purchase_limits/presentation/providers/purchase_limits_provider.dart';
 import 'package:bakaloo_flutter_app/features/checkout/domain/entities/checkout_summary_entity.dart';
 import 'package:bakaloo_flutter_app/features/checkout/domain/entities/delivery_slot_entity.dart';
 import 'package:bakaloo_flutter_app/features/checkout/presentation/providers/checkout_provider.dart';
@@ -100,6 +102,14 @@ class _CartScreenState extends ConsumerState<CartScreen> {
               onPressed: () => context.go(RouteNames.home),
             );
           }
+
+          // Piggybacks on the cart fetch that's already happening — no
+          // extra per-line network call. Cheap no-op once already known.
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            ref.read(purchaseLimitsNotifierProvider.notifier).ensureLoaded(
+                  resolvedCart.items.map((item) => item.productId).toList(),
+                );
+          });
 
           return ListView(
             physics: const BouncingScrollPhysics(
@@ -269,17 +279,35 @@ class _CartScreenState extends ConsumerState<CartScreen> {
   ) {
     return List<Widget>.generate(items.length, (index) {
       final item = items[index];
+      // Purchase-limits: null == unrestricted (the common case, zero extra
+      // visual/logic changes). Watched so this line live-updates — e.g.
+      // right after this exact tap pushes the product to its limit.
+      final purchaseLimitStatus =
+          ref.watch(purchaseLimitStatusProvider(item.productId));
+      final isAtLimit = purchaseLimitStatus?.isAtLimit ?? false;
+
       return RepaintBoundary(
         child: Column(
           children: <Widget>[
             CartItemCard(
               item: item,
-              onIncrease: () => _updateItemQuantity(
-                context,
-                item.productId,
-                item.quantity + 1,
-                shopProductId: item.shopProductId,
-              ),
+              onIncrease: () {
+                // Re-checked fresh on every tap (ref.read, not the watched
+                // value above) so a stale cache can never let a mutation
+                // through — block before it ever reaches the network.
+                final status =
+                    ref.read(purchaseLimitStatusProvider(item.productId));
+                if (status?.isAtLimit ?? false) {
+                  AppToast.show(context, 'Maximum product order complete');
+                  return;
+                }
+                _updateItemQuantity(
+                  context,
+                  item.productId,
+                  item.quantity + 1,
+                  shopProductId: item.shopProductId,
+                );
+              },
               onDecrease: () {
                 if (item.quantity <= 1) {
                   _removeItem(context, item);
@@ -293,6 +321,7 @@ class _CartScreenState extends ConsumerState<CartScreen> {
                 );
               },
               onRemove: () => _removeItem(context, item),
+              disableIncrease: isAtLimit,
             ),
             if (index != items.length - 1)
               Padding(

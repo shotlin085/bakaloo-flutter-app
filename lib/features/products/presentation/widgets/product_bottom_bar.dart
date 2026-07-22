@@ -15,6 +15,7 @@ class ProductBottomBar extends StatefulWidget {
     required this.onAddToCart,
     required this.onViewCart,
     required this.onQuantityChange,
+    this.disableIncrement = false,
     super.key,
   });
 
@@ -23,6 +24,11 @@ class ProductBottomBar extends StatefulWidget {
   final VoidCallback onAddToCart;
   final VoidCallback onViewCart;
   final ValueChanged<int> onQuantityChange;
+  // Purchase-limits: greys out (and visually suppresses ripple on) the "+"
+  // stepper when this product is at its limit. The tap handler stays wired
+  // regardless — the actual block-and-toast happens at the call site that
+  // owns `onQuantityChange`, this only controls the affordance.
+  final bool disableIncrement;
 
   @override
   State<ProductBottomBar> createState() => _ProductBottomBarState();
@@ -145,6 +151,7 @@ class _ProductBottomBarState extends State<ProductBottomBar> {
                           onDecrement: () => widget.onQuantityChange(
                             widget.quantity > 0 ? widget.quantity - 1 : 0,
                           ),
+                          disableIncrement: widget.disableIncrement,
                         ),
                       ),
                     ],
@@ -224,11 +231,13 @@ class _BottomQuantityControl extends StatelessWidget {
     required this.quantity,
     required this.onIncrement,
     required this.onDecrement,
+    this.disableIncrement = false,
   });
 
   final int quantity;
   final VoidCallback onIncrement;
   final VoidCallback onDecrement;
+  final bool disableIncrement;
 
   @override
   Widget build(BuildContext context) {
@@ -260,6 +269,7 @@ class _BottomQuantityControl extends StatelessWidget {
           _QtyActionButton(
             icon: PhosphorIcons.plusBold,
             onTap: onIncrement,
+            disabled: disableIncrement,
           ),
         ],
       ),
@@ -271,10 +281,15 @@ class _QtyActionButton extends StatelessWidget {
   const _QtyActionButton({
     required this.icon,
     required this.onTap,
+    this.disabled = false,
   });
 
   final PhosphorIconData icon;
   final VoidCallback onTap;
+  // Purely visual — the tap handler always stays wired so a stale cache
+  // can still be caught (and toasted) at the call site instead of the tap
+  // silently doing nothing.
+  final bool disabled;
 
   @override
   Widget build(BuildContext context) {
@@ -283,14 +298,19 @@ class _QtyActionButton extends StatelessWidget {
       child: InkWell(
         onTap: onTap,
         borderRadius: BorderRadius.circular(14.r),
+        splashColor: disabled ? Colors.transparent : null,
+        highlightColor: disabled ? Colors.transparent : null,
         child: SizedBox(
           width: 48.w,
           height: double.infinity,
           child: Center(
-            child: PhosphorIcon(
-              icon,
-              size: 18.sp,
-              color: Colors.white,
+            child: Opacity(
+              opacity: disabled ? 0.4 : 1,
+              child: PhosphorIcon(
+                icon,
+                size: 18.sp,
+                color: Colors.white,
+              ),
             ),
           ),
         ),

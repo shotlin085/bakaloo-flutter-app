@@ -25,6 +25,7 @@ import 'package:bakaloo_flutter_app/features/home/presentation/providers/banner_
 import 'package:bakaloo_flutter_app/features/home/presentation/providers/home_provider.dart';
 import 'package:bakaloo_flutter_app/features/home/presentation/widgets/dynamic_home_sections.dart';
 import 'package:bakaloo_flutter_app/features/products/domain/entities/product_entity.dart';
+import 'package:bakaloo_flutter_app/features/purchase_limits/presentation/providers/purchase_limits_provider.dart';
 import 'package:bakaloo_flutter_app/routing/app_router.dart';
 import 'package:bakaloo_flutter_app/routing/route_names.dart';
 import 'package:bakaloo_flutter_app/core/providers/store_provider.dart';
@@ -506,6 +507,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
     _bannerCarouselCards = bannerCards;
     _featuredPool = featuredPool;
     _refreshStagedSliversCache();
+    _ensurePurchaseLimitsLoaded(data.featuredProducts);
   }
 
   void _recomputeTabContent(TabHomeContentResponse content) {
@@ -533,6 +535,24 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
     _managedCategorySections = categorySections;
     _featuredPool = featuredPool;
     _refreshStagedSliversCache();
+    _ensurePurchaseLimitsLoaded(<ProductEntity>[
+      ...seasonalProducts,
+      ...featuredProducts,
+      ...trendingProducts,
+      for (final section in categorySections) ...section.products,
+    ]);
+  }
+
+  // Piggybacks on the home/tab-content fetches that are already happening —
+  // no extra per-card network call. Cheap no-op for any product already
+  // known.
+  void _ensurePurchaseLimitsLoaded(List<ProductEntity> products) {
+    if (products.isEmpty) {
+      return;
+    }
+    ref.read(purchaseLimitsNotifierProvider.notifier).ensureLoaded(
+          products.map((product) => product.id).toSet().toList(),
+        );
   }
 
   void _clearTabContentCache() {

@@ -8,6 +8,7 @@ import 'package:bakaloo_flutter_app/core/theme/app_colors.dart';
 import 'package:bakaloo_flutter_app/core/theme/app_dimensions.dart';
 import 'package:bakaloo_flutter_app/core/theme/app_text_styles.dart';
 import 'package:bakaloo_flutter_app/features/products/presentation/providers/product_list_provider.dart';
+import 'package:bakaloo_flutter_app/features/purchase_limits/presentation/providers/purchase_limits_provider.dart';
 import 'package:bakaloo_flutter_app/shared/widgets/empty_state.dart';
 import 'package:bakaloo_flutter_app/shared/widgets/error_state.dart';
 import 'package:bakaloo_flutter_app/features/products/presentation/widgets/show_product_options.dart';
@@ -87,6 +88,14 @@ class _ProductListScreenState extends ConsumerState<ProductListScreen> {
                   'Products will appear here when inventory is available.',
             );
           }
+
+          // Piggybacks on the product-list fetch that's already happening —
+          // no extra per-card network call. Cheap no-op once already known.
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            ref.read(purchaseLimitsNotifierProvider.notifier).ensureLoaded(
+                  viewState.items.map((product) => product.id).toList(),
+                );
+          });
 
           return RefreshIndicator(
             onRefresh: () async {

@@ -137,6 +137,11 @@ abstract class ApiClient {
     @Body() Map<String, dynamic> body,
   );
 
+  @GET(ApiConstants.purchaseLimitsMyStatus)
+  Future<HttpResponse<dynamic>> getPurchaseLimitsStatus(
+    @Query('productIds') String productIds,
+  );
+
   @GET(ApiConstants.addresses)
   Future<HttpResponse<dynamic>> getAddresses();
 

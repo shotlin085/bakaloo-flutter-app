@@ -7,10 +7,12 @@ import 'package:phosphoricons_flutter/phosphoricons_flutter.dart';
 
 import 'package:bakaloo_flutter_app/core/constants/api_constants.dart';
 import 'package:bakaloo_flutter_app/core/theme/app_colors.dart';
+import 'package:bakaloo_flutter_app/core/utils/app_toast.dart';
 import 'package:bakaloo_flutter_app/features/auth/presentation/providers/auth_gate_controller.dart';
 import 'package:bakaloo_flutter_app/features/cart/presentation/providers/cart_provider.dart';
 import 'package:bakaloo_flutter_app/features/products/domain/entities/product_entity.dart';
 import 'package:bakaloo_flutter_app/features/products/presentation/widgets/show_product_options.dart';
+import 'package:bakaloo_flutter_app/features/purchase_limits/presentation/providers/purchase_limits_provider.dart';
 import 'package:bakaloo_flutter_app/shared/widgets/app_image.dart';
 
 // ── PHASE 3B: Arch background painter ─────────────────────────────────────
@@ -538,6 +540,13 @@ class _ArchedAddButton extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    // Purchase-limits: null == unrestricted (the common case, zero extra
+    // visual/logic changes). Watched (not read) so this button live-updates
+    // — e.g. right after this exact tap pushes the product to its limit.
+    final purchaseLimitStatus =
+        ref.watch(purchaseLimitStatusProvider(product.id));
+    final isAtLimit = purchaseLimitStatus?.isAtLimit ?? false;
+
     if (quantity > 0) {
       return Container(
         height: 34.h,
@@ -593,6 +602,19 @@ class _ArchedAddButton extends ConsumerWidget {
               onTap: product.inStock
                   ? () async {
                       if (quantity >= 50) return;
+                      // Re-checked fresh on every tap (ref.read, not the
+                      // watched value above) so a stale cache can never let
+                      // a mutation through — block before it ever reaches
+                      // the network.
+                      final status =
+                          ref.read(purchaseLimitStatusProvider(product.id));
+                      if (status?.isAtLimit ?? false) {
+                        AppToast.show(
+                          context,
+                          'Maximum product order complete',
+                        );
+                        return;
+                      }
                       final result = await ref
                           .read(cartProvider.notifier)
                           .updateItem(product.id, quantity + 1);
@@ -600,13 +622,18 @@ class _ArchedAddButton extends ConsumerWidget {
                       showCartSnackBar(context, result.failure!.message);
                     }
                   : null,
+              splashColor: isAtLimit ? Colors.transparent : null,
+              highlightColor: isAtLimit ? Colors.transparent : null,
               child: SizedBox(
                 width: 28.w,
                 child: Center(
-                  child: PhosphorIcon(
-                    PhosphorIcons.plus,
-                    size: 14,
-                    color: Colors.white,
+                  child: Opacity(
+                    opacity: isAtLimit ? 0.4 : 1,
+                    child: PhosphorIcon(
+                      PhosphorIcons.plus,
+                      size: 14,
+                      color: Colors.white,
+                    ),
                   ),
                 ),
               ),
@@ -615,6 +642,12 @@ class _ArchedAddButton extends ConsumerWidget {
         ),
       );
     }
+
+    // A multi-option family's ADD button opens a sheet of sibling options
+    // rather than adding this exact representative product — this card's
+    // own isAtLimit status shouldn't grey out (or block) that sheet, since
+    // other options inside it may not be restricted at all.
+    final bool disableDirectAdd = isAtLimit && !product.hasMultipleOptions;
 
     return Material(
       color: Colors.transparent,
@@ -625,6 +658,15 @@ class _ArchedAddButton extends ConsumerWidget {
                 // adding directly, so the customer picks the exact option.
                 if (product.hasMultipleOptions) {
                   showProductOptionsSheet(context, product);
+                  return;
+                }
+                // Re-checked fresh on every tap (ref.read, not the watched
+                // value above) so a stale cache can never let a mutation
+                // through — block before it ever reaches the network.
+                final status =
+                    ref.read(purchaseLimitStatusProvider(product.id));
+                if (status?.isAtLimit ?? false) {
+                  AppToast.show(context, 'Maximum product order complete');
                   return;
                 }
                 final allowed = await authGate.protectAddToCart(
@@ -640,54 +682,59 @@ class _ArchedAddButton extends ConsumerWidget {
               }
             : null,
         borderRadius: BorderRadius.circular(10.r),
-        child: Container(
-          width: 72.w,
-          height: 36.h,
-          decoration: BoxDecoration(
-            color: Colors.white,
-            border: Border.all(
-              color: const Color(0xFFCD2D55),
-              width: 2,
-            ),
-            borderRadius: BorderRadius.circular(10.r),
-            boxShadow: const <BoxShadow>[
-              BoxShadow(
-                color: Color(0xFFCD2D55),
-                offset: Offset(2, 3),
-                blurRadius: 0,
+        splashColor: disableDirectAdd ? Colors.transparent : null,
+        highlightColor: disableDirectAdd ? Colors.transparent : null,
+        child: Opacity(
+          opacity: disableDirectAdd ? 0.4 : 1,
+          child: Container(
+            width: 72.w,
+            height: 36.h,
+            decoration: BoxDecoration(
+              color: Colors.white,
+              border: Border.all(
+                color: const Color(0xFFCD2D55),
+                width: 2,
               ),
-            ],
-          ),
-          alignment: Alignment.center,
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            mainAxisSize: MainAxisSize.min,
-            children: <Widget>[
-              Text(
-                'ADD',
-                style: TextStyle(
-                  color: const Color(0xFFCD2D55),
-                  fontWeight: FontWeight.w700,
-                  fontSize: 14.sp,
-                  height: 1.0,
+              borderRadius: BorderRadius.circular(10.r),
+              boxShadow: const <BoxShadow>[
+                BoxShadow(
+                  color: Color(0xFFCD2D55),
+                  offset: Offset(2, 3),
+                  blurRadius: 0,
                 ),
-              ),
-              // "N options" sits INSIDE the fixed-size ADD button so the
-              // arched showcase card height never changes (no overflow).
-              if (product.hasMultipleOptions)
+              ],
+            ),
+            alignment: Alignment.center,
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              mainAxisSize: MainAxisSize.min,
+              children: <Widget>[
                 Text(
-                  '${product.optionCount} options',
-                  maxLines: 1,
-                  softWrap: false,
-                  overflow: TextOverflow.ellipsis,
+                  'ADD',
                   style: TextStyle(
-                    fontSize: 8.sp,
-                    fontWeight: FontWeight.w500,
                     color: const Color(0xFFCD2D55),
+                    fontWeight: FontWeight.w700,
+                    fontSize: 14.sp,
                     height: 1.0,
                   ),
                 ),
-            ],
+                // "N options" sits INSIDE the fixed-size ADD button so the
+                // arched showcase card height never changes (no overflow).
+                if (product.hasMultipleOptions)
+                  Text(
+                    '${product.optionCount} options',
+                    maxLines: 1,
+                    softWrap: false,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      fontSize: 8.sp,
+                      fontWeight: FontWeight.w500,
+                      color: const Color(0xFFCD2D55),
+                      height: 1.0,
+                    ),
+                  ),
+              ],
+            ),
           ),
         ),
       ),

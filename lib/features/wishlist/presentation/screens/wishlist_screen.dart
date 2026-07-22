@@ -10,6 +10,7 @@ import 'package:bakaloo_flutter_app/core/theme/app_colors.dart';
 import 'package:bakaloo_flutter_app/core/theme/app_text_styles.dart';
 import 'package:bakaloo_flutter_app/features/wishlist/presentation/providers/wishlist_provider.dart';
 import 'package:bakaloo_flutter_app/features/products/presentation/widgets/show_product_options.dart';
+import 'package:bakaloo_flutter_app/features/purchase_limits/presentation/providers/purchase_limits_provider.dart';
 import 'package:bakaloo_flutter_app/shared/widgets/product_card.dart';
 
 class WishlistScreen extends ConsumerWidget {
@@ -72,6 +73,16 @@ class WishlistScreen extends ConsumerWidget {
           if (wishlistData.items.isEmpty) {
             return const _WishlistEmptyState();
           }
+
+          // Piggybacks on the wishlist fetch that's already happening — no
+          // extra per-card network call. Cheap no-op once already known.
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            ref.read(purchaseLimitsNotifierProvider.notifier).ensureLoaded(
+                  wishlistData.items
+                      .map((item) => item.product.id)
+                      .toList(),
+                );
+          });
 
           return RefreshIndicator(
             color: AppColors.primaryGreen,

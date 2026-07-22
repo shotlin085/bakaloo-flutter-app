@@ -9,10 +9,12 @@ import 'package:share_plus/share_plus.dart';
 import 'package:bakaloo_flutter_app/core/analytics/analytics_service.dart';
 import 'package:bakaloo_flutter_app/core/constants/api_constants.dart';
 import 'package:bakaloo_flutter_app/core/theme/app_colors.dart';
+import 'package:bakaloo_flutter_app/core/utils/app_toast.dart';
 import 'package:bakaloo_flutter_app/features/auth/presentation/providers/auth_gate_controller.dart';
 import 'package:bakaloo_flutter_app/features/cart/presentation/providers/cart_provider.dart';
 import 'package:bakaloo_flutter_app/features/products/domain/entities/product_entity.dart';
 import 'package:bakaloo_flutter_app/features/products/presentation/providers/product_detail_provider.dart';
+import 'package:bakaloo_flutter_app/features/purchase_limits/presentation/providers/purchase_limits_provider.dart';
 import 'package:bakaloo_flutter_app/features/products/presentation/providers/recently_viewed_provider.dart';
 import 'package:bakaloo_flutter_app/features/products/presentation/screens/product_detail_compat.dart';
 import 'package:bakaloo_flutter_app/features/products/presentation/screens/product_detail_socket_delegate.dart';
@@ -148,6 +150,19 @@ class _ProductDetailScreenState extends ConsumerState<ProductDetailScreen> {
         );
         final cartQty =
             ref.watch(cartItemQuantityProvider(effectiveProduct.id));
+        // Purchase-limits: null == unrestricted (the common case, zero
+        // extra visual/logic changes).
+        final purchaseLimitStatus =
+            ref.watch(purchaseLimitStatusProvider(effectiveProduct.id));
+        final isAtPurchaseLimit = purchaseLimitStatus?.isAtLimit ?? false;
+
+        // Piggybacks on the product detail fetch that's already happening —
+        // no extra per-card network call. Cheap no-op when already known.
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          ref
+              .read(purchaseLimitsNotifierProvider.notifier)
+              .ensureLoaded(<String>[effectiveProduct.id]);
+        });
 
         if (!_hasLoggedView) {
           _hasLoggedView = true;
@@ -335,6 +350,7 @@ class _ProductDetailScreenState extends ConsumerState<ProductDetailScreen> {
               onAddToCart: () => _addSelectedVariantToCart(effectiveProduct),
               onViewCart: () => context.push(RouteNames.cart),
               onQuantityChange: (qty) => _updateCart(effectiveProduct, qty),
+              disableIncrement: isAtPurchaseLimit,
             ),
           ),
         );
@@ -536,6 +552,16 @@ class _ProductDetailScreenState extends ConsumerState<ProductDetailScreen> {
   }
 
   Future<void> _addProductToCart(ProductEntity product) async {
+    // Re-checked fresh on every tap (ref.read, not a watched value) so a
+    // stale cache can never let a mutation through — block before it ever
+    // reaches the network.
+    final purchaseLimitStatus =
+        ref.read(purchaseLimitStatusProvider(product.id));
+    if (purchaseLimitStatus?.isAtLimit ?? false) {
+      AppToast.show(context, 'Maximum product order complete');
+      return;
+    }
+
     final authGate = ref.read(authGateControllerProvider);
     final allowed = await authGate.protectAddToCart(context, product);
     if (!allowed || !mounted) {
@@ -562,6 +588,21 @@ class _ProductDetailScreenState extends ConsumerState<ProductDetailScreen> {
   }
 
   Future<void> _updateCart(ProductEntity product, int qty) async {
+    final currentQty = ref.read(cartItemQuantityProvider(product.id));
+    if (qty > currentQty) {
+      // This is an increment attempt (ProductBottomBar's onQuantityChange
+      // is a single callback shared by both +/-, so the direction is
+      // inferred from whether qty went up). Re-checked fresh on every tap
+      // (ref.read, not a watched value) so a stale cache can never let a
+      // mutation through — block before it ever reaches the network.
+      final purchaseLimitStatus =
+          ref.read(purchaseLimitStatusProvider(product.id));
+      if (purchaseLimitStatus?.isAtLimit ?? false) {
+        AppToast.show(context, 'Maximum product order complete');
+        return;
+      }
+    }
+
     final result = qty <= 0
         ? await ref.read(cartProvider.notifier).removeItem(product.id)
         : await ref.read(cartProvider.notifier).updateItem(product.id, qty);

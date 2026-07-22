@@ -14,6 +14,7 @@ import 'package:bakaloo_flutter_app/features/categories/domain/entities/category
 import 'package:bakaloo_flutter_app/features/categories/presentation/providers/category_provider.dart';
 import 'package:bakaloo_flutter_app/features/products/presentation/providers/product_list_provider.dart';
 import 'package:bakaloo_flutter_app/features/products/presentation/widgets/show_product_options.dart';
+import 'package:bakaloo_flutter_app/features/purchase_limits/presentation/providers/purchase_limits_provider.dart';
 import 'package:bakaloo_flutter_app/routing/route_names.dart';
 import 'package:bakaloo_flutter_app/shared/widgets/empty_state.dart';
 import 'package:bakaloo_flutter_app/shared/widgets/error_state.dart';
@@ -23,6 +24,22 @@ import 'package:bakaloo_flutter_app/shared/widgets/skeleton_loader.dart';
 /// Categories accent (premium violet, consistent with Orders/Product screens).
 const Color _accent = AppColors.orderViolet;
 const Color _accentSurface = AppColors.orderVioletSurface;
+
+/// The product grid is 2 columns inside the pane to the right of the
+/// 92.w category rail, with 14.w side padding and a 12.w gap between columns.
+double _gridColumnWidth(double paneWidth) {
+  final double gridWidth = paneWidth - 14.w * 2;
+  return (gridWidth - 12.w) / 2;
+}
+
+/// Mirrors ProductCard's grid-style layout (image = 84% of card width, plus
+/// a roughly fixed footer for the unit/ADD row, price, name, and rating) so
+/// the grid row stays tall enough for the real column width instead of a
+/// constant tuned for phone-narrow columns. A fixed `mainAxisExtent` can't
+/// work across both phone and tablet: iPad's 2-column grid is far wider per
+/// column, so the width-proportional image alone was blowing past the old
+/// fixed 256.h row height.
+double _gridRowExtent(double columnWidth) => columnWidth * 0.84 + 154.h;
 
 class CategoriesScreen extends ConsumerStatefulWidget {
   const CategoriesScreen({super.key});
@@ -179,17 +196,23 @@ class _CategoriesScreenState extends ConsumerState<CategoriesScreen> {
         Expanded(
           child: Padding(
             padding: EdgeInsets.fromLTRB(14.w, 16.h, 14.w, 24.h),
-            child: GridView.builder(
-              physics: const NeverScrollableScrollPhysics(),
-              itemCount: 6,
-              gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                crossAxisCount: 2,
-                crossAxisSpacing: 12.w,
-                mainAxisSpacing: 14.h,
-                mainAxisExtent: 256.h,
-              ),
-              itemBuilder: (_, __) =>
-                  const SkeletonLoader(height: 220, radius: 16),
+            child: LayoutBuilder(
+              builder: (context, constraints) {
+                final double columnWidth =
+                    (constraints.maxWidth - 12.w) / 2;
+                return GridView.builder(
+                  physics: const NeverScrollableScrollPhysics(),
+                  itemCount: 6,
+                  gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                    crossAxisCount: 2,
+                    crossAxisSpacing: 12.w,
+                    mainAxisSpacing: 14.h,
+                    mainAxisExtent: _gridRowExtent(columnWidth),
+                  ),
+                  itemBuilder: (_, __) =>
+                      const SkeletonLoader(height: 220, radius: 16),
+                );
+              },
             ),
           ),
         ),
@@ -691,20 +714,32 @@ class _CategoryProductPaneState extends ConsumerState<_CategoryProductPane> {
               );
             }
 
-            return SliverPadding(
-              padding: EdgeInsets.fromLTRB(14.w, 0, 14.w, 4.h),
-              sliver: SliverGrid.builder(
-                itemCount: viewState.items.length,
-                gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                  crossAxisCount: 2,
-                  crossAxisSpacing: 12.w,
-                  mainAxisSpacing: 14.h,
-                  mainAxisExtent: 256.h,
-                ),
-                itemBuilder: (context, index) {
-                  final product = viewState.items[index];
-                  return LayoutBuilder(
-                    builder: (context, constraints) {
+            // Piggybacks on the category product-list fetch that's already
+            // happening — no extra per-card network call. Cheap no-op once
+            // already known.
+            WidgetsBinding.instance.addPostFrameCallback((_) {
+              ref.read(purchaseLimitsNotifierProvider.notifier).ensureLoaded(
+                    viewState.items.map((product) => product.id).toList(),
+                  );
+            });
+
+            return SliverLayoutBuilder(
+              builder: (context, sliverConstraints) {
+                final double columnWidth =
+                    _gridColumnWidth(sliverConstraints.crossAxisExtent);
+
+                return SliverPadding(
+                  padding: EdgeInsets.fromLTRB(14.w, 0, 14.w, 4.h),
+                  sliver: SliverGrid.builder(
+                    itemCount: viewState.items.length,
+                    gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                      crossAxisCount: 2,
+                      crossAxisSpacing: 12.w,
+                      mainAxisSpacing: 14.h,
+                      mainAxisExtent: _gridRowExtent(columnWidth),
+                    ),
+                    itemBuilder: (context, index) {
+                      final product = viewState.items[index];
                       return TweenAnimationBuilder<double>(
                         duration: Duration(
                           milliseconds: 220 + ((index % 6) * 30),
@@ -713,7 +748,12 @@ class _CategoryProductPaneState extends ConsumerState<_CategoryProductPane> {
                         tween: Tween<double>(begin: 0, end: 1),
                         child: ProductCard(
                           product: product,
-                          width: constraints.maxWidth,
+                          // ProductCard re-applies `.w` internally, so pass
+                          // the real column width pre-divided by the scale
+                          // factor (same convention as _threeColumnCardWidth
+                          // in home_screen.dart) — otherwise it gets scaled
+                          // twice and the card balloons past its own column.
+                          width: columnWidth / ScreenUtil().scaleWidth,
                           style: ProductCardStyle.grid,
                           useCompactAddButton: true,
                           showImageBorder: true,
@@ -735,9 +775,9 @@ class _CategoryProductPaneState extends ConsumerState<_CategoryProductPane> {
                         },
                       );
                     },
-                  );
-                },
-              ),
+                  ),
+                );
+              },
             );
           },
         ),
@@ -786,21 +826,28 @@ class _CategoryProductPaneState extends ConsumerState<_CategoryProductPane> {
   }
 
   Widget _buildLoadingSliver() {
-    return SliverPadding(
-      padding: EdgeInsets.fromLTRB(14.w, 0, 14.w, 20.h),
-      sliver: SliverGrid.builder(
-        itemCount: 6,
-        gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-          crossAxisCount: 2,
-          crossAxisSpacing: 12.w,
-          mainAxisSpacing: 14.h,
-          mainAxisExtent: 256.h,
-        ),
-        itemBuilder: (_, __) => const SkeletonLoader(
-          height: 220,
-          radius: 16,
-        ),
-      ),
+    return SliverLayoutBuilder(
+      builder: (context, sliverConstraints) {
+        final double columnWidth =
+            _gridColumnWidth(sliverConstraints.crossAxisExtent);
+
+        return SliverPadding(
+          padding: EdgeInsets.fromLTRB(14.w, 0, 14.w, 20.h),
+          sliver: SliverGrid.builder(
+            itemCount: 6,
+            gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+              crossAxisCount: 2,
+              crossAxisSpacing: 12.w,
+              mainAxisSpacing: 14.h,
+              mainAxisExtent: _gridRowExtent(columnWidth),
+            ),
+            itemBuilder: (_, __) => const SkeletonLoader(
+              height: 220,
+              radius: 16,
+            ),
+          ),
+        );
+      },
     );
   }
 }

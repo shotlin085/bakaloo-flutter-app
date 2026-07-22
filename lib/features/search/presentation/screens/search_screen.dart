@@ -15,11 +15,13 @@ import 'package:bakaloo_flutter_app/core/theme/app_colors.dart';
 import 'package:bakaloo_flutter_app/core/theme/app_dimensions.dart';
 import 'package:bakaloo_flutter_app/core/theme/app_shadows.dart';
 import 'package:bakaloo_flutter_app/core/theme/app_text_styles.dart';
+import 'package:bakaloo_flutter_app/core/utils/app_toast.dart';
 import 'package:bakaloo_flutter_app/features/auth/presentation/providers/auth_gate_controller.dart';
 import 'package:bakaloo_flutter_app/features/cart/presentation/providers/cart_provider.dart';
 import 'package:bakaloo_flutter_app/features/categories/domain/entities/category_entity.dart';
 import 'package:bakaloo_flutter_app/features/categories/presentation/providers/category_provider.dart';
 import 'package:bakaloo_flutter_app/features/products/domain/entities/product_entity.dart';
+import 'package:bakaloo_flutter_app/features/purchase_limits/presentation/providers/purchase_limits_provider.dart';
 import 'package:bakaloo_flutter_app/features/search/domain/entities/search_result_entity.dart';
 import 'package:bakaloo_flutter_app/features/search/presentation/providers/search_history_provider.dart';
 import 'package:bakaloo_flutter_app/features/search/presentation/providers/search_provider.dart';
@@ -247,6 +249,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen>
         _allProducts.addAll(result.products);
         _computeDisplayProducts();
       });
+      _ensurePurchaseLimitsLoaded(result.products);
 
       if (isLastPage) {
         _pagingController.appendLastPage(result.products);
@@ -301,6 +304,17 @@ class _SearchScreenState extends ConsumerState<SearchScreen>
     _filterState = const _FilterState();
 
     ref.read(searchProvider.notifier).onQueryChanged(value);
+  }
+
+  // Piggybacks on the search fetch that's already happening — no extra
+  // per-card network call. Cheap no-op for any product already known.
+  void _ensurePurchaseLimitsLoaded(List<ProductEntity> products) {
+    if (products.isEmpty) {
+      return;
+    }
+    ref.read(purchaseLimitsNotifierProvider.notifier).ensureLoaded(
+          products.map((product) => product.id).toList(),
+        );
   }
 
   void _applyFirstPage(SearchResultEntity result) {
@@ -786,6 +800,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen>
           }
 
           _applyFirstPage(result);
+          _ensurePurchaseLimitsLoaded(result.products);
         },
         error: (error, stackTrace) {
           _pagingController.error = error;
@@ -1730,6 +1745,12 @@ class _SearchResultTile extends ConsumerWidget {
     final imageUrl = product.thumbnailUrl ??
         (product.images.isNotEmpty ? product.images.first : null);
     final quantity = ref.watch(cartItemQuantityProvider(product.id));
+    // Purchase-limits: null == unrestricted (the common case, zero extra
+    // visual/logic changes). Watched so this tile live-updates — e.g.
+    // right after this exact tap pushes the product to its limit.
+    final purchaseLimitStatus =
+        ref.watch(purchaseLimitStatusProvider(product.id));
+    final isAtLimit = purchaseLimitStatus?.isAtLimit ?? false;
 
     return InkWell(
       onTap: () => context.push('/product/${product.id}'),
@@ -1816,8 +1837,22 @@ class _SearchResultTile extends ConsumerWidget {
               quantity: quantity,
               width: 84,
               height: 38,
+              disableIncrement: isAtLimit,
               onAdd: product.inStock
                   ? () async {
+                      // Re-checked fresh on every tap (ref.read, not the
+                      // watched value above) so a stale cache can never
+                      // let a mutation through — block before it ever
+                      // reaches the network.
+                      final status = ref
+                          .read(purchaseLimitStatusProvider(product.id));
+                      if (status?.isAtLimit ?? false) {
+                        AppToast.show(
+                          context,
+                          'Maximum product order complete',
+                        );
+                        return;
+                      }
                       final authGate = ref.read(authGateControllerProvider);
                       final allowed = await authGate.protectAddToCart(
                         context,
@@ -1845,6 +1880,19 @@ class _SearchResultTile extends ConsumerWidget {
                   : null,
               onIncrement: product.inStock && quantity < 50
                   ? () async {
+                      // Re-checked fresh on every tap (ref.read, not the
+                      // watched value above) so a stale cache can never
+                      // let a mutation through — block before it ever
+                      // reaches the network.
+                      final status = ref
+                          .read(purchaseLimitStatusProvider(product.id));
+                      if (status?.isAtLimit ?? false) {
+                        AppToast.show(
+                          context,
+                          'Maximum product order complete',
+                        );
+                        return;
+                      }
                       final result = await ref
                           .read(cartProvider.notifier)
                           .updateItem(product.id, quantity + 1);
