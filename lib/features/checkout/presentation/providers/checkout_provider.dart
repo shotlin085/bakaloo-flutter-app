@@ -520,9 +520,17 @@ class CheckoutNotifier extends _$CheckoutNotifier {
 
   double get subtotal => cart.subtotal;
 
-  double get deliveryFee => subtotal >= AppConstants.freeDeliveryThreshold
-      ? 0
-      : AppConstants.standardDeliveryFee;
+  // A coupon can waive delivery independent of the subtotal threshold (see
+  // CouponEntity.freeDelivery — either discountType FREE_DELIVERY or the
+  // grantsFreeDelivery flag on any other discount type). Previously this
+  // getter never read that flag at all, so an applied free-delivery coupon
+  // showed no visible effect here even though the backend genuinely waives
+  // the fee at order placement — this keeps the two in sync.
+  double get deliveryFee =>
+      (state.appliedCoupon?.freeDelivery ?? false) ||
+              subtotal >= AppConstants.freeDeliveryThreshold
+          ? 0
+          : AppConstants.standardDeliveryFee;
 
   double get discount {
     final amount = state.appliedCoupon?.discountAmount ?? 0;
