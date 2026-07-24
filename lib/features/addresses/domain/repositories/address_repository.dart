@@ -52,11 +52,20 @@ class PincodeValidationResult {
     required this.available,
     required this.deliveryFee,
     required this.estimatedMin,
+    this.city,
+    this.area,
+    this.state,
   });
 
   final bool available;
   final double deliveryFee;
   final int estimatedMin;
+
+  // Admin-curated override — only present when an active pincode mapping
+  // matches (see bakaloo-backend migration 089).
+  final String? city;
+  final String? area;
+  final String? state;
 }
 
 abstract class AddressRepository {

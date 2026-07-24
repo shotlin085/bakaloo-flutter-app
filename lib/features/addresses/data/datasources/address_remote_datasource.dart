@@ -9,11 +9,21 @@ class PincodeValidationModel {
     required this.available,
     required this.deliveryFee,
     required this.estimatedMin,
+    this.city,
+    this.area,
+    this.state,
   });
 
   final bool available;
   final double deliveryFee;
   final int estimatedMin;
+
+  // Admin-curated override from the dashboard's Pincode Mapping table —
+  // only present when an active mapping matches this pincode. Present so
+  // the address form can trust it over the public reverse-geocoder.
+  final String? city;
+  final String? area;
+  final String? state;
 }
 
 class AddressRemoteDataSource {
@@ -84,6 +94,9 @@ class AddressRemoteDataSource {
       available: json['available'] as bool? ?? false,
       deliveryFee: _toDouble(json['deliveryFee']),
       estimatedMin: json['estimatedMin'] as int? ?? 0,
+      city: (json['city'] as String?)?.trim(),
+      area: (json['area'] as String?)?.trim(),
+      state: (json['state'] as String?)?.trim(),
     );
   }
 

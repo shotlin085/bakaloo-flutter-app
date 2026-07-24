@@ -105,6 +105,21 @@ class _AddEditAddressScreenState extends ConsumerState<AddEditAddressScreen> {
     if ((_pincode ?? '').trim().isNotEmpty) {
       _schedulePincodeValidation(_pincode);
     }
+
+    // A brand-new address has no pin yet — most first-time customers don't
+    // know they need to tap the crosshair button on the map, so auto-fire
+    // the exact same current-location flow that button triggers as soon as
+    // this screen opens. Permission_handler only shows the system prompt
+    // when permission is still undetermined; if it's already granted this
+    // resolves silently with no dialog. The user still lands on the map
+    // picker to confirm/adjust the pin before anything is saved.
+    if (!_isEditing && !_hasPinnedLocation) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) {
+          unawaited(_openMapPickerFromCurrentLocation());
+        }
+      });
+    }
   }
 
   @override
@@ -431,6 +446,7 @@ class _AddEditAddressScreenState extends ConsumerState<AddEditAddressScreen> {
             _pincodeStatus = _PincodeValidationStatus.valid;
             _pincodeMessage =
                 'Delivery available in ${validation.estimatedMin} mins';
+            _applyPincodeMappingOverride(validation);
           } else {
             _pincodeStatus = _PincodeValidationStatus.invalid;
             _pincodeMessage = 'Delivery is not available at this pin yet.';
@@ -438,6 +454,32 @@ class _AddEditAddressScreenState extends ConsumerState<AddEditAddressScreen> {
         });
       },
     );
+  }
+
+  // Admin-curated override (dashboard: Settings -> Pincode Mapping) — only
+  // populated when this exact pincode has an ACTIVE mapping row. Unlike the
+  // reverse-geocoded guess (which is deliberately never used to fill City,
+  // see _applyMapResult above), this data is admin-verified, so City is
+  // safe to auto-fill here — this is precisely how known-wrong geocode
+  // results (e.g. some Gujarat pincodes resolving to the wrong city) get
+  // corrected for customers. Landmark is only filled when still empty, so a
+  // user's own note isn't overwritten.
+  void _applyPincodeMappingOverride(PincodeValidationResult validation) {
+    final mappedCity = validation.city?.trim();
+    if ((mappedCity ?? '').isNotEmpty) {
+      _city = mappedCity;
+      _cityController.text = mappedCity!;
+    }
+    final mappedState = validation.state?.trim();
+    if ((mappedState ?? '').isNotEmpty) {
+      _state = mappedState;
+      _stateController.text = mappedState!;
+    }
+    final mappedArea = validation.area?.trim();
+    if ((mappedArea ?? '').isNotEmpty &&
+        _landmarkController.text.trim().isEmpty) {
+      _landmarkController.text = mappedArea!;
+    }
   }
 
   Future<void> _prefillReceiverFromAccount() async {

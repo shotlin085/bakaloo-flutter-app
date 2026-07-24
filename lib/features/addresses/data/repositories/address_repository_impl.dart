@@ -131,6 +131,9 @@ class AddressRepositoryImpl implements AddressRepository {
           available: result.available,
           deliveryFee: result.deliveryFee,
           estimatedMin: result.estimatedMin,
+          city: result.city,
+          area: result.area,
+          state: result.state,
         ),
       );
     } on DioException catch (error) {
