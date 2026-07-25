@@ -18,6 +18,8 @@ import 'package:bakaloo_flutter_app/core/theme/app_colors.dart';
 import 'package:bakaloo_flutter_app/core/theme/app_text_styles.dart';
 import 'package:bakaloo_flutter_app/features/addresses/presentation/providers/address_provider.dart';
 import 'package:bakaloo_flutter_app/features/addresses/presentation/screens/add_edit_address_screen.dart';
+import 'package:bakaloo_flutter_app/features/auth/presentation/providers/auth_notifier.dart';
+import 'package:bakaloo_flutter_app/features/auth/presentation/providers/auth_state.dart';
 import 'package:bakaloo_flutter_app/shared/utils/address_utils.dart';
 import 'package:bakaloo_flutter_app/features/categories/domain/entities/category_entity.dart';
 import 'package:bakaloo_flutter_app/features/categories/presentation/providers/category_provider.dart';
@@ -87,6 +89,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
   late final ProviderSubscription<AsyncValue<Map<String, dynamic>>>
       _sectionSocketSub;
   late final ProviderSubscription<Timer> _themeRefreshTimerSub;
+  late final ProviderSubscription<AuthState> _authStateSub;
   late final ProviderSubscription<AsyncValue<HomeScreenData>> _homeDataSub;
   late final ProviderSubscription<AsyncValue<TabHomeContentResponse?>>
       _tabHomeContentSub;
@@ -162,6 +165,21 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
       themeRefreshTimerProvider,
       (_, __) {},
     );
+    // HomeScreen (part of AppShell, the always-mounted root) can be built
+    // before login completes — e.g. a guest view of Home. initState's own
+    // one-shot _maybeShowLocationPrompt call below then runs while still
+    // unauthenticated, finds nothing to do, and (being one-shot per
+    // session) never runs again on its own. Without this listener, logging
+    // in afterward never re-checks whether the address prompt should show
+    // — it only appeared once the customer fully restarted the app, which
+    // recreates this State fresh already logged in. Reported bug: "after
+    // login... not show... but I refresh application then that pop-up
+    // thing... coming."
+    _authStateSub = ref.listenManual(authStateProvider, (previous, next) {
+      if (next is AuthAuthenticated && previous is! AuthAuthenticated) {
+        unawaited(_maybeShowLocationPrompt());
+      }
+    });
     _deferredSectionStage.addListener(_rebuildStagedSlivers);
     // PHASE 4: Listen for tab changes and immediately reset scroll position
     // and deferred-section state so stale previous-tab content never bleeds
@@ -310,6 +328,17 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
   ///      still sees the sheet and its spinner/status text either way.
   Future<void> _maybeShowLocationPrompt() async {
     if (!mounted || _locationPromptShownThisSession) return;
+    // Checked synchronously, before the flag below — HomeScreen can be
+    // built (and this function's very first, initState-triggered call can
+    // run) before login completes, since it's part of AppShell's
+    // always-mounted root. If that first call burned the one-shot flag
+    // regardless of outcome, a customer who wasn't logged in yet at that
+    // moment would never get checked again after actually logging in —
+    // this function is one-shot per session specifically to prevent
+    // re-showing, not to silently give up the one time it happened to run
+    // too early. The real post-login check now comes from the
+    // authStateProvider listener set up in initState instead.
+    if (ref.read(authStateProvider) is! AuthAuthenticated) return;
     // Set this BEFORE any `await` below, not after — the live
     // service-status-stream listener (see the getServiceStatusStream
     // subscription above) can call this again while an earlier call is
@@ -468,6 +497,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
     _themeSocketSub.close();
     _sectionSocketSub.close();
     _themeRefreshTimerSub.close();
+    _authStateSub.close();
     _homeDataSub.close();
     _tabHomeContentSub.close();
     _tabKeySub.close();
