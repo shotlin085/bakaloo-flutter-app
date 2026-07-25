@@ -27,5 +27,11 @@ abstract class CouponEntity with _$CouponEntity {
     // effect instead, carried in these two fields.
     @Default(0) double cashbackAmount,
     @Default(false) bool freeDelivery,
+    // Scope this coupon was validated with — null/empty on both means it
+    // applies to the whole cart. Used to locally re-check "does the coupon
+    // still apply?" whenever cart contents change (see
+    // checkout_provider.dart#_syncCart) without another server round trip.
+    List<String>? applicableCategoryIds,
+    List<String>? applicableProductIds,
   }) = _CouponEntity;
 }

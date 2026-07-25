@@ -12,6 +12,8 @@ class CouponModel {
     this.terms,
     this.cashbackAmount = 0,
     this.freeDelivery = false,
+    this.applicableCategoryIds,
+    this.applicableProductIds,
   });
 
   final String code;
@@ -24,6 +26,8 @@ class CouponModel {
   final String? terms;
   final double cashbackAmount;
   final bool freeDelivery;
+  final List<String>? applicableCategoryIds;
+  final List<String>? applicableProductIds;
 
   factory CouponModel.fromJson(Map<String, dynamic> json) {
     return CouponModel(
@@ -68,6 +72,16 @@ class CouponModel {
         fallbackKey: 'cashback_amount',
       ),
       freeDelivery: json['freeDelivery'] == true || json['free_delivery'] == true,
+      applicableCategoryIds: _readStringList(
+        json,
+        'applicableCategoryIds',
+        fallbackKey: 'applicable_category_ids',
+      ),
+      applicableProductIds: _readStringList(
+        json,
+        'applicableProductIds',
+        fallbackKey: 'applicable_product_ids',
+      ),
     );
   }
 
@@ -83,6 +97,8 @@ class CouponModel {
       terms: terms,
       cashbackAmount: cashbackAmount,
       freeDelivery: freeDelivery,
+      applicableCategoryIds: applicableCategoryIds,
+      applicableProductIds: applicableProductIds,
     );
   }
 
@@ -162,6 +178,31 @@ class CouponModel {
       }
     }
     return 0;
+  }
+
+  static List<String>? _readStringList(
+    Map<String, dynamic> json,
+    String key, {
+    String? fallbackKey,
+  }) {
+    final keys = <String>[
+      key,
+      if (fallbackKey != null) fallbackKey,
+    ];
+    for (final current in keys) {
+      final value = json[current];
+      if (value is List) {
+        final items = value
+            .whereType<String>()
+            .map((item) => item.trim())
+            .where((item) => item.isNotEmpty)
+            .toList(growable: false);
+        if (items.isNotEmpty) {
+          return items;
+        }
+      }
+    }
+    return null;
   }
 
   static String? _readTerms(Object? value) {

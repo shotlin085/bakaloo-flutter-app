@@ -594,9 +594,47 @@ class CheckoutNotifier extends _$CheckoutNotifier {
         errorMessage:
             'Coupon removed because the cart total is below the minimum order amount.',
       );
+    } else if (currentCoupon != null &&
+        !_couponStillMatchesCart(currentCoupon, nextCart)) {
+      // Reported bug: a coupon scoped to a specific product/category (e.g.
+      // one vegetable item) stayed "applied" and kept discounting the bill
+      // even after that item was removed and only out-of-scope items (e.g.
+      // dairy) were left — nothing ever re-checked scope after the initial
+      // apply. Every cart mutation already flows through here, so this is
+      // the one place that needed the extra check.
+      nextState = nextState.copyWith(
+        appliedCoupon: null,
+        errorMessage:
+            'Coupon removed — it no longer applies to the items in your cart.',
+      );
     }
 
     state = nextState;
+  }
+
+  /// True if [coupon] still applies to at least one line in [cart] — a
+  /// coupon with no product/category scope on either list applies to the
+  /// whole cart, so it always matches. Otherwise it's a hash-set membership
+  /// check per cart line: O(items + scope size), purely local, no network
+  /// or database call — this only ever re-derives from data the original
+  /// /coupons/validate response already returned.
+  bool _couponStillMatchesCart(CouponEntity coupon, CartEntity cart) {
+    final productIds = coupon.applicableProductIds;
+    final categoryIds = coupon.applicableCategoryIds;
+    final hasProductScope = productIds != null && productIds.isNotEmpty;
+    final hasCategoryScope = categoryIds != null && categoryIds.isNotEmpty;
+    if (!hasProductScope && !hasCategoryScope) {
+      return true;
+    }
+
+    final productIdSet = hasProductScope ? productIds.toSet() : const <String>{};
+    final categoryIdSet = hasCategoryScope ? categoryIds.toSet() : const <String>{};
+
+    return cart.items.any(
+      (item) =>
+          productIdSet.contains(item.productId) ||
+          (item.categoryId != null && categoryIdSet.contains(item.categoryId)),
+    );
   }
 
   AddressEntity? _defaultAddress(List<AddressEntity>? addresses) {
