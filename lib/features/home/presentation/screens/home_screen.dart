@@ -310,6 +310,19 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
   ///      still sees the sheet and its spinner/status text either way.
   Future<void> _maybeShowLocationPrompt() async {
     if (!mounted || _locationPromptShownThisSession) return;
+    // Set this BEFORE any `await` below, not after — the live
+    // service-status-stream listener (see the getServiceStatusStream
+    // subscription above) can call this again while an earlier call is
+    // still mid-flight (e.g. awaiting the address list, or awaiting the
+    // sheet's own success delay). If the flag were only set after those
+    // awaits, as it used to be, two near-simultaneous calls could both
+    // pass the guard above before either one set it, and each would push
+    // its own screen — the sheet from the first call still animating
+    // closed (or still sitting there needing a manual swipe-down) while
+    // the address-completion screen from the second call appears on top
+    // of it. Reported bug: "detect complete then that [sheet] should not
+    // come" — a second call slipping through this exact gap.
+    _locationPromptShownThisSession = true;
     try {
       final addresses = await ref.read(addressProvider.future);
 
@@ -325,8 +338,18 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
         // empty addressLine2 only ever means "never finished."
         if ((defaultAddress.addressLine2 ?? '').trim().isEmpty) {
           if (!mounted) return;
-          _locationPromptShownThisSession = true;
-          await Navigator.of(context).push<void>(
+          // rootNavigator: true — this screen lives inside AppShell's Home
+          // tab, itself its own nested (branch) Navigator per go_router's
+          // StatefulNavigationShell. A plain Navigator.of(context) push
+          // targets that branch navigator, so AppShell's persistent bottom
+          // tab bar (rendered above/outside it) stays fully visible and
+          // tappable over what's supposed to be a "complete this first"
+          // forced screen — the customer can just tap "Orders" or
+          // "Profile" and walk straight past forceCompletion's back-button
+          // block. showLocationPromptSheet already avoids this exact trap
+          // for its own sheet via useRootNavigator: true; this needs the
+          // same escape.
+          await Navigator.of(context, rootNavigator: true).push<void>(
             MaterialPageRoute<void>(
               builder: (_) => AddEditAddressScreen(
                 initialAddress: defaultAddress,
@@ -349,8 +372,6 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
           permissionGranted && await Geolocator.isLocationServiceEnabled();
       if (!mounted) return;
 
-      // Set flag before awaiting the sheet so a rapid resume can't double-show.
-      _locationPromptShownThisSession = true;
       final autoDetectedAddress = await showLocationPromptSheet(
         context,
         autoTrigger: permissionGranted && serviceEnabled,
@@ -358,7 +379,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
       );
       if (!mounted || autoDetectedAddress == null) return;
 
-      await Navigator.of(context).push<void>(
+      // Same rootNavigator escape as above — see that call's comment.
+      await Navigator.of(context, rootNavigator: true).push<void>(
         MaterialPageRoute<void>(
           builder: (_) => AddEditAddressScreen(
             initialAddress: autoDetectedAddress,
