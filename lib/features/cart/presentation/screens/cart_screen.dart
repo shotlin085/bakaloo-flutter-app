@@ -19,9 +19,11 @@ import 'package:bakaloo_flutter_app/features/cart/presentation/widgets/cart_bill
 import 'package:bakaloo_flutter_app/features/cart/presentation/widgets/cart_bottom_bar.dart';
 import 'package:bakaloo_flutter_app/features/cart/presentation/widgets/cart_coupons_offers.dart';
 import 'package:bakaloo_flutter_app/features/cart/presentation/widgets/cart_delivery_header.dart';
+import 'package:bakaloo_flutter_app/features/cart/presentation/widgets/cart_first_time_offer_teaser.dart';
 import 'package:bakaloo_flutter_app/features/cart/presentation/widgets/cart_item_card.dart';
 import 'package:bakaloo_flutter_app/features/cart/presentation/widgets/cart_misc_widgets.dart';
 import 'package:bakaloo_flutter_app/features/cart/presentation/widgets/cart_ordering_for.dart';
+import 'package:bakaloo_flutter_app/features/cart/presentation/widgets/cart_quick_add_section.dart';
 import 'package:bakaloo_flutter_app/features/cart/presentation/widgets/cart_savings_banner.dart';
 import 'package:bakaloo_flutter_app/features/cart/presentation/widgets/cart_savings_breakdown.dart';
 import 'package:bakaloo_flutter_app/features/cart/presentation/widgets/cart_tip_section.dart';
@@ -80,7 +82,8 @@ class _CartScreenState extends ConsumerState<CartScreen> {
     );
     // Bottom bar mirrors the bill's "To pay" — backend total when available,
     // otherwise the item subtotal while the summary loads.
-    final toPay = billSummary != null ? displayBillSummary.payable : cart.subtotal;
+    final toPay =
+        billSummary != null ? displayBillSummary.payable : cart.subtotal;
 
     return Scaffold(
       backgroundColor: const Color(0xFFF5F5F5),
@@ -210,6 +213,35 @@ class _CartScreenState extends ConsumerState<CartScreen> {
 
     widgets.add(
       RepaintBoundary(
+        child: _buildDeliveryHeader(
+          context: context,
+          estimateMinutes: estimateMinutes,
+          itemCount: cart.itemCount,
+        ),
+      ),
+    );
+    widgets.add(const CartSectionDivider());
+
+    widgets.addAll(_buildItemCards(context, cart.items));
+    widgets.add(const CartSectionDivider());
+
+    // Divider is bundled inside the section itself (not added here) since
+    // whether it has anything to show is only known once the async
+    // suggestions load — see CartQuickAddSection.
+    widgets.add(const RepaintBoundary(child: CartQuickAddSection()));
+
+    widgets.add(const RepaintBoundary(child: CartTipSection()));
+
+    if (hasAddress) {
+      widgets.add(const CartSectionDivider());
+      widgets.add(const RepaintBoundary(child: CartOrderingFor()));
+      widgets.add(const CartSectionDivider());
+      widgets.add(const RepaintBoundary(child: CartCancellationPolicy()));
+    }
+
+    widgets.add(const CartSectionDivider());
+    widgets.add(
+      RepaintBoundary(
         child: CartCouponsOffers(
           onViewCoupons: () {
             Navigator.of(context).push<void>(
@@ -223,30 +255,17 @@ class _CartScreenState extends ConsumerState<CartScreen> {
     );
     widgets.add(const CartSectionDivider());
 
-    widgets.add(
-      RepaintBoundary(
-        child: _buildDeliveryHeader(
-          context: context,
-          estimateMinutes: estimateMinutes,
-          itemCount: cart.itemCount,
+    if (billSummary.firstTimeOfferTeaser != null) {
+      widgets.add(
+        RepaintBoundary(
+          child: CartFirstTimeOfferTeaser(
+            teaser: billSummary.firstTimeOfferTeaser!,
+          ),
         ),
-      ),
-    );
-    widgets.add(const CartSectionDivider());
-
-    widgets.addAll(_buildItemCards(context, cart.items));
-    widgets.add(const CartSectionDivider());
-
-    widgets.add(const RepaintBoundary(child: CartTipSection()));
-
-    if (hasAddress) {
+      );
       widgets.add(const CartSectionDivider());
-      widgets.add(const RepaintBoundary(child: CartOrderingFor()));
-      widgets.add(const CartSectionDivider());
-      widgets.add(const RepaintBoundary(child: CartCancellationPolicy()));
     }
 
-    widgets.add(const CartSectionDivider());
     widgets.add(
       billSummaryAsync.when(
         loading: () => RepaintBoundary(child: _buildBillSummaryShimmer()),

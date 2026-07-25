@@ -25,14 +25,25 @@ import 'package:bakaloo_flutter_app/features/addresses/presentation/providers/ad
 import 'package:bakaloo_flutter_app/features/addresses/presentation/screens/address_map_picker_screen.dart';
 import 'package:bakaloo_flutter_app/features/auth/presentation/providers/auth_notifier.dart';
 import 'package:bakaloo_flutter_app/features/auth/presentation/providers/auth_state.dart';
+import 'package:bakaloo_flutter_app/features/products/presentation/widgets/show_product_options.dart';
 
 class AddEditAddressScreen extends ConsumerStatefulWidget {
   const AddEditAddressScreen({
     this.initialAddress,
+    this.forceCompletion = false,
     super.key,
   });
 
   final AddressEntity? initialAddress;
+
+  /// True when this screen is the required next step right after location
+  /// auto-detect silently saved an address from reverse geocoding alone —
+  /// that only ever knows the street/area, never a house or building
+  /// number, so this step isn't optional the way editing an
+  /// already-complete address normally would be. Hides the back button and
+  /// blocks the Android back gesture; "SAVE ADDRESS" (already disabled
+  /// until House No. is filled) is the only way out.
+  final bool forceCompletion;
 
   @override
   ConsumerState<AddEditAddressScreen> createState() =>
@@ -96,6 +107,17 @@ class _AddEditAddressScreenState extends ConsumerState<AddEditAddressScreen> {
   @override
   void initState() {
     super.initState();
+    // The global Smart Bottom Bar (cart/milestone pill) sits in a Stack
+    // above every routed page regardless of which screen is showing, and
+    // this is the one existing flag it already checks to hide itself (see
+    // app_bottom_nav.dart) — previously only address_bottom_sheet.dart set
+    // it, so this full-page address flow never engaged it and the pill
+    // rendered on top of this screen's own bottom-docked Save/Confirm
+    // button, sometimes covering it entirely. AddressMapPickerScreen is
+    // only ever pushed from this screen and never disposes it while doing
+    // so, so this one flag correctly covers that child screen too — no
+    // separate on/off pair needed there.
+    addressSheetVisible.value = true;
     _seedFromInitialAddress();
     _addressController.addListener(_handleFormStateChanged);
     _houseNoController.addListener(_handleFormStateChanged);
@@ -144,6 +166,7 @@ class _AddEditAddressScreenState extends ConsumerState<AddEditAddressScreen> {
     _receiverNameController.dispose();
     _receiverPhoneController.dispose();
     _pincodeDebouncer.dispose();
+    addressSheetVisible.value = false;
     super.dispose();
   }
 
@@ -263,7 +286,9 @@ class _AddEditAddressScreenState extends ConsumerState<AddEditAddressScreen> {
       }
 
       if (!permission.isGranted) {
-        AppToast.show(context, '📍 Location permission is required to detect your location.', type: ToastType.warning);
+        AppToast.show(context,
+            '📍 Location permission is required to detect your location.',
+            type: ToastType.warning);
         return;
       }
 
@@ -272,7 +297,8 @@ class _AddEditAddressScreenState extends ConsumerState<AddEditAddressScreen> {
         return;
       }
       if (!serviceEnabled) {
-        AppToast.show(context, '📍 Turn on location services and try again.', type: ToastType.warning);
+        AppToast.show(context, '📍 Turn on location services and try again.',
+            type: ToastType.warning);
         return;
       }
 
@@ -500,11 +526,13 @@ class _AddEditAddressScreenState extends ConsumerState<AddEditAddressScreen> {
         setState(() {});
         return;
       }
-      AppToast.show(context, '✅ Receiver details are already filled.', type: ToastType.info);
+      AppToast.show(context, '✅ Receiver details are already filled.',
+          type: ToastType.info);
       return;
     }
 
-    AppToast.show(context, 'ℹ️ Add receiver details manually.', type: ToastType.info);
+    AppToast.show(context, 'ℹ️ Add receiver details manually.',
+        type: ToastType.info);
   }
 
   Future<void> _saveAddress() async {
@@ -515,7 +543,9 @@ class _AddEditAddressScreenState extends ConsumerState<AddEditAddressScreen> {
     }
 
     if (!_hasPinnedLocation) {
-      AppToast.show(context, '📍 Pick the delivery pin before saving this address.', type: ToastType.warning);
+      AppToast.show(
+          context, '📍 Pick the delivery pin before saving this address.',
+          type: ToastType.warning);
       return;
     }
 
@@ -523,7 +553,8 @@ class _AddEditAddressScreenState extends ConsumerState<AddEditAddressScreen> {
         (_city ?? '').trim().isEmpty ||
         (_state ?? '').trim().isEmpty ||
         (_pincode ?? '').trim().isEmpty) {
-      AppToast.show(context, '📍 Choose a valid delivery pin to continue.', type: ToastType.warning);
+      AppToast.show(context, '📍 Choose a valid delivery pin to continue.',
+          type: ToastType.warning);
       return;
     }
 
@@ -590,230 +621,238 @@ class _AddEditAddressScreenState extends ConsumerState<AddEditAddressScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: AppColors.bgPrimary,
-      appBar: AppBar(
-        backgroundColor: Colors.white,
-        elevation: 0,
-        scrolledUnderElevation: 0,
-        surfaceTintColor: Colors.transparent,
-        titleSpacing: 0,
-        leading: IconButton(
-          onPressed: () => Navigator.of(context).maybePop(),
-          icon: PhosphorIcon(
-            PhosphorIcons.caretLeftBold,
-            size: 20.sp,
-            color: AppColors.textPrimary,
-          ),
-        ),
-        title: Text('Add Address Details', style: AppTextStyles.h2),
-      ),
-      bottomNavigationBar: SafeArea(
-        top: false,
-        child: Container(
-          padding: EdgeInsets.fromLTRB(16.w, 12.h, 16.w, 12.h),
-          decoration: const BoxDecoration(
-            color: Colors.white,
-            boxShadow: <BoxShadow>[AppShadows.floatingShadow],
-          ),
-          child: SizedBox(
-            height: 52.h,
-            child: FilledButton(
-              onPressed: _canSave ? _saveAddress : null,
-              style: FilledButton.styleFrom(
-                backgroundColor: AppColors.primaryGreen,
-                disabledBackgroundColor: const Color(0xFFE8E8E8),
-                disabledForegroundColor: AppColors.textTertiary,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(AppDimensions.radiusMd),
+    return PopScope(
+      canPop: !widget.forceCompletion,
+      child: Scaffold(
+        backgroundColor: AppColors.bgPrimary,
+        appBar: AppBar(
+          backgroundColor: Colors.white,
+          elevation: 0,
+          scrolledUnderElevation: 0,
+          surfaceTintColor: Colors.transparent,
+          titleSpacing: 0,
+          automaticallyImplyLeading: false,
+          leading: widget.forceCompletion
+              ? null
+              : IconButton(
+                  onPressed: () => Navigator.of(context).maybePop(),
+                  icon: PhosphorIcon(
+                    PhosphorIcons.caretLeftBold,
+                    size: 20.sp,
+                    color: AppColors.textPrimary,
+                  ),
                 ),
+          title: Text('Add Address Details', style: AppTextStyles.h2),
+        ),
+        bottomNavigationBar: SafeArea(
+          top: false,
+          child: Container(
+            padding: EdgeInsets.fromLTRB(16.w, 12.h, 16.w, 12.h),
+            decoration: const BoxDecoration(
+              color: Colors.white,
+              boxShadow: <BoxShadow>[AppShadows.floatingShadow],
+            ),
+            child: SizedBox(
+              height: 52.h,
+              child: FilledButton(
+                onPressed: _canSave ? _saveAddress : null,
+                style: FilledButton.styleFrom(
+                  backgroundColor: AppColors.primaryGreen,
+                  disabledBackgroundColor: const Color(0xFFE8E8E8),
+                  disabledForegroundColor: AppColors.textTertiary,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(AppDimensions.radiusMd),
+                  ),
+                ),
+                child: _isSaving
+                    ? SizedBox(
+                        width: 20.w,
+                        height: 20.w,
+                        child: const CircularProgressIndicator(
+                          strokeWidth: 2,
+                          valueColor:
+                              AlwaysStoppedAnimation<Color>(Colors.white),
+                        ),
+                      )
+                    : Text(
+                        'SAVE ADDRESS',
+                        style: AppTextStyles.buttonLarge.copyWith(
+                          color:
+                              _canSave ? Colors.white : AppColors.textSecondary,
+                        ),
+                      ),
               ),
-              child: _isSaving
-                  ? SizedBox(
-                      width: 20.w,
-                      height: 20.w,
-                      child: const CircularProgressIndicator(
-                        strokeWidth: 2,
-                        valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
-                      ),
-                    )
-                  : Text(
-                      'SAVE ADDRESS',
-                      style: AppTextStyles.buttonLarge.copyWith(
-                        color:
-                            _canSave ? Colors.white : AppColors.textSecondary,
-                      ),
-                    ),
             ),
           ),
         ),
-      ),
-      body: SafeArea(
-        top: false,
-        child: SingleChildScrollView(
-          padding: EdgeInsets.only(bottom: 120.h),
-          child: Form(
-            key: _formKey,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: <Widget>[
-                Container(
-                  color: Colors.white,
-                  child: Column(
-                    children: <Widget>[
-                      _CompactMapPreview(
-                        point: _previewPoint,
-                        hasPinnedLocation: _hasPinnedLocation,
-                        isLocating: _isLocating,
-                        onCurrentLocationTap: _openMapPickerFromCurrentLocation,
-                      ),
-                      _AddressHeader(
-                        buttonLabel: _hasPinnedLocation ? 'Change' : 'Pick',
-                        statusMessage: _pincodeMessage,
-                        statusColor: switch (_pincodeStatus) {
-                          _PincodeValidationStatus.valid =>
-                            AppColors.primaryGreen,
-                          _PincodeValidationStatus.invalid =>
-                            AppColors.errorRed,
-                          _PincodeValidationStatus.loading =>
-                            AppColors.textSecondary,
-                          _PincodeValidationStatus.idle =>
-                            AppColors.textSecondary,
-                        },
-                        onChangeTap: _openMapPicker,
-                      ),
-                      const Divider(height: 1, color: AppColors.divider),
-                    ],
-                  ),
-                ),
-                Padding(
-                  padding: EdgeInsets.fromLTRB(16.w, 18.h, 16.w, 0),
-                  child: Text(
-                    'Add Address',
-                    style: AppTextStyles.labelLarge.copyWith(
-                      fontFamily: 'Poppins',
-                      fontSize: 14.sp,
-                      fontWeight: FontWeight.w600,
+        body: SafeArea(
+          top: false,
+          child: SingleChildScrollView(
+            padding: EdgeInsets.only(bottom: 120.h),
+            child: Form(
+              key: _formKey,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: <Widget>[
+                  Container(
+                    color: Colors.white,
+                    child: Column(
+                      children: <Widget>[
+                        _CompactMapPreview(
+                          point: _previewPoint,
+                          hasPinnedLocation: _hasPinnedLocation,
+                          isLocating: _isLocating,
+                          onCurrentLocationTap:
+                              _openMapPickerFromCurrentLocation,
+                        ),
+                        _AddressHeader(
+                          buttonLabel: _hasPinnedLocation ? 'Change' : 'Pick',
+                          statusMessage: _pincodeMessage,
+                          statusColor: switch (_pincodeStatus) {
+                            _PincodeValidationStatus.valid =>
+                              AppColors.primaryGreen,
+                            _PincodeValidationStatus.invalid =>
+                              AppColors.errorRed,
+                            _PincodeValidationStatus.loading =>
+                              AppColors.textSecondary,
+                            _PincodeValidationStatus.idle =>
+                              AppColors.textSecondary,
+                          },
+                          onChangeTap: _openMapPicker,
+                        ),
+                        const Divider(height: 1, color: AppColors.divider),
+                      ],
                     ),
                   ),
-                ),
-                Padding(
-                  padding: EdgeInsets.fromLTRB(16.w, 16.h, 16.w, 0),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: <Widget>[
-                      _FormField(
-                        controller: _houseNoController,
-                        label: 'House No. & Floor *',
-                        textInputAction: TextInputAction.next,
-                        validator: (String? value) {
-                          if ((value ?? '').trim().isEmpty) {
-                            return 'House no. and floor are required.';
-                          }
-                          return null;
-                        },
+                  Padding(
+                    padding: EdgeInsets.fromLTRB(16.w, 18.h, 16.w, 0),
+                    child: Text(
+                      'Add Address',
+                      style: AppTextStyles.labelLarge.copyWith(
+                        fontFamily: 'Poppins',
+                        fontSize: 14.sp,
+                        fontWeight: FontWeight.w600,
                       ),
-                      Gap(12.h),
-                      _FormField(
-                        controller: _buildingController,
-                        label: 'Building & Block No. (Optional)',
-                        textInputAction: TextInputAction.next,
-                      ),
-                      Gap(12.h),
-                      _FormField(
-                        controller: _addressController,
-                        label: 'Address *',
-                        textInputAction: TextInputAction.next,
-                        validator: (String? value) {
-                          if ((value ?? '').trim().isEmpty) {
-                            return 'Address is required.';
-                          }
-                          return null;
-                        },
-                      ),
-                      Gap(12.h),
-                      _FormField(
-                        controller: _landmarkController,
-                        label: 'Landmark & Area Name (Optional)',
-                        textInputAction: TextInputAction.next,
-                      ),
-                      Gap(12.h),
-                      Row(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: <Widget>[
-                          Expanded(
-                            child: _FormField(
-                              controller: _cityController,
-                              label: 'City *',
-                              textInputAction: TextInputAction.next,
-                              validator: (String? value) {
-                                if ((value ?? '').trim().isEmpty) {
-                                  return 'City is required.';
-                                }
-                                return null;
-                              },
-                            ),
-                          ),
-                          Gap(12.w),
-                          Expanded(
-                            child: _FormField(
-                              controller: _pincodeController,
-                              label: 'PIN Code *',
-                              keyboardType: TextInputType.number,
-                              textInputAction: TextInputAction.next,
-                              maxLength: 6,
-                              validator: (String? value) {
-                                final trimmed = (value ?? '').trim();
-                                if (trimmed.isEmpty) {
-                                  return 'PIN code is required.';
-                                }
-                                return Validators.validatePincode(trimmed);
-                              },
-                            ),
-                          ),
-                        ],
-                      ),
-                      Gap(12.h),
-                      _FormField(
-                        controller: _stateController,
-                        label: 'State *',
-                        textInputAction: TextInputAction.done,
-                        validator: (String? value) {
-                          if ((value ?? '').trim().isEmpty) {
-                            return 'State is required.';
-                          }
-                          return null;
-                        },
-                      ),
-                      Gap(20.h),
-                      Text(
-                        'Add Address Label',
-                        style: AppTextStyles.labelLarge.copyWith(
-                          fontFamily: 'Poppins',
-                          fontSize: 14.sp,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                      Gap(12.h),
-                      _LabelChipSelector(
-                        labels: _labels,
-                        selectedLabel: _selectedLabel,
-                        onSelected: (String label) {
-                          setState(() {
-                            _selectedLabel = label;
-                          });
-                        },
-                      ),
-                      Gap(22.h),
-                      _ReceiverSection(
-                        nameController: _receiverNameController,
-                        phoneController: _receiverPhoneController,
-                        onContactTap: _prefillReceiverFromAccount,
-                      ),
-                    ],
+                    ),
                   ),
-                ),
-              ],
+                  Padding(
+                    padding: EdgeInsets.fromLTRB(16.w, 16.h, 16.w, 0),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: <Widget>[
+                        _FormField(
+                          controller: _houseNoController,
+                          label: 'House No. & Floor *',
+                          textInputAction: TextInputAction.next,
+                          validator: (String? value) {
+                            if ((value ?? '').trim().isEmpty) {
+                              return 'House no. and floor are required.';
+                            }
+                            return null;
+                          },
+                        ),
+                        Gap(12.h),
+                        _FormField(
+                          controller: _buildingController,
+                          label: 'Building & Block No. (Optional)',
+                          textInputAction: TextInputAction.next,
+                        ),
+                        Gap(12.h),
+                        _FormField(
+                          controller: _addressController,
+                          label: 'Address *',
+                          textInputAction: TextInputAction.next,
+                          validator: (String? value) {
+                            if ((value ?? '').trim().isEmpty) {
+                              return 'Address is required.';
+                            }
+                            return null;
+                          },
+                        ),
+                        Gap(12.h),
+                        _FormField(
+                          controller: _landmarkController,
+                          label: 'Landmark & Area Name (Optional)',
+                          textInputAction: TextInputAction.next,
+                        ),
+                        Gap(12.h),
+                        Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: <Widget>[
+                            Expanded(
+                              child: _FormField(
+                                controller: _cityController,
+                                label: 'City *',
+                                textInputAction: TextInputAction.next,
+                                validator: (String? value) {
+                                  if ((value ?? '').trim().isEmpty) {
+                                    return 'City is required.';
+                                  }
+                                  return null;
+                                },
+                              ),
+                            ),
+                            Gap(12.w),
+                            Expanded(
+                              child: _FormField(
+                                controller: _pincodeController,
+                                label: 'PIN Code *',
+                                keyboardType: TextInputType.number,
+                                textInputAction: TextInputAction.next,
+                                maxLength: 6,
+                                validator: (String? value) {
+                                  final trimmed = (value ?? '').trim();
+                                  if (trimmed.isEmpty) {
+                                    return 'PIN code is required.';
+                                  }
+                                  return Validators.validatePincode(trimmed);
+                                },
+                              ),
+                            ),
+                          ],
+                        ),
+                        Gap(12.h),
+                        _FormField(
+                          controller: _stateController,
+                          label: 'State *',
+                          textInputAction: TextInputAction.done,
+                          validator: (String? value) {
+                            if ((value ?? '').trim().isEmpty) {
+                              return 'State is required.';
+                            }
+                            return null;
+                          },
+                        ),
+                        Gap(20.h),
+                        Text(
+                          'Add Address Label',
+                          style: AppTextStyles.labelLarge.copyWith(
+                            fontFamily: 'Poppins',
+                            fontSize: 14.sp,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                        Gap(12.h),
+                        _LabelChipSelector(
+                          labels: _labels,
+                          selectedLabel: _selectedLabel,
+                          onSelected: (String label) {
+                            setState(() {
+                              _selectedLabel = label;
+                            });
+                          },
+                        ),
+                        Gap(22.h),
+                        _ReceiverSection(
+                          nameController: _receiverNameController,
+                          phoneController: _receiverPhoneController,
+                          onContactTap: _prefillReceiverFromAccount,
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
             ),
           ),
         ),
@@ -1269,7 +1308,6 @@ String? _firstNonEmpty(List<String?> values) {
   }
   return null;
 }
-
 
 String? _emptyToNull(String value) {
   final trimmed = value.trim();

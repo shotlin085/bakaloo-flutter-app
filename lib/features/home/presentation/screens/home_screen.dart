@@ -17,6 +17,7 @@ import 'package:bakaloo_flutter_app/core/theme/tab_home_content_model.dart';
 import 'package:bakaloo_flutter_app/core/theme/app_colors.dart';
 import 'package:bakaloo_flutter_app/core/theme/app_text_styles.dart';
 import 'package:bakaloo_flutter_app/features/addresses/presentation/providers/address_provider.dart';
+import 'package:bakaloo_flutter_app/features/addresses/presentation/screens/add_edit_address_screen.dart';
 import 'package:bakaloo_flutter_app/shared/utils/address_utils.dart';
 import 'package:bakaloo_flutter_app/features/categories/domain/entities/category_entity.dart';
 import 'package:bakaloo_flutter_app/features/categories/presentation/providers/category_provider.dart';
@@ -215,6 +216,11 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
         Geolocator.getServiceStatusStream().listen((status) {
       if (status == ServiceStatus.enabled) {
         _locationPromptShownThisSession = false;
+        // The whole point of nudging the customer to flip this toggle is to
+        // get their address saved the moment it happens, not to wait for
+        // them to come back later — _maybeShowLocationPrompt will still
+        // show the sheet if there's no address yet, just auto-triggered.
+        unawaited(_maybeShowLocationPrompt());
       } else if (status == ServiceStatus.disabled) {
         unawaited(_maybeShowLocationPrompt());
       }
@@ -282,10 +288,19 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
     }
   }
 
-  /// Shows the location prompt if location is currently off. Runs on cold
-  /// start, app resume, and every live service-status-disabled event: at
-  /// most once per disabled streak (_locationPromptShownThisSession is reset
-  /// when the service is re-enabled, so a later disable can prompt again).
+  /// Shows the location prompt if location is currently off, or the
+  /// customer has no saved address yet. Runs on cold start, app resume, and
+  /// every live service-status event (enabled or disabled): at most once
+  /// per disabled streak (_locationPromptShownThisSession is reset when the
+  /// service is re-enabled, so a later disable can prompt again).
+  ///
+  /// The sheet itself is always what appears — no separate invisible
+  /// background path — but when permission is already granted and service
+  /// is already on (nothing left to enable), it's told to auto-trigger
+  /// detection the moment it opens instead of waiting for an "Enable" tap.
+  /// The customer still sees the sheet and its spinner/status text; this
+  /// only removes a redundant extra tap for the case where it's obviously
+  /// going to work anyway.
   Future<void> _maybeShowLocationPrompt() async {
     if (!mounted || _locationPromptShownThisSession) return;
     try {
@@ -294,9 +309,39 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
       final shouldShow =
           await ref.read(locationPromptShouldShowProvider.future);
       if (!mounted || !shouldShow) return;
+
+      final addresses = await ref.read(addressProvider.future);
+      final permission = await Geolocator.checkPermission();
+      final permissionGranted = permission == LocationPermission.always ||
+          permission == LocationPermission.whileInUse;
+      final serviceEnabled =
+          permissionGranted && await Geolocator.isLocationServiceEnabled();
+      if (!mounted) return;
+
       // Set flag before awaiting the sheet so a rapid resume can't double-show.
       _locationPromptShownThisSession = true;
-      await showLocationPromptSheet(context);
+      final autoDetectedAddress = await showLocationPromptSheet(
+        context,
+        autoTrigger: permissionGranted && serviceEnabled,
+        // No saved address at all is the hard-blocker case — force it. If
+        // they already have one, this is showing only because location
+        // itself is off; that's a courtesy nudge, not something to force.
+        mandatory: addresses.isEmpty,
+      );
+      if (!mounted || autoDetectedAddress == null) return;
+
+      // Reverse geocoding only ever knows the street/area, never a house or
+      // building number — chain straight into completing that instead of
+      // leaving the customer with a half-filled address and no prompt to
+      // finish it.
+      await Navigator.of(context).push<void>(
+        MaterialPageRoute<void>(
+          builder: (_) => AddEditAddressScreen(
+            initialAddress: autoDetectedAddress,
+            forceCompletion: true,
+          ),
+        ),
+      );
     } catch (_) {
       // Non-critical — silently ignore
     }

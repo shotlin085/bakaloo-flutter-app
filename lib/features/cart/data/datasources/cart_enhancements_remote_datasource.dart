@@ -7,6 +7,8 @@ import 'package:bakaloo_flutter_app/core/network/api_client.dart';
 import 'package:bakaloo_flutter_app/features/cart/domain/entities/bill_summary_entity.dart';
 import 'package:bakaloo_flutter_app/features/cart/domain/entities/payment_offer_entity.dart';
 import 'package:bakaloo_flutter_app/features/cart/domain/entities/tip_preset_entity.dart';
+import 'package:bakaloo_flutter_app/features/products/data/models/product_model.dart';
+import 'package:bakaloo_flutter_app/features/products/domain/entities/product_entity.dart';
 
 class CartEnhancementsRemoteDataSource {
   const CartEnhancementsRemoteDataSource(this._apiClient);
@@ -149,6 +151,35 @@ class CartEnhancementsRemoteDataSource {
       return const Left(
         UnknownFailure(
           message: 'Unable to load last-minute products right now.',
+        ),
+      );
+    }
+  }
+
+  Future<Either<Failure, List<ProductEntity>>> getCartQuickAdd({
+    int limit = 12,
+  }) async {
+    try {
+      final response = await _apiClient.getCartQuickAdd(limit);
+      final rawProducts = _extractListResponse(
+        response.data,
+        fallbackMessage: 'Unable to load quick add suggestions right now.',
+      );
+      final products = rawProducts
+          .whereType<Map>()
+          .map(
+            (item) => ProductModel.fromJson(
+              Map<String, dynamic>.from(item),
+            ).toEntity(),
+          )
+          .toList(growable: false);
+      return Right(products);
+    } on DioException catch (error) {
+      return Left(handleDioError(error));
+    } catch (_) {
+      return const Left(
+        UnknownFailure(
+          message: 'Unable to load quick add suggestions right now.',
         ),
       );
     }

@@ -1,3 +1,4 @@
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
@@ -9,8 +10,10 @@ import 'package:bakaloo_flutter_app/core/theme/app_dimensions.dart';
 import 'package:bakaloo_flutter_app/core/theme/app_shadows.dart';
 import 'package:bakaloo_flutter_app/core/theme/app_text_styles.dart';
 import 'package:bakaloo_flutter_app/core/utils/extensions/double_extensions.dart';
+import 'package:bakaloo_flutter_app/features/cart/domain/entities/cart_item_entity.dart';
 import 'package:bakaloo_flutter_app/features/cart/domain/entities/payment_offer_entity.dart';
 import 'package:bakaloo_flutter_app/features/cart/presentation/providers/cart_enhancement_providers.dart';
+import 'package:bakaloo_flutter_app/features/cart/presentation/providers/cart_provider.dart';
 import 'package:bakaloo_flutter_app/features/checkout/domain/entities/coupon_entity.dart';
 import 'package:bakaloo_flutter_app/features/checkout/presentation/providers/checkout_provider.dart';
 import 'package:bakaloo_flutter_app/features/checkout/presentation/providers/coupon_provider.dart';
@@ -81,16 +84,39 @@ class _CouponsScreenState extends ConsumerState<CouponsScreen> {
     }
 
     final error = ref.read(checkoutProvider).errorMessage;
-    if (error != null && context.mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(error),
-          behavior: SnackBarBehavior.floating,
-          backgroundColor: AppColors.errorRed,
-        ),
-      );
-      ref.read(checkoutProvider.notifier).clearError();
-    }
+    if (error == null || !context.mounted) return;
+
+    ref.read(checkoutProvider.notifier).clearError();
+
+    // The backend now names the exact category/products a scoped coupon
+    // requires in this one message shape ("This coupon only ...") — that's
+    // our signal to also show what's currently in the cart, so the
+    // customer can see at a glance what to swap out. Every other coupon
+    // failure (expired, min order, usage limit, account-targeting) still
+    // gets the same nicer sheet, just without the cart preview.
+    final isScopeMismatch = error.contains('coupon only');
+    final cartItems = isScopeMismatch
+        ? (ref.read(cartProvider).asData?.value.items ??
+            const <CartItemEntity>[])
+        : const <CartItemEntity>[];
+
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      showDragHandle: true,
+      backgroundColor: _kCardBg,
+      shape: RoundedRectangleBorder(
+        borderRadius:
+            BorderRadius.vertical(top: Radius.circular(AppDimensions.radiusXl)),
+      ),
+      builder: (_) => _CouponIssueSheet(
+        title: isScopeMismatch
+            ? 'Coupon not applicable to your cart'
+            : "Couldn't apply coupon",
+        message: error,
+        cartItems: cartItems,
+      ),
+    );
   }
 
   @override
@@ -101,8 +127,7 @@ class _CouponsScreenState extends ConsumerState<CouponsScreen> {
     final subtotal = ref.read(checkoutProvider.notifier).subtotal;
 
     final coupons = couponsAsync.asData?.value ?? const <CouponEntity>[];
-    final offers =
-        offersAsync.asData?.value ?? const <PaymentOfferEntity>[];
+    final offers = offersAsync.asData?.value ?? const <PaymentOfferEntity>[];
 
     return Scaffold(
       backgroundColor: _kBg,
@@ -157,8 +182,7 @@ class _CouponsScreenState extends ConsumerState<CouponsScreen> {
                 final isApplied =
                     checkoutState.appliedCoupon?.code == coupon.code;
                 final isEligible = subtotal >= coupon.minOrderAmount;
-                final isExpanded =
-                    _expandedCoupons.contains(coupon.code);
+                final isExpanded = _expandedCoupons.contains(coupon.code);
                 return Padding(
                   padding: EdgeInsets.only(bottom: 12.h),
                   child: _PremiumCouponCard(
@@ -277,6 +301,254 @@ class _CouponsScreenState extends ConsumerState<CouponsScreen> {
       bottom: PreferredSize(
         preferredSize: const Size.fromHeight(1),
         child: Container(height: 1, color: _kBorder),
+      ),
+    );
+  }
+}
+
+// ─── Coupon Issue Sheet ────────────────────────────────────────────────────────
+//
+// Replaces the old plain red SnackBar shown whenever applying a coupon
+// fails. A category/product-scoped coupon that doesn't match anything in
+// the cart used to just say "specific products or categories aren't in
+// your cart" with no way to act on it — this shows the actual message
+// (which now names the required category/products) alongside the current
+// cart contents, so the customer can see exactly what to swap out.
+
+class _CouponIssueSheet extends StatelessWidget {
+  const _CouponIssueSheet({
+    required this.title,
+    required this.message,
+    required this.cartItems,
+  });
+
+  final String title;
+  final String message;
+  final List<CartItemEntity> cartItems;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: EdgeInsets.fromLTRB(20.w, 4.h, 20.w, 20.h),
+      child: SafeArea(
+        top: false,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: <Widget>[
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: <Widget>[
+                Container(
+                  width: 48.w,
+                  height: 48.w,
+                  decoration: const BoxDecoration(
+                    color: _kGoldLight,
+                    shape: BoxShape.circle,
+                  ),
+                  child: Icon(
+                    PhosphorIcons.tagFill,
+                    color: _kGoldDark,
+                    size: 22.sp,
+                  ),
+                ),
+                Gap(14.w),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: <Widget>[
+                      Text(
+                        title,
+                        style: AppTextStyles.h3.copyWith(
+                          fontWeight: FontWeight.w700,
+                          fontSize: 16.5.sp,
+                        ),
+                      ),
+                      Gap(5.h),
+                      Text(
+                        message,
+                        style: AppTextStyles.bodySmall.copyWith(
+                          color: AppColors.textSecondary,
+                          height: 1.4,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+            if (cartItems.isNotEmpty) ...<Widget>[
+              Gap(18.h),
+              Text(
+                'CURRENTLY IN YOUR CART',
+                style: AppTextStyles.labelSmall.copyWith(
+                  color: AppColors.textSecondary,
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: 0.6,
+                  fontSize: 10.5.sp,
+                ),
+              ),
+              Gap(10.h),
+              _CartItemsPreview(items: cartItems),
+              Gap(8.h),
+              Text(
+                'Remove these and add matching items to your cart to use this coupon.',
+                style: AppTextStyles.bodySmall.copyWith(
+                  color: AppColors.textTertiary,
+                  fontSize: 11.5.sp,
+                  height: 1.4,
+                ),
+              ),
+            ],
+            Gap(20.h),
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton(
+                onPressed: () => Navigator.of(context).pop(),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: _kGreen,
+                  foregroundColor: Colors.white,
+                  minimumSize: Size(0, 48.h),
+                  elevation: 0,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12.r),
+                  ),
+                ),
+                child: const Text('Got it'),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Small card listing the cart lines blocking a scoped coupon — image, name
+/// and quantity for each, capped so the sheet never grows unreasonably tall
+/// on a large cart.
+class _CartItemsPreview extends StatelessWidget {
+  const _CartItemsPreview({required this.items});
+
+  final List<CartItemEntity> items;
+
+  static const int _maxShown = 4;
+
+  @override
+  Widget build(BuildContext context) {
+    final shown = items.take(_maxShown).toList(growable: false);
+    final remaining = items.length - shown.length;
+
+    return Container(
+      padding: EdgeInsets.all(10.w),
+      decoration: BoxDecoration(
+        color: _kBg,
+        borderRadius: BorderRadius.circular(AppDimensions.radiusMd),
+        border: Border.all(color: _kBorder),
+      ),
+      child: Column(
+        children: <Widget>[
+          for (var i = 0; i < shown.length; i++) ...<Widget>[
+            if (i > 0)
+              Padding(
+                padding: EdgeInsets.symmetric(vertical: 8.h),
+                child: Divider(height: 1, color: _kDivider),
+              ),
+            _CartItemRow(item: shown[i]),
+          ],
+          if (remaining > 0) ...<Widget>[
+            Padding(
+              padding: EdgeInsets.symmetric(vertical: 8.h),
+              child: Divider(height: 1, color: _kDivider),
+            ),
+            Align(
+              alignment: Alignment.centerLeft,
+              child: Text(
+                '+$remaining more item${remaining == 1 ? '' : 's'} in cart',
+                style: AppTextStyles.bodySmall.copyWith(
+                  color: AppColors.textSecondary,
+                  fontWeight: FontWeight.w700,
+                  fontSize: 12.sp,
+                ),
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+class _CartItemRow extends StatelessWidget {
+  const _CartItemRow({required this.item});
+
+  final CartItemEntity item;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: <Widget>[
+        _CartItemThumb(url: item.thumbnailUrl, size: 40.w),
+        Gap(10.w),
+        Expanded(
+          child: Text(
+            item.name,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: AppTextStyles.labelLarge.copyWith(
+              fontSize: 13.sp,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ),
+        Gap(8.w),
+        Text(
+          '×${item.quantity}',
+          style: AppTextStyles.bodySmall.copyWith(
+            color: AppColors.textSecondary,
+            fontWeight: FontWeight.w700,
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _CartItemThumb extends StatelessWidget {
+  const _CartItemThumb({required this.url, required this.size});
+
+  final String? url;
+  final double size;
+
+  @override
+  Widget build(BuildContext context) {
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(8.r),
+      child: SizedBox(
+        width: size,
+        height: size,
+        child: (url != null && url!.isNotEmpty)
+            ? CachedNetworkImage(
+                imageUrl: url!,
+                fit: BoxFit.cover,
+                memCacheWidth: 96,
+                memCacheHeight: 96,
+                fadeInDuration: const Duration(milliseconds: 150),
+                errorWidget: (context, url, error) => _fallback(),
+              )
+            : _fallback(),
+      ),
+    );
+  }
+
+  Widget _fallback() {
+    return Container(
+      color: const Color(0xFFF0F2F5),
+      alignment: Alignment.center,
+      child: Icon(
+        Icons.shopping_basket_outlined,
+        size: size * 0.45,
+        color: const Color(0xFFC5CBD3),
       ),
     );
   }
@@ -447,10 +719,9 @@ class _PremiumCouponCard extends StatelessWidget {
   final VoidCallback onToggleTerms;
   final VoidCallback? onApply;
 
-  String get _badgeMain =>
-      coupon.discountType == CouponDiscountType.PERCENTAGE
-          ? '${coupon.discountValue.toStringAsFixed(0)}%'
-          : coupon.discountValue.toInrCurrency;
+  String get _badgeMain => coupon.discountType == CouponDiscountType.PERCENTAGE
+      ? '${coupon.discountValue.toStringAsFixed(0)}%'
+      : coupon.discountValue.toInrCurrency;
 
   String get _saveLine {
     if (coupon.discountType == CouponDiscountType.PERCENTAGE &&
@@ -689,8 +960,7 @@ class _PremiumCouponCard extends StatelessWidget {
                       curve: Curves.easeInOut,
                       child: isExpanded
                           ? Padding(
-                              padding:
-                                  EdgeInsets.only(top: 8.h, bottom: 6.h),
+                              padding: EdgeInsets.only(top: 8.h, bottom: 6.h),
                               child: Container(
                                 width: double.infinity,
                                 padding: EdgeInsets.all(12.w),

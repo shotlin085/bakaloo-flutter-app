@@ -10,6 +10,7 @@ import 'package:bakaloo_flutter_app/features/cart/domain/entities/payment_offer_
 import 'package:bakaloo_flutter_app/features/cart/domain/entities/tip_preset_entity.dart';
 import 'package:bakaloo_flutter_app/features/cart/presentation/providers/cart_provider.dart';
 import 'package:bakaloo_flutter_app/features/checkout/presentation/providers/checkout_provider.dart';
+import 'package:bakaloo_flutter_app/features/products/domain/entities/product_entity.dart';
 
 part 'cart_enhancement_providers.g.dart';
 
@@ -224,6 +225,27 @@ Future<List<Map<String, dynamic>>> lastMinuteProducts(Ref ref) async {
   final result = await ref
       .read(cartEnhancementsDataSourceProvider)
       .getLastMinuteProducts();
+  return result.fold(
+    (failure) => throw StateError(failure.message),
+    (products) => products,
+  );
+}
+
+/// "Quick Add" rail on the cart screen — ~60% popular items from the same
+/// categories already in the cart, ~30% from admin-configured related
+/// categories, and the remainder a random popular pick (all resolved
+/// server-side in cart.controller.js#getQuickAdd, which already excludes
+/// whatever's currently in the cart). Re-fetches on every cart change since
+/// the backend needs the up-to-date item/category set to exclude correctly.
+@riverpod
+Future<List<ProductEntity>> cartQuickAddProducts(Ref ref) async {
+  final cart = await ref.watch(cartProvider.future);
+  if (cart.isEmpty) {
+    return const <ProductEntity>[];
+  }
+
+  final result =
+      await ref.read(cartEnhancementsDataSourceProvider).getCartQuickAdd();
   return result.fold(
     (failure) => throw StateError(failure.message),
     (products) => products,

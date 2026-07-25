@@ -91,6 +91,7 @@ class ApiConstants {
   static const cartItems = '/cart/items';
   static const cartValidate = '/cart/validate';
   static const cartSummary = '/cart/summary';
+  static const cartQuickAdd = '/cart/quick-add';
   static const cartTip = '/cart/tip';
   static const cartDeliveryInstructions = '/cart/delivery-instructions';
   static String cartItem(String productId) => '/cart/items/$productId';

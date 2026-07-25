@@ -1,7 +1,10 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:gap/gap.dart';
+import 'package:geolocator/geolocator.dart';
 import 'package:go_router/go_router.dart';
 import 'package:phosphoricons_flutter/phosphoricons_flutter.dart';
 
@@ -12,23 +15,59 @@ import 'package:bakaloo_flutter_app/features/addresses/presentation/providers/ad
 import 'package:bakaloo_flutter_app/features/location/presentation/providers/location_prompt_provider.dart';
 import 'package:bakaloo_flutter_app/routing/route_names.dart';
 
-/// Shows the one-time location permission bottom sheet.
+/// Shows the location permission bottom sheet.
 /// Call this from the home screen after the first frame.
-Future<void> showLocationPromptSheet(BuildContext context) async {
-  await showModalBottomSheet<void>(
+///
+/// [autoTrigger] — when true (permission already granted and service
+/// already on, so detection is expected to just work), the sheet starts
+/// detecting the moment it opens instead of waiting for an "Enable" tap.
+/// The customer still sees the sheet itself and its spinner/status text —
+/// this only removes the redundant extra tap, it doesn't hide the process.
+///
+/// [mandatory] — when true (the customer has no saved address at all —
+/// they can't place an order without one), the sheet has no close button,
+/// can't be swiped away or tapped outside, and the Android back button is
+/// blocked: "Use my current location" or "Add address manually" are the
+/// only ways out. When false (they already have an address and this is
+/// just a "your location's off" courtesy nudge), it stays dismissible as
+/// before — there's nothing to force here.
+///
+/// Returns the address that was just auto-detected and saved, if the
+/// customer resolved this via "Use my current location" — reverse
+/// geocoding only ever knows the street/area, never a house or building
+/// number, so the caller (home_screen.dart) uses this to immediately chain
+/// into the address-completion screen instead of leaving that half-filled.
+/// Returns null for every other way out (already had an address, resolved
+/// it via "Add address manually" — that screen already collects house/
+/// building number itself — or detection failed).
+Future<AddressEntity?> showLocationPromptSheet(
+  BuildContext context, {
+  bool autoTrigger = false,
+  bool mandatory = false,
+}) async {
+  return showModalBottomSheet<AddressEntity>(
     context: context,
     useRootNavigator: true,
     isScrollControlled: true,
     backgroundColor: Colors.white,
-    isDismissible: true,
-    enableDrag: true,
+    isDismissible: !mandatory,
+    enableDrag: !mandatory,
     shape: const RoundedRectangleBorder(borderRadius: BorderRadius.zero),
-    builder: (_) => const _LocationPromptSheet(),
+    builder: (_) => _LocationPromptSheet(
+      autoTrigger: autoTrigger,
+      mandatory: mandatory,
+    ),
   );
 }
 
 class _LocationPromptSheet extends ConsumerStatefulWidget {
-  const _LocationPromptSheet();
+  const _LocationPromptSheet({
+    this.autoTrigger = false,
+    this.mandatory = false,
+  });
+
+  final bool autoTrigger;
+  final bool mandatory;
 
   @override
   ConsumerState<_LocationPromptSheet> createState() =>
@@ -38,6 +77,24 @@ class _LocationPromptSheet extends ConsumerStatefulWidget {
 class _LocationPromptSheetState extends ConsumerState<_LocationPromptSheet> {
   _SheetState _state = _SheetState.idle;
   String? _statusMessage;
+  // Null while checking. Drives which heading copy to show — the sheet can
+  // now appear even when location is already fully on (triggered instead
+  // by the customer having no saved address yet), so "Your location is
+  // off" would be flat wrong in that case.
+  bool? _serviceEnabled;
+
+  @override
+  void initState() {
+    super.initState();
+    Geolocator.isLocationServiceEnabled().then((enabled) {
+      if (mounted) setState(() => _serviceEnabled = enabled);
+    });
+    if (widget.autoTrigger) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) _onEnable();
+      });
+    }
+  }
 
   Future<void> _onEnable() async {
     if (_state == _SheetState.loading) return;
@@ -57,7 +114,20 @@ class _LocationPromptSheetState extends ConsumerState<_LocationPromptSheet> {
           _statusMessage = 'Location saved as your default address!';
         });
         await Future<void>.delayed(const Duration(milliseconds: 1200));
-        if (mounted) Navigator.of(context).pop();
+        if (!mounted) return;
+        // Reverse geocoding only ever knows the street/area — never a house
+        // or building number — so hand the freshly-created address back to
+        // the caller (home_screen.dart) instead of just closing: it chains
+        // straight into the completion screen so that never gets left
+        // half-filled with no prompt to finish it.
+        final addresses = ref.read(addressProvider).asData?.value ?? const [];
+        final newAddress = addresses.isEmpty
+            ? null
+            : addresses.firstWhere(
+                (a) => a.isDefault,
+                orElse: () => addresses.first,
+              );
+        Navigator.of(context).pop(newAddress);
 
       case LocationAutoDetectResult.permissionDenied:
         setState(() {
@@ -77,6 +147,13 @@ class _LocationPromptSheetState extends ConsumerState<_LocationPromptSheet> {
           _state = _SheetState.idle;
           _statusMessage = 'Please turn on device location and try again.';
         });
+        // Previously this just told the customer to go turn location on
+        // themselves, with no way to actually get there from here — they'd
+        // tap "Enable" and just see the same text again as if it did
+        // nothing. Send them straight to the OS location-settings screen so
+        // "Enable" actually enables something; they come back and tap
+        // Enable again once it's on.
+        unawaited(Geolocator.openLocationSettings());
 
       case LocationAutoDetectResult.geocodingFailed:
       case LocationAutoDetectResult.saveFailed:
@@ -110,243 +187,259 @@ class _LocationPromptSheetState extends ConsumerState<_LocationPromptSheet> {
       orElse: () => null,
     );
 
-    return SafeArea(
-      child: Container(
-        decoration: const BoxDecoration(
-          color: Colors.white,
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: <Widget>[
-            // Handle bar + close button
-            Padding(
-              padding: EdgeInsets.fromLTRB(16.w, 10.h, 16.w, 0),
-              child: Stack(
-                alignment: Alignment.center,
-                children: <Widget>[
-                  Container(
-                    width: 36.w,
-                    height: 4.h,
-                    decoration: BoxDecoration(
-                      color: const Color(0xFFE2E2E2),
-                      borderRadius: BorderRadius.circular(2.r),
-                    ),
-                  ),
-                  Positioned(
-                    right: 0,
-                    child: GestureDetector(
-                      onTap: _onDismiss,
-                      child: Container(
-                        width: 28.w,
-                        height: 28.w,
-                        decoration: const BoxDecoration(
-                          color: AppColors.bgSection,
-                          shape: BoxShape.circle,
-                        ),
-                        child: Icon(
-                          Icons.close_rounded,
-                          size: 16.sp,
-                          color: AppColors.textSecondary,
-                        ),
+    return PopScope(
+      // Blocks the Android back gesture/button too — isDismissible/enableDrag
+      // above only cover tap-outside and swipe-down, so without this a
+      // "mandatory" sheet would still have one dismiss path left open.
+      canPop: !widget.mandatory,
+      child: SafeArea(
+        child: Container(
+          decoration: const BoxDecoration(
+            color: Colors.white,
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: <Widget>[
+              // Handle bar + close button (close button omitted entirely when
+              // mandatory — there's no way out of this sheet except resolving
+              // it, so a button that's just going to sit there disabled would
+              // only confuse the customer about why it doesn't do anything).
+              Padding(
+                padding: EdgeInsets.fromLTRB(16.w, 10.h, 16.w, 0),
+                child: Stack(
+                  alignment: Alignment.center,
+                  children: <Widget>[
+                    Container(
+                      width: 36.w,
+                      height: 4.h,
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFE2E2E2),
+                        borderRadius: BorderRadius.circular(2.r),
                       ),
                     ),
-                  ),
-                ],
-              ),
-            ),
-
-            Padding(
-              padding: EdgeInsets.fromLTRB(24.w, 16.h, 24.w, 36.h),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                mainAxisSize: MainAxisSize.min,
-                children: <Widget>[
-                  Row(
-                    children: <Widget>[
-                      Container(
-                        width: 52.w,
-                        height: 52.w,
-                        decoration: const BoxDecoration(
-                          color: AppColors.orderVioletSurface,
-                          shape: BoxShape.circle,
-                        ),
-                        child: Center(
-                          child: PhosphorIcon(
-                            PhosphorIcons.mapPinLineFill,
-                            size: 26.sp,
-                            color: AppColors.orderViolet,
+                    if (!widget.mandatory)
+                      Positioned(
+                        right: 0,
+                        child: GestureDetector(
+                          onTap: _onDismiss,
+                          child: Container(
+                            width: 28.w,
+                            height: 28.w,
+                            decoration: const BoxDecoration(
+                              color: AppColors.bgSection,
+                              shape: BoxShape.circle,
+                            ),
+                            child: Icon(
+                              Icons.close_rounded,
+                              size: 16.sp,
+                              color: AppColors.textSecondary,
+                            ),
                           ),
                         ),
                       ),
-                      Gap(14.w),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: <Widget>[
-                            Text(
-                              'Your location is off',
-                              style: AppTextStyles.h2.copyWith(
-                                fontSize: 18.sp,
-                                fontWeight: FontWeight.w800,
-                                height: 1.2,
-                              ),
+                  ],
+                ),
+              ),
+
+              Padding(
+                padding: EdgeInsets.fromLTRB(24.w, 16.h, 24.w, 36.h),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  mainAxisSize: MainAxisSize.min,
+                  children: <Widget>[
+                    Row(
+                      children: <Widget>[
+                        Container(
+                          width: 52.w,
+                          height: 52.w,
+                          decoration: const BoxDecoration(
+                            color: AppColors.orderVioletSurface,
+                            shape: BoxShape.circle,
+                          ),
+                          child: Center(
+                            child: PhosphorIcon(
+                              PhosphorIcons.mapPinLineFill,
+                              size: 26.sp,
+                              color: AppColors.orderViolet,
                             ),
-                            Gap(3.h),
-                            Text(
-                              'Turn it on for faster, more accurate delivery',
-                              style: AppTextStyles.bodyMedium.copyWith(
-                                fontSize: 12.5.sp,
-                                color: AppColors.textSecondary,
-                                height: 1.3,
+                          ),
+                        ),
+                        Gap(14.w),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: <Widget>[
+                              Text(
+                                _serviceEnabled == false
+                                    ? 'Your location is off'
+                                    : 'Add your delivery address',
+                                style: AppTextStyles.h2.copyWith(
+                                  fontSize: 18.sp,
+                                  fontWeight: FontWeight.w800,
+                                  height: 1.2,
+                                ),
+                              ),
+                              Gap(3.h),
+                              Text(
+                                _serviceEnabled == false
+                                    ? 'Turn it on for faster, more accurate delivery'
+                                    : 'We\'ll find it using your location — takes a second',
+                                style: AppTextStyles.bodyMedium.copyWith(
+                                  fontSize: 12.5.sp,
+                                  color: AppColors.textSecondary,
+                                  height: 1.3,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                    Gap(20.h),
+
+                    // Primary action row — use current location
+                    _ActionRow(
+                      onTap: _state == _SheetState.loading ? null : _onEnable,
+                      leading: _state == _SheetState.loading
+                          ? SizedBox(
+                              width: 20.w,
+                              height: 20.w,
+                              child: const CircularProgressIndicator(
+                                strokeWidth: 2.5,
+                                color: AppColors.orderViolet,
+                              ),
+                            )
+                          : PhosphorIcon(
+                              PhosphorIcons.navigationArrowFill,
+                              size: 20.sp,
+                              color: AppColors.orderViolet,
+                            ),
+                      title: 'Use my current location',
+                      subtitle: 'Auto-detect and save as default address',
+                      trailing: _PillButton(
+                        label: _state == _SheetState.loading
+                            ? 'Detecting…'
+                            : 'Enable',
+                        onTap: _state == _SheetState.loading ? null : _onEnable,
+                      ),
+                    ),
+
+                    if (_statusMessage != null) ...<Widget>[
+                      Gap(10.h),
+                      AnimatedContainer(
+                        duration: const Duration(milliseconds: 250),
+                        width: double.infinity,
+                        padding: EdgeInsets.symmetric(
+                          horizontal: 14.w,
+                          vertical: 10.h,
+                        ),
+                        decoration: BoxDecoration(
+                          color: _state == _SheetState.success
+                              ? AppColors.orderVioletSurface
+                              : const Color(0xFFFFF3CD),
+                          borderRadius: BorderRadius.circular(12.r),
+                        ),
+                        child: Row(
+                          children: <Widget>[
+                            Icon(
+                              _state == _SheetState.success
+                                  ? Icons.check_circle_outline_rounded
+                                  : Icons.info_outline_rounded,
+                              size: 16.sp,
+                              color: _state == _SheetState.success
+                                  ? AppColors.orderViolet
+                                  : const Color(0xFF856404),
+                            ),
+                            Gap(8.w),
+                            Flexible(
+                              child: Text(
+                                _statusMessage!,
+                                style: TextStyle(
+                                  fontFamily: 'DMSans',
+                                  fontSize: 12.5.sp,
+                                  fontWeight: FontWeight.w500,
+                                  color: _state == _SheetState.success
+                                      ? AppColors.orderVioletDark
+                                      : const Color(0xFF856404),
+                                ),
                               ),
                             ),
                           ],
                         ),
                       ),
                     ],
-                  ),
-                  Gap(20.h),
 
-                  // Primary action row — use current location
-                  _ActionRow(
-                    onTap: _state == _SheetState.loading ? null : _onEnable,
-                    leading: _state == _SheetState.loading
-                        ? SizedBox(
-                            width: 20.w,
-                            height: 20.w,
-                            child: const CircularProgressIndicator(
-                              strokeWidth: 2.5,
-                              color: AppColors.orderViolet,
-                            ),
-                          )
-                        : PhosphorIcon(
-                            PhosphorIcons.navigationArrowFill,
-                            size: 20.sp,
-                            color: AppColors.orderViolet,
+                    Gap(20.h),
+                    Row(
+                      children: <Widget>[
+                        Text(
+                          savedAddress != null
+                              ? 'Your saved address'
+                              : 'Add an address',
+                          style: AppTextStyles.bodyMedium.copyWith(
+                            fontSize: 12.5.sp,
+                            fontWeight: FontWeight.w700,
+                            color: AppColors.textSecondary,
+                            letterSpacing: 0.2,
                           ),
-                    title: 'Use my current location',
-                    subtitle: 'Auto-detect and save as default address',
-                    trailing: _PillButton(
-                      label: _state == _SheetState.loading
-                          ? 'Detecting…'
-                          : 'Enable',
-                      onTap: _state == _SheetState.loading ? null : _onEnable,
-                    ),
-                  ),
-
-                  if (_statusMessage != null) ...<Widget>[
-                    Gap(10.h),
-                    AnimatedContainer(
-                      duration: const Duration(milliseconds: 250),
-                      width: double.infinity,
-                      padding:
-                          EdgeInsets.symmetric(horizontal: 14.w, vertical: 10.h),
-                      decoration: BoxDecoration(
-                        color: _state == _SheetState.success
-                            ? AppColors.orderVioletSurface
-                            : const Color(0xFFFFF3CD),
-                        borderRadius: BorderRadius.circular(12.r),
-                      ),
-                      child: Row(
-                        children: <Widget>[
-                          Icon(
-                            _state == _SheetState.success
-                                ? Icons.check_circle_outline_rounded
-                                : Icons.info_outline_rounded,
-                            size: 16.sp,
-                            color: _state == _SheetState.success
-                                ? AppColors.orderViolet
-                                : const Color(0xFF856404),
-                          ),
-                          Gap(8.w),
-                          Flexible(
+                        ),
+                        const Spacer(),
+                        if (savedAddress != null)
+                          GestureDetector(
+                            onTap: _onSeeAllAddresses,
                             child: Text(
-                              _statusMessage!,
-                              style: TextStyle(
-                                fontFamily: 'DMSans',
+                              'See all',
+                              style: AppTextStyles.bodyMedium.copyWith(
                                 fontSize: 12.5.sp,
-                                fontWeight: FontWeight.w500,
-                                color: _state == _SheetState.success
-                                    ? AppColors.orderVioletDark
-                                    : const Color(0xFF856404),
+                                fontWeight: FontWeight.w700,
+                                color: AppColors.orderViolet,
                               ),
                             ),
                           ),
-                        ],
-                      ),
+                      ],
                     ),
-                  ],
+                    Gap(10.h),
 
-                  Gap(20.h),
-                  Row(
-                    children: <Widget>[
-                      Text(
-                        savedAddress != null
-                            ? 'Your saved address'
-                            : 'Add an address',
-                        style: AppTextStyles.bodyMedium.copyWith(
-                          fontSize: 12.5.sp,
-                          fontWeight: FontWeight.w700,
+                    if (savedAddress != null)
+                      _ActionRow(
+                        onTap: _onSeeAllAddresses,
+                        leading: PhosphorIcon(
+                          PhosphorIcons.mapPinFill,
+                          size: 20.sp,
                           color: AppColors.textSecondary,
-                          letterSpacing: 0.2,
+                        ),
+                        title: savedAddress.label,
+                        subtitle: <String?>[
+                          savedAddress.addressLine1,
+                          savedAddress.city,
+                        ].whereType<String>().join(', '),
+                        trailing: Icon(
+                          Icons.chevron_right_rounded,
+                          size: 20.sp,
+                          color: AppColors.textTertiary,
+                        ),
+                      )
+                    else
+                      _ActionRow(
+                        onTap: _onAddManually,
+                        leading: PhosphorIcon(
+                          PhosphorIcons.plusCircleFill,
+                          size: 20.sp,
+                          color: AppColors.textSecondary,
+                        ),
+                        title: 'Add address manually',
+                        subtitle: 'Search or enter your delivery address',
+                        trailing: Icon(
+                          Icons.chevron_right_rounded,
+                          size: 20.sp,
+                          color: AppColors.textTertiary,
                         ),
                       ),
-                      const Spacer(),
-                      if (savedAddress != null)
-                        GestureDetector(
-                          onTap: _onSeeAllAddresses,
-                          child: Text(
-                            'See all',
-                            style: AppTextStyles.bodyMedium.copyWith(
-                              fontSize: 12.5.sp,
-                              fontWeight: FontWeight.w700,
-                              color: AppColors.orderViolet,
-                            ),
-                          ),
-                        ),
-                    ],
-                  ),
-                  Gap(10.h),
-
-                  if (savedAddress != null)
-                    _ActionRow(
-                      onTap: _onSeeAllAddresses,
-                      leading: PhosphorIcon(
-                        PhosphorIcons.mapPinFill,
-                        size: 20.sp,
-                        color: AppColors.textSecondary,
-                      ),
-                      title: savedAddress.label,
-                      subtitle: <String?>[
-                        savedAddress.addressLine1,
-                        savedAddress.city,
-                      ].whereType<String>().join(', '),
-                      trailing: Icon(
-                        Icons.chevron_right_rounded,
-                        size: 20.sp,
-                        color: AppColors.textTertiary,
-                      ),
-                    )
-                  else
-                    _ActionRow(
-                      onTap: _onAddManually,
-                      leading: PhosphorIcon(
-                        PhosphorIcons.plusCircleFill,
-                        size: 20.sp,
-                        color: AppColors.textSecondary,
-                      ),
-                      title: 'Add address manually',
-                      subtitle: 'Search or enter your delivery address',
-                      trailing: Icon(
-                        Icons.chevron_right_rounded,
-                        size: 20.sp,
-                        color: AppColors.textTertiary,
-                      ),
-                    ),
-                ],
+                  ],
+                ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );

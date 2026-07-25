@@ -97,6 +97,11 @@ abstract class ApiClient {
     @Query('quickDeliverySelected') bool quickDeliverySelected = false,
   });
 
+  @GET(ApiConstants.cartQuickAdd)
+  Future<HttpResponse<dynamic>> getCartQuickAdd(
+    @Query('limit') int limit,
+  );
+
   @POST(ApiConstants.cartItems)
   Future<HttpResponse<dynamic>> addCartItem(
     @Body() Map<String, dynamic> body,

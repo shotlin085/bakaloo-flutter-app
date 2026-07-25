@@ -9,8 +9,8 @@ import 'package:phosphoricons_flutter/phosphoricons_flutter.dart';
 import 'package:bakaloo_flutter_app/core/theme/app_colors.dart';
 import 'package:bakaloo_flutter_app/core/theme/app_dimensions.dart';
 import 'package:bakaloo_flutter_app/core/theme/app_text_styles.dart';
+import 'package:bakaloo_flutter_app/core/utils/app_toast.dart';
 import 'package:bakaloo_flutter_app/features/profile/presentation/providers/profile_provider.dart';
-import 'package:bakaloo_flutter_app/routing/app_router.dart';
 
 class EditProfileScreen extends ConsumerStatefulWidget {
   const EditProfileScreen({super.key});
@@ -36,14 +36,19 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
 
   @override
   Widget build(BuildContext context) {
+    // Deliberately keyed off profileProvider alone (the live GET /users/me),
+    // not currentUserProvider — that's the cached JWT identity and the
+    // access token never carries a name claim. ProfileScreen forces a fresh
+    // fetch on every visit, so this screen can easily first build while that
+    // fetch is still in flight; falling back to the JWT user here would lock
+    // _initialized in with permanently empty fields once the real profile
+    // data arrives, since the block below only ever runs once.
     final profileData = ref.watch(profileProvider).asData?.value;
-    final fallbackUser = ref.watch(currentUserProvider);
-    final user = profileData?.user ?? fallbackUser;
 
-    if (!_initialized && user != null) {
-      _nameController.text = user.name ?? '';
-      _emailController.text = user.email ?? '';
-      _birthday = profileData?.birthday;
+    if (!_initialized && profileData != null) {
+      _nameController.text = profileData.user.name ?? '';
+      _emailController.text = profileData.user.email ?? '';
+      _birthday = profileData.birthday;
       _initialized = true;
     }
 
@@ -253,5 +258,10 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
     }
 
     context.pop(true);
+    AppToast.show(
+      context,
+      'Profile updated successfully',
+      type: ToastType.success,
+    );
   }
 }

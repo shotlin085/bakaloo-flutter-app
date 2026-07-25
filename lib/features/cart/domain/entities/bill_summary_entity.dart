@@ -31,6 +31,7 @@ abstract class BillSummaryEntity with _$BillSummaryEntity {
     @Default(CartMilestoneProgress()) CartMilestoneProgress cartMilestone,
     @Default(QuickDeliveryInfo()) QuickDeliveryInfo quickDelivery,
     FirstTimeOfferInfo? firstTimeOffer,
+    FirstTimeOfferTeaserInfo? firstTimeOfferTeaser,
   }) = _BillSummaryEntity;
 
   factory BillSummaryEntity.fromJson(Map<String, dynamic> json) =>
@@ -49,8 +50,7 @@ abstract class BillSummaryEntity with _$BillSummaryEntity {
   /// The amount the customer pays. Prefers the backend canonical
   /// `totalPayable`; falls back to the legacy `toPay.final` so older
   /// payloads keep working.
-  double get payable =>
-      totalPayable > 0 ? totalPayable : toPay.finalAmount;
+  double get payable => totalPayable > 0 ? totalPayable : toPay.finalAmount;
 }
 
 @freezed
@@ -84,6 +84,11 @@ abstract class FeeInfo with _$FeeInfo {
     @Default(0) double amount,
     @Default(false) bool isFree,
     @Default(0) double savedAmount,
+    // Admin-configurable (dashboard Settings → Fees) — same label/description
+    // shown for this fee's admin-set text in the bill's info popup, kept in
+    // sync with the dashboard rather than hardcoded per fee in the app.
+    String? label,
+    String? description,
   }) = _FeeInfo;
 
   factory FeeInfo.fromJson(Map<String, dynamic> json) =>
@@ -284,6 +289,26 @@ abstract class FirstTimeOfferInfo with _$FirstTimeOfferInfo {
       _$FirstTimeOfferInfoFromJson(json);
 }
 
+/// A nearby-but-not-yet-satisfied first-order offer, surfaced as a positive
+/// nudge on the cart screen (e.g. "Add ₹150 of Fresh Vegetables to unlock
+/// Free Delivery!") instead of the offer just silently never appearing for
+/// a cart that doesn't match its category/product scope. Always `null`
+/// whenever [FirstTimeOfferInfo] is already present — the two are mutually
+/// exclusive (see bill-summary.service.js).
+@freezed
+abstract class FirstTimeOfferTeaserInfo with _$FirstTimeOfferTeaserInfo {
+  const factory FirstTimeOfferTeaserInfo({
+    @Default('') String id,
+    @Default('') String name,
+    @Default('') String rewardType,
+    @Default(0) double amountToUnlock,
+    @Default('') String message,
+  }) = _FirstTimeOfferTeaserInfo;
+
+  factory FirstTimeOfferTeaserInfo.fromJson(Map<String, dynamic> json) =>
+      _$FirstTimeOfferTeaserInfoFromJson(json);
+}
+
 /// Whether the paid "Quick Delivery" ASAP upgrade is available right now —
 /// independent of whether the customer has actually selected it (that's
 /// tracked client-side on [SelectedDeliverySlot], not here). When [enabled]
@@ -294,6 +319,7 @@ abstract class QuickDeliveryInfo with _$QuickDeliveryInfo {
     @Default(false) bool enabled,
     @Default(0) double amount,
     @Default('Quick delivery fee') String label,
+
     /// Promised delivery time once the customer opts in — distinct from
     /// the normal always-shown [DeliveryEstimate].
     @Default(0) int etaMinutes,

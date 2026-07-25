@@ -168,14 +168,19 @@ class CartBillSummary extends StatelessWidget {
               Gap(14.h),
 
               // ── Handling fee ────────────────────────────────────
+              // Label/description are admin-configurable (dashboard Settings
+              // → Fees) and come straight from the backend — falls back to
+              // this default copy only for a cached response predating
+              // those fields, never hardcoded otherwise.
               if (summary.handlingFee.amount > 0) ...<Widget>[
                 _BillRow(
-                  label: 'Handling fee',
+                  label: summary.handlingFee.label ?? 'Handling fee',
                   amount: summary.handlingFee.amount,
                   onInfo: () => _showInfoSheet(
                     context,
-                    'Handling fee',
-                    'Covers packing, quality checks and order handling so your items arrive safely.',
+                    summary.handlingFee.label ?? 'Handling fee',
+                    summary.handlingFee.description ??
+                        'Covers packing, quality checks and order handling so your items arrive safely.',
                   ),
                 ),
                 Gap(14.h),
@@ -184,27 +189,32 @@ class CartBillSummary extends StatelessWidget {
               // ── Platform fee ────────────────────────────────────
               if (summary.platformFee.amount > 0) ...<Widget>[
                 _BillRow(
-                  label: 'Platform fee',
+                  label: summary.platformFee.label ?? 'Platform fee',
                   amount: summary.platformFee.amount,
                   onInfo: () => _showInfoSheet(
                     context,
-                    'Platform fee',
-                    'Helps us run the platform and provide customer support.',
+                    summary.platformFee.label ?? 'Platform fee',
+                    summary.platformFee.description ??
+                        'Helps us run the platform and provide customer support.',
                   ),
                 ),
                 Gap(14.h),
               ],
 
               // ── Small cart fee ──────────────────────────────────
+              // Reason shown inline below (not behind an info-icon tap)
+              // so it's visible at a glance, unlike the other fee rows.
               if (summary.smallCartFee.amount > 0) ...<Widget>[
                 _BillRow(
-                  label: 'Small cart fee',
+                  label: summary.smallCartFee.label ?? 'Small cart fee',
                   amount: summary.smallCartFee.amount,
-                  onInfo: () => _showInfoSheet(
-                    context,
-                    'Small cart fee',
-                    'Applied to smaller orders. Add a few more items to avoid this fee.',
-                  ),
+                ),
+                Gap(6.h),
+                _SubNote(
+                  icon: PhosphorIcons.info,
+                  text: summary.smallCartFee.description ??
+                      'Applied to smaller orders. Add a few more items to avoid this fee.',
+                  color: _muted,
                 ),
                 Gap(14.h),
               ],

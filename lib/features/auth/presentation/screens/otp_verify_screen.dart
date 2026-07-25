@@ -215,7 +215,7 @@ class _OtpVerifyScreenState extends ConsumerState<OtpVerifyScreen>
                   ),
                   Gap(2.h),
                   Text(
-                    _maskedPhone,
+                    _displayPhone,
                     style: TextStyle(
                       fontFamily: 'Poppins',
                       fontSize: 17.sp,
@@ -578,13 +578,7 @@ class _OtpVerifyScreenState extends ConsumerState<OtpVerifyScreen>
     );
   }
 
-  String get _maskedPhone {
-    if (widget.phone.length < 10) {
-      return '+91 ${widget.phone}';
-    }
-
-    return '+91 ${widget.phone.substring(0, 2)}******${widget.phone.substring(8)}';
-  }
+  String get _displayPhone => '+91 ${widget.phone}';
 
   String get _formattedCountdown {
     final seconds = _secondsRemaining.toString().padLeft(2, '0');
