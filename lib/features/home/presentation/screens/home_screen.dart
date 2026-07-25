@@ -379,6 +379,19 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
       );
       if (!mounted || autoDetectedAddress == null) return;
 
+      // showModalBottomSheet's Future completes the instant the sheet calls
+      // Navigator.pop() — NOT once its slide-down close animation has
+      // actually finished playing. Pushing the next full-screen route
+      // immediately (as this used to) meant that animation was still
+      // visibly running underneath/behind the new page for a beat,
+      // reading as "a second pop-up thing sliding away" right after the
+      // Add Address page had already appeared. Reported bug: "already
+      // detect[ed]... swipe down then that is [bad] user experience."
+      // 300ms comfortably covers Material's default bottom-sheet exit
+      // transition (~250ms) before the next route starts entering.
+      await Future<void>.delayed(const Duration(milliseconds: 300));
+      if (!mounted) return;
+
       // Same rootNavigator escape as above — see that call's comment.
       await Navigator.of(context, rootNavigator: true).push<void>(
         MaterialPageRoute<void>(
