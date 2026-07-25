@@ -288,29 +288,60 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
     }
   }
 
-  /// Shows the location prompt if location is currently off, or the
-  /// customer has no saved address yet. Runs on cold start, app resume, and
-  /// every live service-status event (enabled or disabled): at most once
-  /// per disabled streak (_locationPromptShownThisSession is reset when the
-  /// service is re-enabled, so a later disable can prompt again).
+  /// Runs on cold start, app resume, and every live service-status event
+  /// (enabled or disabled): at most once per session
+  /// (_locationPromptShownThisSession), reset whenever the service comes
+  /// back on so a later disable can prompt again.
   ///
-  /// The sheet itself is always what appears — no separate invisible
-  /// background path — but when permission is already granted and service
-  /// is already on (nothing left to enable), it's told to auto-trigger
-  /// detection the moment it opens instead of waiting for an "Enable" tap.
-  /// The customer still sees the sheet and its spinner/status text; this
-  /// only removes a redundant extra tap for the case where it's obviously
-  /// going to work anyway.
+  /// Three outcomes, checked in order:
+  ///   1. Already has a saved address with a house/building number filled
+  ///      — nothing to do, show nothing at all. Toggling location off/on
+  ///      must never bring anything back for this customer; they're done.
+  ///   2. Has a saved address but it's missing that house/building number
+  ///      (only ever true for one reverse-geocoded-and-never-completed
+  ///      the moment it was created) — skip the location-enable sheet
+  ///      entirely (location already works, that's not the gap) and go
+  ///      straight to completing that address on the map screen.
+  ///   3. No saved address at all — the original location-enable/
+  ///      auto-detect sheet, mandatory (they can't order without an
+  ///      address). When permission is already granted and service is
+  ///      already on, it's told to auto-trigger detection the moment it
+  ///      opens instead of waiting for an "Enable" tap — the customer
+  ///      still sees the sheet and its spinner/status text either way.
   Future<void> _maybeShowLocationPrompt() async {
     if (!mounted || _locationPromptShownThisSession) return;
     try {
-      // Invalidate so we always get a live location-service check, not cache.
-      ref.invalidate(locationPromptShouldShowProvider);
+      final addresses = await ref.read(addressProvider.future);
+
+      if (addresses.isNotEmpty) {
+        final defaultAddress = addresses.firstWhere(
+          (a) => a.isDefault,
+          orElse: () => addresses.first,
+        );
+        // Reverse geocoding only ever knows the street/area, never a house
+        // or building number — that's the one thing worth still nudging
+        // for. A manually completed address always has this filled (the
+        // add/edit form requires House No. before Save enables), so an
+        // empty addressLine2 only ever means "never finished."
+        if ((defaultAddress.addressLine2 ?? '').trim().isEmpty) {
+          if (!mounted) return;
+          _locationPromptShownThisSession = true;
+          await Navigator.of(context).push<void>(
+            MaterialPageRoute<void>(
+              builder: (_) => AddEditAddressScreen(
+                initialAddress: defaultAddress,
+                forceCompletion: true,
+              ),
+            ),
+          );
+        }
+        return;
+      }
+
       final shouldShow =
           await ref.read(locationPromptShouldShowProvider.future);
       if (!mounted || !shouldShow) return;
 
-      final addresses = await ref.read(addressProvider.future);
       final permission = await Geolocator.checkPermission();
       final permissionGranted = permission == LocationPermission.always ||
           permission == LocationPermission.whileInUse;
@@ -323,17 +354,10 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
       final autoDetectedAddress = await showLocationPromptSheet(
         context,
         autoTrigger: permissionGranted && serviceEnabled,
-        // No saved address at all is the hard-blocker case — force it. If
-        // they already have one, this is showing only because location
-        // itself is off; that's a courtesy nudge, not something to force.
-        mandatory: addresses.isEmpty,
+        mandatory: true,
       );
       if (!mounted || autoDetectedAddress == null) return;
 
-      // Reverse geocoding only ever knows the street/area, never a house or
-      // building number — chain straight into completing that instead of
-      // leaving the customer with a half-filled address and no prompt to
-      // finish it.
       await Navigator.of(context).push<void>(
         MaterialPageRoute<void>(
           builder: (_) => AddEditAddressScreen(

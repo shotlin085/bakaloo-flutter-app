@@ -11,34 +11,30 @@ import 'package:bakaloo_flutter_app/features/addresses/presentation/providers/ad
 import 'package:bakaloo_flutter_app/features/auth/presentation/providers/auth_notifier.dart';
 import 'package:bakaloo_flutter_app/features/auth/presentation/providers/auth_state.dart';
 
-/// Returns true if the location prompt should be shown right now:
-///   - User is authenticated
-///   - AND either:
-///       - the user has no saved address yet — the strongest signal, since
-///         without one they can't even place an order, so this fires
-///         regardless of permission/service state, or
-///       - location isn't actually usable yet: permission not granted
-///         and/or the device's location service is off
+/// Returns true if the location-enable prompt should be shown right now:
+/// the user is authenticated AND has no saved address at all.
 ///
-/// Previously this returned false the instant permission was granted,
-/// without ever checking the service toggle — so a user who granted
-/// permission once but later switched their device location off (or was
-/// never asked for permission at all while service stayed on, which is
-/// the common case on a fresh install) would never see this prompt again.
-/// Location is only actually "ready" when BOTH are true.
+/// A saved address — complete or not — is handled entirely by
+/// home_screen.dart's `_maybeShowLocationPrompt` without this provider:
+/// once there's at least one address, whether to nudge the customer again
+/// depends on whether THAT address still needs a house/building number,
+/// never on the device's current permission/service state.
+///
+/// Previously this also returned true whenever permission was denied or
+/// the location service was off, even for a customer who already had a
+/// complete saved address — so toggling location off and back on (or any
+/// of the several things that made the OS re-report service status, which
+/// happens on plenty of ordinary refreshes/resumes) brought the "enable
+/// location" sheet back every time, regardless of the fact that they had
+/// nothing left to do. Reported bug: "I already filled my address... I
+/// refresh the page... same location popup comes again." Having any
+/// saved address at all now fully satisfies this check.
 final locationPromptShouldShowProvider = FutureProvider<bool>((ref) async {
   final authState = ref.watch(authStateProvider);
   if (authState is! AuthAuthenticated) return false;
 
   final addresses = await ref.watch(addressProvider.future);
-  if (addresses.isEmpty) return true;
-
-  final permission = await Geolocator.checkPermission();
-  final permissionGranted = permission == LocationPermission.always ||
-      permission == LocationPermission.whileInUse;
-  final serviceEnabled = await Geolocator.isLocationServiceEnabled();
-
-  return !(permissionGranted && serviceEnabled);
+  return addresses.isEmpty;
 });
 
 /// Result of attempting to detect and save the user's location.
