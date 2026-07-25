@@ -181,14 +181,54 @@ Future<LocationAutoDetectResult> _geocodeAndSave(
     isDefault: true,
   );
 
-  final result = await ref.read(addressProvider.notifier).createAddress(params);
+  // Root cause of a real reported bug: this used to unconditionally call
+  // createAddress, even when the customer already had a default address
+  // on file. home_screen.dart's _maybeShowLocationPrompt only ever shows
+  // this sheet at all when there's currently no address — but the device's
+  // location-service-status stream can re-fire (Android re-reports it for
+  // reasons unrelated to anything the customer did) and re-trigger the
+  // whole detect flow AFTER the customer already completed their address
+  // through a different call of this same function. Always creating meant
+  // that second call added a SECOND "Home" address with no house number
+  // and made IT the new default — so the app correctly (from its own
+  // logic's point of view) decided there was an incomplete address again
+  // and sent the customer straight back into the completion screen, in a
+  // loop, no matter how many times they filled it in. Reported: "I fill my
+  // address... then homepage shows the same address field again... I
+  // press Enable, that repeats the address details page."
+  //
+  // Updating the existing default in place — when there is one — instead
+  // of always inserting a new row closes that loop at its source: a
+  // second detect can only ever refresh the SAME row's coordinates, never
+  // spawn a competing one. Only reached with an existing address at all
+  // when it's the exact "no house number yet" address this whole flow
+  // exists to fill in (see the class-level doc comment on
+  // locationPromptShouldShowProvider) — a customer with a genuinely
+  // complete address is never routed through this sheet in the first
+  // place, so this never risks overwriting real, already-entered details.
+  final existingAddresses =
+      ref.read(addressProvider).asData?.value ?? const [];
+  final existingDefaultId = existingAddresses.isEmpty
+      ? null
+      : existingAddresses
+          .firstWhere(
+            (a) => a.isDefault,
+            orElse: () => existingAddresses.first,
+          )
+          .id;
+
+  final result = existingDefaultId != null
+      ? await ref
+          .read(addressProvider.notifier)
+          .updateAddress(existingDefaultId, params)
+      : await ref.read(addressProvider.notifier).createAddress(params);
 
   if (!result.isSuccess) {
     unawaited(
       FirebaseCrashlytics.instance.recordError(
         StateError(result.failure?.message ?? 'unknown'),
         StackTrace.current,
-        reason: '_geocodeAndSave: createAddress failed',
+        reason: '_geocodeAndSave: ${existingDefaultId != null ? 'update' : 'create'}Address failed',
         fatal: false,
       ),
     );

@@ -233,12 +233,34 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
     _locationServiceStatusSub =
         Geolocator.getServiceStatusStream().listen((status) {
       if (status == ServiceStatus.enabled) {
-        _locationPromptShownThisSession = false;
-        // The whole point of nudging the customer to flip this toggle is to
-        // get their address saved the moment it happens, not to wait for
-        // them to come back later — _maybeShowLocationPrompt will still
-        // show the sheet if there's no address yet, just auto-triggered.
-        unawaited(_maybeShowLocationPrompt());
+        // Guard against re-opening anything for a customer who's already
+        // done — Android re-reports this status for reasons that have
+        // nothing to do with the customer (not just them flipping the
+        // quick-settings toggle), so this can fire well after they've
+        // already completed their address. Resetting the flag
+        // unconditionally used to let that stale event re-run the whole
+        // detect flow — which, combined with a since-fixed bug where
+        // detection always created a brand-new address instead of
+        // updating the existing one, sent a customer with an already-
+        // complete address straight back into the completion screen. This
+        // check is deliberately independent of that fix (defense in
+        // depth): even a future bug that re-creates an incomplete address
+        // shouldn't be able to reopen this for someone who has a complete
+        // one on file.
+        final addresses = ref.read(addressProvider).asData?.value;
+        final hasCompleteAddress = addresses != null &&
+            addresses.any(
+              (a) => a.isDefault && (a.addressLine2 ?? '').trim().isNotEmpty,
+            );
+        if (!hasCompleteAddress) {
+          _locationPromptShownThisSession = false;
+          // The whole point of nudging the customer to flip this toggle is
+          // to get their address saved the moment it happens, not to wait
+          // for them to come back later — _maybeShowLocationPrompt will
+          // still show the sheet if there's no address yet, just
+          // auto-triggered.
+          unawaited(_maybeShowLocationPrompt());
+        }
       } else if (status == ServiceStatus.disabled) {
         unawaited(_maybeShowLocationPrompt());
       }
