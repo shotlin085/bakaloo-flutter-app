@@ -18,6 +18,7 @@ import 'package:bakaloo_flutter_app/core/theme/app_dimensions.dart';
 import 'package:bakaloo_flutter_app/core/theme/app_shadows.dart';
 import 'package:bakaloo_flutter_app/core/theme/app_text_styles.dart';
 import 'package:bakaloo_flutter_app/core/utils/debouncer.dart';
+import 'package:bakaloo_flutter_app/core/utils/resilient_location.dart';
 
 class AddressMapPickerScreen extends StatefulWidget {
   const AddressMapPickerScreen({
@@ -449,11 +450,7 @@ class _AddressMapPickerScreenState extends State<AddressMapPickerScreen>
         return;
       }
 
-      final position = await Geolocator.getCurrentPosition(
-        locationSettings: const LocationSettings(
-          accuracy: LocationAccuracy.high,
-        ),
-      );
+      final position = await getResilientCurrentPosition();
 
       if (!mounted) {
         return;
@@ -494,11 +491,7 @@ class _AddressMapPickerScreenState extends State<AddressMapPickerScreen>
         throw Exception('Location permission is required.');
       }
 
-      final position = await Geolocator.getCurrentPosition(
-        locationSettings: const LocationSettings(
-          accuracy: LocationAccuracy.high,
-        ),
-      );
+      final position = await getResilientCurrentPosition();
 
       final currentPoint = GeoPoint(
         lat: position.latitude,

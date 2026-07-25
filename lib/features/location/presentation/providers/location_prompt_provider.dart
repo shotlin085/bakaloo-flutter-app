@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:geocoding/geocoding.dart';
 import 'package:geolocator/geolocator.dart';
 
+import 'package:bakaloo_flutter_app/core/utils/resilient_location.dart';
 import 'package:bakaloo_flutter_app/features/addresses/domain/repositories/address_repository.dart';
 import 'package:bakaloo_flutter_app/features/addresses/presentation/providers/address_provider.dart';
 import 'package:bakaloo_flutter_app/features/auth/presentation/providers/auth_notifier.dart';
@@ -85,29 +86,26 @@ Future<LocationAutoDetectResult> detectAndSaveCurrentLocation(
       return LocationAutoDetectResult.permissionPermanentlyDenied;
     }
 
-    // 3. Prefer the cached last-known fix; only request a fresh one if
-    // there's nothing cached yet.
-    var position = await Geolocator.getLastKnownPosition();
-    if (position == null) {
-      try {
-        position = await Geolocator.getCurrentPosition(
-          locationSettings: const LocationSettings(
-            accuracy: LocationAccuracy.medium,
-            timeLimit: Duration(seconds: 15),
-          ),
-        );
-      } catch (err, stack) {
-        unawaited(
-          FirebaseCrashlytics.instance.recordError(
-            err,
-            stack,
-            reason: 'detectAndSaveCurrentLocation: getCurrentPosition failed '
-                'and no last-known position to fall back on',
-            fatal: false,
-          ),
-        );
-        return LocationAutoDetectResult.unknown;
-      }
+    // 3. Get the current position — see getResilientCurrentPosition's own
+    // doc comment for why this isn't a single flat getCurrentPosition()
+    // call (right after the customer turns location on from Settings and
+    // comes back, a single attempt regularly failed with "Could not
+    // detect location" because the OS's location subsystem hasn't warmed
+    // back up yet).
+    Position position;
+    try {
+      position = await getResilientCurrentPosition();
+    } catch (err, stack) {
+      unawaited(
+        FirebaseCrashlytics.instance.recordError(
+          err,
+          stack,
+          reason: 'detectAndSaveCurrentLocation: getResilientCurrentPosition '
+              'exhausted every fallback with no position to fall back on',
+          fatal: false,
+        ),
+      );
+      return LocationAutoDetectResult.unknown;
     }
 
     return _geocodeAndSave(ref, position);

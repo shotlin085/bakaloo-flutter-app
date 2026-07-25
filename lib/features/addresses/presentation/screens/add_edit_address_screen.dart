@@ -18,6 +18,7 @@ import 'package:bakaloo_flutter_app/core/theme/app_shadows.dart';
 import 'package:bakaloo_flutter_app/core/theme/app_text_styles.dart';
 import 'package:bakaloo_flutter_app/core/utils/app_toast.dart';
 import 'package:bakaloo_flutter_app/core/utils/debouncer.dart';
+import 'package:bakaloo_flutter_app/core/utils/resilient_location.dart';
 import 'package:bakaloo_flutter_app/core/utils/validators.dart';
 import 'package:bakaloo_flutter_app/features/addresses/domain/entities/address_entity.dart';
 import 'package:bakaloo_flutter_app/features/addresses/domain/repositories/address_repository.dart';
@@ -302,11 +303,7 @@ class _AddEditAddressScreenState extends ConsumerState<AddEditAddressScreen> {
         return;
       }
 
-      final position = await Geolocator.getCurrentPosition(
-        locationSettings: const LocationSettings(
-          accuracy: LocationAccuracy.high,
-        ),
-      );
+      final position = await getResilientCurrentPosition();
 
       if (!mounted) {
         return;
