@@ -60,88 +60,83 @@ String _bannerMessageFor(OrderStatus status, Map<String, bool> notificationFlags
   }
 }
 
-/// Owns the "is there a fresh order-status banner to show right now" state.
+/// The current order-status text and the order/status pair it came from, or
+/// both empty when there's nothing to show. Purely derived from live data —
+/// carries no memory of what's already been shown, so it's safe to watch
+/// from anywhere without affecting how long the banner stays up.
+typedef _RawOrderStatus = ({String message, String key});
+
+final _rawOrderStatusProvider = Provider.autoDispose<_RawOrderStatus>((ref) {
+  final activeOrderAsync = ref.watch(activeOrderProvider);
+  final notificationFlags =
+      ref.watch(orderNotificationFlagsProvider).asData?.value ?? const <String, bool>{};
+
+  // `.value` keeps the last-resolved order while a refetch is in flight
+  // (only null before the very first load ever completes), so a socket
+  // push invalidating activeOrderProvider doesn't blank this out mid-flight
+  // — it just recomputes to the same result until the refetch actually
+  // changes something.
+  final activeOrder = activeOrderAsync.value;
+  if (activeOrder == null || !activeOrder.status.isActive) {
+    return (message: '', key: '');
+  }
+
+  final message = _bannerMessageFor(activeOrder.status, notificationFlags);
+  if (message.isEmpty) {
+    return (message: '', key: '');
+  }
+
+  return (message: message, key: '${activeOrder.id}::${activeOrder.status.name}');
+});
+
+/// Owns "what order-status banner is visible right now", if any — a single
+/// source of truth so the banner itself and [OrderTrackingTopBanner]'s
+/// home-screen layout neighbor (which needs to know whether to give it
+/// room) never disagree.
 ///
-/// A single source of truth (rather than each widget re-deriving it) so the
-/// banner itself and [OrderTrackingTopBanner]'s home-screen layout neighbor
-/// (which needs to know whether to give the banner room) never disagree.
-///
-/// Every *new* status push (a fresh `orderId::status` pair) is shown for a
-/// brief window and then auto-hides itself — it doesn't stay glued to the
-/// screen for as long as the order remains in that status.
+/// Deliberately dumb: nothing in here derives its own value from order
+/// data — [OrderTrackingTopBanner] does that via [_rawOrderStatusProvider]
+/// and calls [sync] whenever it changes. That split is what makes the
+/// 7-second auto-hide reliable: the only two things that can ever change
+/// `state` are a genuinely new status arriving through [sync], or this
+/// class's own timer — an unrelated rebuild anywhere else in the app has no
+/// path to touch it, so it can never restart or resurrect the countdown.
 class OrderTrackingBannerController extends Notifier<String> {
   static const _visibleDuration = Duration(seconds: 7);
 
   Timer? _hideTimer;
-  String? _trackedKey;
-  DateTime? _shownAt;
+  String? _visibleKey;
 
   @override
   String build() {
     ref.onDispose(() => _hideTimer?.cancel());
+    return '';
+  }
 
-    final activeOrderAsync = ref.watch(activeOrderProvider);
-    final notificationFlags =
-        ref.watch(orderNotificationFlagsProvider).asData?.value ?? const <String, bool>{};
-
-    // `handleStatusEvent` (order_live_sync_provider.dart) invalidates
-    // activeOrderProvider on *every* socket push — including ones that
-    // don't actually change the coarse status (duplicate events, the
-    // second invalidate after its own REST refetch). Each invalidation
-    // briefly re-enters this loading state. Treating a valueless loading
-    // blip the same as "no active order" would reset _trackedKey to null,
-    // so the very next resolve looks like a *new* status. Only a *settled*
-    // loading/error/no-order result should clear tracking; an in-flight
-    // refetch should change nothing.
-    if (activeOrderAsync.isLoading && !activeOrderAsync.hasValue) {
-      return state;
-    }
-
-    final activeOrder = activeOrderAsync.value;
-    final rawMessage = (activeOrder != null && activeOrder.status.isActive)
-        ? _bannerMessageFor(activeOrder.status, notificationFlags)
-        : '';
-
-    if (rawMessage.isEmpty) {
-      _trackedKey = null;
-      _shownAt = null;
+  /// Call with the latest [_RawOrderStatus] on every change. A repeat call
+  /// with the same [key] as what's already showing is a no-op — it does
+  /// NOT restart the countdown — so this is always safe to call on every
+  /// rebuild without worrying about resetting an already-running timer.
+  void sync(String message, String key) {
+    if (message.isEmpty) {
+      _visibleKey = null;
       _hideTimer?.cancel();
-      return '';
+      state = '';
+      return;
     }
+    if (key == _visibleKey) return;
 
-    final key = '${activeOrder!.id}::${activeOrder.status.name}';
-    if (key != _trackedKey) {
-      // A genuinely new status — (re)start the visible window.
-      _trackedKey = key;
-      _shownAt = DateTime.now();
-      _hideTimer?.cancel();
-      _hideTimer = Timer(_visibleDuration, () {
-        // Only clear if this is still the status that started the timer —
-        // a newer status may have already taken over and started its own.
-        if (_trackedKey == key) {
-          state = '';
-        }
-      });
-      return rawMessage;
-    }
-
-    // Same status as the last build — this rebuild was triggered by
-    // something *other* than a new status push (activeOrderProvider
-    // resolving after an unrelated invalidate, orderNotificationFlagsProvider
-    // settling, etc.). Deciding visibility from elapsed wall-clock time
-    // here — instead of only ever trusting the single Timer scheduled
-    // above — means an arbitrary number of these unrelated rebuilds can
-    // never keep the banner alive past `_visibleDuration`: previously,
-    // returning the tracked-but-not-yet-dismissed message on every such
-    // rebuild masked whether the timer itself was still the one and only
-    // thing standing between "visible" and "hidden", so a build that
-    // happened to race the timer's own callback could re-show the message
-    // for one more frame right as it was supposed to disappear for good.
-    final shownAt = _shownAt;
-    if (shownAt != null && DateTime.now().difference(shownAt) >= _visibleDuration) {
-      return '';
-    }
-    return rawMessage;
+    _visibleKey = key;
+    _hideTimer?.cancel();
+    state = message;
+    _hideTimer = Timer(_visibleDuration, () {
+      // Only clear if this is still the status that started the timer — a
+      // newer one may have already taken over and started its own.
+      if (_visibleKey == key) {
+        _visibleKey = null;
+        state = '';
+      }
+    });
   }
 }
 
@@ -155,11 +150,37 @@ final orderTrackingBannerProvider =
 /// (pushing the header down) instead of overlaying it, and collapses back
 /// to zero height a few seconds after each new status update — the header
 /// slides back up to normal once it's gone.
-class OrderTrackingTopBanner extends ConsumerWidget {
+class OrderTrackingTopBanner extends ConsumerStatefulWidget {
   const OrderTrackingTopBanner({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<OrderTrackingTopBanner> createState() =>
+      _OrderTrackingTopBannerState();
+}
+
+class _OrderTrackingTopBannerState
+    extends ConsumerState<OrderTrackingTopBanner> {
+  @override
+  void initState() {
+    super.initState();
+    // listenManual (not the build-time `listen`) so `fireImmediately` is
+    // available — WidgetRef.listen in Riverpod 3 dropped that parameter,
+    // but this is exactly the "outside build" lifecycle spot it's meant
+    // for. Covers both the very first read (e.g. opening the app straight
+    // into an already-active order) and every change after that, feeding
+    // them all through the same `sync` call so there's only one place that
+    // ever decides whether a status is genuinely new.
+    ref.listenManual(
+      _rawOrderStatusProvider,
+      (previous, next) {
+        ref.read(orderTrackingBannerProvider.notifier).sync(next.message, next.key);
+      },
+      fireImmediately: true,
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final message = ref.watch(orderTrackingBannerProvider);
     final activeOrderId = ref.watch(activeOrderProvider).value?.id;
 
