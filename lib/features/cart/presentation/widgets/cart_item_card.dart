@@ -5,6 +5,7 @@ import 'package:flutter_slidable/flutter_slidable.dart';
 
 import 'package:bakaloo_flutter_app/core/theme/app_colors.dart';
 import 'package:bakaloo_flutter_app/features/cart/domain/entities/cart_item_entity.dart';
+
 class CartItemCard extends StatelessWidget {
   const CartItemCard({
     required this.item,
@@ -27,9 +28,11 @@ class CartItemCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final hasDiscount =
-        item.salePrice != null && item.salePrice! > 0 && item.salePrice! < item.price;
+    final hasDiscount = item.salePrice != null &&
+        item.salePrice! > 0 &&
+        item.salePrice! < item.price;
     final effectivePrice = item.effectivePrice;
+    final outOfStock = !item.hasEnoughStock;
 
     return Slidable(
       key: ValueKey<String>(item.productId),
@@ -52,20 +55,32 @@ class CartItemCard extends StatelessWidget {
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: <Widget>[
-            ClipRRect(
-              borderRadius: BorderRadius.circular(8.r),
-              child: SizedBox(
-                width: 64.w,
-                height: 64.w,
-                child:
-                    item.thumbnailUrl != null && item.thumbnailUrl!.isNotEmpty
-                        ? CachedNetworkImage(
-                            imageUrl: item.thumbnailUrl!,
-                            fit: BoxFit.cover,
-                            memCacheWidth: 128,
-                            memCacheHeight: 128,
-                            fadeInDuration: const Duration(milliseconds: 150),
-                            errorWidget: (context, url, error) => Container(
+            Opacity(
+              opacity: outOfStock ? 0.45 : 1,
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(8.r),
+                child: SizedBox(
+                  width: 64.w,
+                  height: 64.w,
+                  child:
+                      item.thumbnailUrl != null && item.thumbnailUrl!.isNotEmpty
+                          ? CachedNetworkImage(
+                              imageUrl: item.thumbnailUrl!,
+                              fit: BoxFit.cover,
+                              memCacheWidth: 128,
+                              memCacheHeight: 128,
+                              fadeInDuration: const Duration(milliseconds: 150),
+                              errorWidget: (context, url, error) => Container(
+                                color: const Color(0xFFF4F4F4),
+                                alignment: Alignment.center,
+                                child: Icon(
+                                  Icons.shopping_basket_outlined,
+                                  size: 22.sp,
+                                  color: const Color(0xFFCCCCCC),
+                                ),
+                              ),
+                            )
+                          : Container(
                               color: const Color(0xFFF4F4F4),
                               alignment: Alignment.center,
                               child: Icon(
@@ -74,16 +89,7 @@ class CartItemCard extends StatelessWidget {
                                 color: const Color(0xFFCCCCCC),
                               ),
                             ),
-                          )
-                        : Container(
-                            color: const Color(0xFFF4F4F4),
-                            alignment: Alignment.center,
-                            child: Icon(
-                              Icons.shopping_basket_outlined,
-                              size: 22.sp,
-                              color: const Color(0xFFCCCCCC),
-                            ),
-                          ),
+                ),
               ),
             ),
             SizedBox(width: 12.w),
@@ -103,6 +109,32 @@ class CartItemCard extends StatelessWidget {
                       fontFamily: 'Inter',
                     ),
                   ),
+                  if (outOfStock)
+                    Padding(
+                      padding: EdgeInsets.only(top: 5.h),
+                      child: Container(
+                        padding: EdgeInsets.symmetric(
+                          horizontal: 8.w,
+                          vertical: 3.h,
+                        ),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFFDECEC),
+                          borderRadius: BorderRadius.circular(6.r),
+                          border: Border.all(color: const Color(0xFFF5B5B5)),
+                        ),
+                        child: Text(
+                          item.stockQuantity <= 0
+                              ? 'Out of stock'
+                              : 'Only ${item.stockQuantity} left — reduce quantity',
+                          style: TextStyle(
+                            fontSize: 11.sp,
+                            fontWeight: FontWeight.w700,
+                            color: const Color(0xFFD32F2F),
+                            fontFamily: 'Inter',
+                          ),
+                        ),
+                      ),
+                    ),
                   if (item.optionLabel != null && item.optionLabel!.isNotEmpty)
                     Padding(
                       padding: EdgeInsets.only(top: 2.h),
@@ -156,32 +188,35 @@ class CartItemCard extends StatelessWidget {
                       ),
                     ),
                   SizedBox(height: 10.h),
-                  Row(
-                    children: <Widget>[
-                      if (hasDiscount) ...<Widget>[
+                  Opacity(
+                    opacity: outOfStock ? 0.5 : 1,
+                    child: Row(
+                      children: <Widget>[
+                        if (hasDiscount) ...<Widget>[
+                          Text(
+                            '₹${item.price.toStringAsFixed(0)}',
+                            style: TextStyle(
+                              fontSize: 13.sp,
+                              fontWeight: FontWeight.w400,
+                              color: const Color(0xFF999999),
+                              decoration: TextDecoration.lineThrough,
+                              decorationColor: const Color(0xFF999999),
+                              fontFamily: 'Inter',
+                            ),
+                          ),
+                          SizedBox(width: 8.w),
+                        ],
                         Text(
-                          '₹${item.price.toStringAsFixed(0)}',
+                          '₹${effectivePrice.toStringAsFixed(0)}',
                           style: TextStyle(
-                            fontSize: 13.sp,
-                            fontWeight: FontWeight.w400,
-                            color: const Color(0xFF999999),
-                            decoration: TextDecoration.lineThrough,
-                            decorationColor: const Color(0xFF999999),
+                            fontSize: 14.sp,
+                            fontWeight: FontWeight.w700,
+                            color: const Color(0xFF0AC26B),
                             fontFamily: 'Inter',
                           ),
                         ),
-                        SizedBox(width: 8.w),
                       ],
-                      Text(
-                        '₹${effectivePrice.toStringAsFixed(0)}',
-                        style: TextStyle(
-                          fontSize: 14.sp,
-                          fontWeight: FontWeight.w700,
-                          color: const Color(0xFF0AC26B),
-                          fontFamily: 'Inter',
-                        ),
-                      ),
-                    ],
+                    ),
                   ),
                 ],
               ),
@@ -197,15 +232,34 @@ class CartItemCard extends StatelessWidget {
                   disableIncrease: disableIncrease,
                 ),
                 SizedBox(height: 12.h),
-                Text(
-                  '₹${item.total.toStringAsFixed(0)}',
-                  style: TextStyle(
-                    fontSize: 13.sp,
-                    fontWeight: FontWeight.w700,
-                    color: const Color(0xFF222222),
-                    fontFamily: 'Inter',
+                Opacity(
+                  opacity: outOfStock ? 0.5 : 1,
+                  child: Text(
+                    '₹${item.total.toStringAsFixed(0)}',
+                    style: TextStyle(
+                      fontSize: 13.sp,
+                      fontWeight: FontWeight.w700,
+                      color: const Color(0xFF222222),
+                      fontFamily: 'Inter',
+                      decoration: outOfStock
+                          ? TextDecoration.lineThrough
+                          : TextDecoration.none,
+                    ),
                   ),
                 ),
+                if (outOfStock)
+                  Padding(
+                    padding: EdgeInsets.only(top: 2.h),
+                    child: Text(
+                      'Not included',
+                      style: TextStyle(
+                        fontSize: 10.sp,
+                        fontWeight: FontWeight.w500,
+                        color: const Color(0xFF999999),
+                        fontFamily: 'Inter',
+                      ),
+                    ),
+                  ),
               ],
             ),
           ],
@@ -313,7 +367,8 @@ class _StepButtonState extends State<_StepButton> {
       duration: const Duration(milliseconds: 90),
       curve: Curves.easeOut,
       child: GestureDetector(
-        onTapDown: widget.disabled ? null : (_) => setState(() => _scale = 0.88),
+        onTapDown:
+            widget.disabled ? null : (_) => setState(() => _scale = 0.88),
         onTapUp: (_) {
           setState(() => _scale = 1);
           widget.onPressed();

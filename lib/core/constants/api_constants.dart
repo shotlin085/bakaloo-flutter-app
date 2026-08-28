@@ -123,6 +123,8 @@ class ApiConstants {
   static const productsPriceDrops = '/products/price-drops';
   static const productsLastMinute = '/products/last-minute';
 
+  static const appVersionCheck = '/app/version-check';
+
   static const wallet = '/wallet';
   static const walletTransactions = '/wallet/transactions';
   static const walletTopup = '/wallet/topup';

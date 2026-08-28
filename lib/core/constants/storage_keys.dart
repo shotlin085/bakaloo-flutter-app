@@ -28,6 +28,7 @@ class StorageKeys {
   static const cacheBanners = 'cache_banners';
   static const cacheOrders = 'cache_orders';
   static const cacheUserProfile = 'cache_user_profile';
+  static const cacheAddresses = 'cache_addresses';
   static const cacheRemoteTheme = 'cache_remote_theme';
   static String cacheProduct(String productId) => 'cache_product_$productId';
   static String cacheRemoteThemeForStore(String storeKey) =>

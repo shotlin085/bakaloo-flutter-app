@@ -7,25 +7,33 @@ import 'package:phosphoricons_flutter/phosphoricons_flutter.dart';
 import 'package:bakaloo_flutter_app/core/theme/app_colors.dart';
 import 'package:bakaloo_flutter_app/core/theme/app_text_styles.dart';
 import 'package:bakaloo_flutter_app/core/utils/extensions/double_extensions.dart';
+import 'package:bakaloo_flutter_app/features/cart/domain/entities/bill_summary_entity.dart';
 import 'package:bakaloo_flutter_app/features/wallet/presentation/providers/wallet_provider.dart';
 
+/// Shown only when the "Cash / Wallet" button on the cart's bottom bar has
+/// a genuine choice to offer — i.e. both wallet (admin-enabled, balance
+/// sufficient) and Cash on Delivery (admin-enabled, bill total within the
+/// configured range) are actually usable right now. When only one of the
+/// two is usable, the caller places that order directly instead of opening
+/// this sheet — see CartScreen._handleCashOrWallet.
 class CartPaymentSelectorSheet extends ConsumerWidget {
   const CartPaymentSelectorSheet({
     required this.orderTotal,
+    required this.paymentMethods,
     required this.onPaymentMethodSelected,
     super.key,
   });
 
   final double orderTotal;
+  final PaymentMethodsInfo paymentMethods;
   final void Function(String method) onPaymentMethodSelected;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    // FIX: Use walletProvider (WalletNotifier, keepAlive) for consistent
-    // balance — never shows stale 0 or "Low Balance" incorrectly.
     final walletAsync = ref.watch(walletProvider);
     final walletBalance = walletAsync.asData?.value.balance ?? 0.0;
     final hasEnoughWalletBalance = walletBalance >= orderTotal;
+    final cod = paymentMethods.cod;
 
     return Container(
       decoration: const BoxDecoration(
@@ -54,45 +62,55 @@ class CartPaymentSelectorSheet extends ConsumerWidget {
           ),
           Gap(24.h),
           Text(
-            'Choose Payment Method',
+            'Pay with Cash or Wallet',
             style: AppTextStyles.h3,
           ),
           Gap(20.h),
 
-          // Online Payment (Recommended/Razorpay)
-          _PaymentOptionTile(
-            icon: PhosphorIcons.creditCard,
-            title: 'Pay Online',
-            subtitle: 'UPI, Cards, Netbanking',
-            onTap: () {
-              Navigator.of(context).pop();
-              onPaymentMethodSelected('ONLINE');
-            },
-            isRecommended: true,
-          ),
+          // Bakaloo Wallet — only reachable here when the admin has it
+          // enabled at all; still greyed out (with an "Add Money" nudge)
+          // when the balance itself falls short.
+          if (paymentMethods.wallet.enabled) ...<Widget>[
+            _PaymentOptionTile(
+              icon: PhosphorIcons.wallet,
+              title: 'Bakaloo Wallet',
+              subtitle: 'Balance: ${walletBalance.toInrCurrency}',
+              onTap: hasEnoughWalletBalance
+                  ? () {
+                      Navigator.of(context).pop();
+                      onPaymentMethodSelected('WALLET');
+                    }
+                  : null,
+              trailingWidget: !hasEnoughWalletBalance
+                  ? Text(
+                      'Low Balance',
+                      style: AppTextStyles.bodySmall
+                          .copyWith(color: AppColors.errorRed),
+                    )
+                  : null,
+              opacity: hasEnoughWalletBalance ? 1.0 : 0.5,
+            ),
+            Gap(12.h),
+          ],
 
-          Gap(12.h),
-
-          // Bakaloo Wallet
-          _PaymentOptionTile(
-            icon: PhosphorIcons.wallet,
-            title: 'Bakaloo Wallet',
-            subtitle: 'Balance: ${walletBalance.toInrCurrency}',
-            onTap: hasEnoughWalletBalance
-                ? () {
-                    Navigator.of(context).pop();
-                    onPaymentMethodSelected('WALLET');
-                  }
-                : null,
-            trailingWidget: !hasEnoughWalletBalance
-                ? Text(
-                    'Low Balance',
-                    style: AppTextStyles.bodySmall
-                        .copyWith(color: AppColors.errorRed),
-                  )
-                : null,
-            opacity: hasEnoughWalletBalance ? 1.0 : 0.5,
-          ),
+          // Cash on Delivery — only reachable here when the admin has it
+          // enabled at all; greyed out with the backend's own reason text
+          // when the live bill total falls outside the configured range.
+          if (cod.enabled)
+            _PaymentOptionTile(
+              icon: PhosphorIcons.money,
+              title: 'Cash on Delivery',
+              subtitle: cod.available
+                  ? 'Pay in cash when your order arrives'
+                  : (cod.reason ?? 'Not available for this order'),
+              onTap: cod.available
+                  ? () {
+                      Navigator.of(context).pop();
+                      onPaymentMethodSelected('COD');
+                    }
+                  : null,
+              opacity: cod.available ? 1.0 : 0.5,
+            ),
         ],
       ),
     );
@@ -105,7 +123,6 @@ class _PaymentOptionTile extends StatelessWidget {
     required this.title,
     required this.subtitle,
     this.onTap,
-    this.isRecommended = false,
     this.trailingWidget,
     this.opacity = 1.0,
   });
@@ -114,7 +131,6 @@ class _PaymentOptionTile extends StatelessWidget {
   final String title;
   final String subtitle;
   final VoidCallback? onTap;
-  final bool isRecommended;
   final Widget? trailingWidget;
   final double opacity;
 
@@ -127,24 +143,16 @@ class _PaymentOptionTile extends StatelessWidget {
         opacity: opacity,
         child: Container(
           decoration: BoxDecoration(
-            border: Border.all(
-              color:
-                  isRecommended ? AppColors.primaryGreen : Colors.grey.shade300,
-              width: isRecommended ? 1.5 : 1,
-            ),
+            border: Border.all(color: Colors.grey.shade300),
             borderRadius: BorderRadius.circular(12),
-            color: isRecommended
-                ? AppColors.primaryGreen.withValues(alpha: 0.05)
-                : Colors.white,
+            color: Colors.white,
           ),
           padding: EdgeInsets.symmetric(horizontal: 16.w, vertical: 16.h),
           child: Row(
             children: <Widget>[
               PhosphorIcon(
                 icon,
-                color: isRecommended
-                    ? AppColors.primaryGreen
-                    : AppColors.textPrimary,
+                color: AppColors.textPrimary,
                 size: 28,
               ),
               Gap(16.w),
@@ -152,36 +160,11 @@ class _PaymentOptionTile extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: <Widget>[
-                    Row(
-                      children: <Widget>[
-                        Text(
-                          title,
-                          style: AppTextStyles.bodyLarge.copyWith(
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                        if (isRecommended) ...[
-                          Gap(8.w),
-                          Container(
-                            padding: EdgeInsets.symmetric(
-                              horizontal: 6.w,
-                              vertical: 2.h,
-                            ),
-                            decoration: BoxDecoration(
-                              color: AppColors.primaryGreen,
-                              borderRadius: BorderRadius.circular(4),
-                            ),
-                            child: Text(
-                              'RECOMMENDED',
-                              style: AppTextStyles.bodySmall.copyWith(
-                                color: Colors.white,
-                                fontSize: 9.sp,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                          ),
-                        ],
-                      ],
+                    Text(
+                      title,
+                      style: AppTextStyles.bodyLarge.copyWith(
+                        fontWeight: FontWeight.w600,
+                      ),
                     ),
                     Gap(2.h),
                     Text(
@@ -196,7 +179,7 @@ class _PaymentOptionTile extends StatelessWidget {
               if (trailingWidget != null)
                 trailingWidget!
               else
-                PhosphorIcon(
+                const PhosphorIcon(
                   PhosphorIcons.caretRight,
                   size: 20,
                   color: AppColors.textSecondary,

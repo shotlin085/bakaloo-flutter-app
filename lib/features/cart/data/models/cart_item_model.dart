@@ -22,6 +22,15 @@ double? _cartNullableDoubleFromJson(Object? value) {
   return double.tryParse(value.toString());
 }
 
+bool _cartBoolFromJson(Object? value) => value is bool ? value : true;
+
+int _cartStockFromJson(Object? value) {
+  if (value is num) {
+    return value.toInt();
+  }
+  return int.tryParse(value?.toString() ?? '') ?? 9999;
+}
+
 @freezed
 abstract class CartItemModel with _$CartItemModel {
   const CartItemModel._();
@@ -46,6 +55,12 @@ abstract class CartItemModel with _$CartItemModel {
     @JsonKey(name: 'originTag') String? originTag,
     @JsonKey(name: 'displayDeliveryMinutes') int? displayDeliveryMinutes,
     @JsonKey(name: 'categoryId') String? categoryId,
+    @JsonKey(name: 'isAvailable', fromJson: _cartBoolFromJson)
+    @Default(true)
+    bool isAvailable,
+    @JsonKey(name: 'stockQuantity', fromJson: _cartStockFromJson)
+    @Default(9999)
+    int stockQuantity,
   }) = _CartItemModel;
 
   factory CartItemModel.fromJson(Map<String, dynamic> json) =>
@@ -70,6 +85,8 @@ abstract class CartItemModel with _$CartItemModel {
       originTag: originTag,
       displayDeliveryMinutes: displayDeliveryMinutes,
       categoryId: categoryId,
+      isAvailable: isAvailable,
+      stockQuantity: stockQuantity,
     );
   }
 }

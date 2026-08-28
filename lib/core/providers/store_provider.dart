@@ -10,8 +10,12 @@ class _SelectedStoreNotifier extends Notifier<StoreModel> {
 }
 
 class _SelectedCategoryNotifier extends Notifier<String> {
+  // '' is a sentinel meaning "no explicit tab picked yet" — consumers
+  // resolve it to the store's admin-configured default tab (falling back to
+  // 'all', then the first tab) once that store's tabs have loaded. A real
+  // tabKey/CategoryModel.id is never empty, so this can't collide.
   @override
-  String build() => 'all';
+  String build() => '';
 
   void select(String id) {
     // Guard against re-selecting the same tab so providers don't re-fire.

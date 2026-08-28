@@ -27,6 +27,7 @@ import 'package:bakaloo_flutter_app/features/home/domain/entities/banner_entity.
 import 'package:bakaloo_flutter_app/features/home/presentation/providers/banner_provider.dart';
 import 'package:bakaloo_flutter_app/features/home/presentation/providers/home_provider.dart';
 import 'package:bakaloo_flutter_app/features/home/presentation/widgets/dynamic_home_sections.dart';
+import 'package:bakaloo_flutter_app/features/home/presentation/widgets/order_tracking_top_banner.dart';
 import 'package:bakaloo_flutter_app/features/products/domain/entities/product_entity.dart';
 import 'package:bakaloo_flutter_app/features/purchase_limits/presentation/providers/purchase_limits_provider.dart';
 import 'package:bakaloo_flutter_app/routing/app_router.dart';
@@ -128,6 +129,23 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
   // moment the service flips back to enabled so a later disable in the same
   // session can prompt again. See _locationServiceStatusSub.
   bool _locationPromptShownThisSession = false;
+  // True for the entire duration of an in-progress _maybeShowLocationPrompt
+  // call, including while it's awaiting the sheet/screen the customer is
+  // looking at. Distinct from _locationPromptShownThisSession (which is
+  // deliberately reset to allow re-prompting after a later toggle) — this
+  // one exists purely to stop a second call from starting while an earlier
+  // one hasn't finished. Without it: tapping "Enable" while location is off
+  // sends the customer to the OS location-settings screen with the sheet
+  // still open (and this function still awaiting it) underneath; flipping
+  // location on there fires the service-status-stream listener below, which
+  // resets _locationPromptShownThisSession and calls this function again —
+  // pushing a second sheet on top of the still-open first one. The second
+  // sheet auto-detects, saves, and pops itself, which then reveals the
+  // orphaned first sheet still showing its stale "turn on location"
+  // message — mandatory, so the customer can't even swipe it away. Reported
+  // bug: a stuck popup after granting location from a cold "location off,
+  // no address" start, never happening when location was already on.
+  bool _locationPromptInFlight = false;
   StreamSubscription<ServiceStatus>? _locationServiceStatusSub;
   // Guards against the post-frame callback firing more than once per
   // widget lifetime (e.g. a rapid rebuild) — unlike the location prompt,
@@ -349,7 +367,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
   ///      opens instead of waiting for an "Enable" tap — the customer
   ///      still sees the sheet and its spinner/status text either way.
   Future<void> _maybeShowLocationPrompt() async {
-    if (!mounted || _locationPromptShownThisSession) return;
+    if (!mounted || _locationPromptShownThisSession || _locationPromptInFlight) {
+      return;
+    }
     // Checked synchronously, before the flag below — HomeScreen can be
     // built (and this function's very first, initState-triggered call can
     // run) before login completes, since it's part of AppShell's
@@ -374,6 +394,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
     // of it. Reported bug: "detect complete then that [sheet] should not
     // come" — a second call slipping through this exact gap.
     _locationPromptShownThisSession = true;
+    _locationPromptInFlight = true;
     try {
       final addresses = await ref.read(addressProvider.future);
 
@@ -454,6 +475,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
       );
     } catch (_) {
       // Non-critical — silently ignore
+    } finally {
+      _locationPromptInFlight = false;
     }
   }
 
@@ -943,21 +966,34 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
                                               .watch(addressProvider)
                                               .asData
                                               ?.value;
-                                      return HomeHeader(
-                                        addressText: resolveAddressLabel(
-                                          isLoggedIn: currentUser != null,
-                                          addresses: addresses,
-                                        ),
-                                        onAddressTap: () =>
-                                            showAddressSheet(context),
-                                        onNotificationTap: () =>
-                                            context.go(RouteNames.notifications),
-                                        onWalletTap: () =>
-                                            context.go(RouteNames.wallet),
-                                        topBarTheme: topBarTheme,
-                                        searchZoneColor: searchZoneTheme
-                                            .backgroundColor,
-                                        deliveryEtaMinutes: deliveryEtaMinutes,
+                                      final hasTrackingBanner = ref
+                                          .watch(orderTrackingBannerProvider)
+                                          .isNotEmpty;
+                                      return Column(
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.start,
+                                        children: <Widget>[
+                                          const OrderTrackingTopBanner(),
+                                          HomeHeader(
+                                            addressText: resolveAddressLabel(
+                                              isLoggedIn: currentUser != null,
+                                              addresses: addresses,
+                                            ),
+                                            onAddressTap: () =>
+                                                showAddressSheet(context),
+                                            onNotificationTap: () => context
+                                                .go(RouteNames.notifications),
+                                            onWalletTap: () =>
+                                                context.go(RouteNames.wallet),
+                                            topBarTheme: topBarTheme,
+                                            searchZoneColor: searchZoneTheme
+                                                .backgroundColor,
+                                            deliveryEtaMinutes:
+                                                deliveryEtaMinutes,
+                                            topPaddingOverride:
+                                                hasTrackingBanner ? 0 : null,
+                                          ),
+                                        ],
                                       );
                                     },
                                   ),

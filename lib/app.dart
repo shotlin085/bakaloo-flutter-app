@@ -8,6 +8,7 @@ import 'package:bakaloo_flutter_app/routing/app_router.dart';
 import 'package:bakaloo_flutter_app/shared/providers/theme_provider.dart';
 import 'package:bakaloo_flutter_app/shared/widgets/app_availability_gate.dart';
 import 'package:bakaloo_flutter_app/shared/widgets/app_route_loading_gate.dart';
+import 'package:bakaloo_flutter_app/shared/widgets/app_version_gate.dart';
 
 // The phone this design was tuned for. Android phones and iPhones (incl.
 // iPhone 17 Pro) all sit close to this width, so ScreenUtil's scale factor
@@ -61,9 +62,11 @@ class App extends ConsumerWidget {
               data: MediaQuery.of(context).copyWith(
                 textScaler: TextScaler.linear(textScaleFactor),
               ),
-              child: AppAvailabilityGate(
-                child: AppRouteLoadingGate(
-                  child: child ?? const SizedBox.shrink(),
+              child: AppVersionGate(
+                child: AppAvailabilityGate(
+                  child: AppRouteLoadingGate(
+                    child: child ?? const SizedBox.shrink(),
+                  ),
                 ),
               ),
             );

@@ -19,6 +19,7 @@ class HomeHeader extends ConsumerWidget {
     this.topBarTheme,
     this.searchZoneColor,
     this.deliveryEtaMinutes,
+    this.topPaddingOverride,
     super.key,
   });
 
@@ -34,13 +35,19 @@ class HomeHeader extends ConsumerWidget {
   /// only on the main Zepto store front in place of its static "6 mins"
   /// tagline. Other store fronts keep their own static taglines.
   final int? deliveryEtaMinutes;
+  /// When something is already occupying the status-bar area above this
+  /// header (e.g. [OrderTrackingTopBanner]), that widget passes 0 here so
+  /// the header doesn't also pad for it — avoiding a doubled gap. Null
+  /// (the default) keeps the normal behavior of padding by the device's
+  /// own top safe-area inset.
+  final double? topPaddingOverride;
 
   static const Color _lavenderTop = Color(0xFFEDE4FB);
   static const Color _lavenderBottom = Color(0xFFF6F1FD);
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final topInset = MediaQuery.paddingOf(context).top;
+    final topInset = topPaddingOverride ?? MediaQuery.paddingOf(context).top;
     final store = ref.watch(selectedStoreProvider);
 
     // Use the dashboard-configured top bar color when available.

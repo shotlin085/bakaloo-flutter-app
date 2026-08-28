@@ -1,9 +1,15 @@
+import 'dart:async';
+import 'dart:convert';
+
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
+import 'package:bakaloo_flutter_app/core/constants/storage_keys.dart';
 import 'package:bakaloo_flutter_app/core/di/providers.dart';
 import 'package:bakaloo_flutter_app/core/errors/failure.dart';
+import 'package:bakaloo_flutter_app/core/storage/hive_service.dart';
 import 'package:bakaloo_flutter_app/features/addresses/data/datasources/address_remote_datasource.dart';
 import 'package:bakaloo_flutter_app/features/addresses/data/repositories/address_repository_impl.dart';
 import 'package:bakaloo_flutter_app/features/addresses/domain/entities/address_entity.dart';
@@ -88,11 +94,90 @@ class AddressActionResult {
 class AddressNotifier extends _$AddressNotifier {
   @override
   Future<List<AddressEntity>> build() async {
+    // Cache-then-network: an address rarely changes between app opens, so a
+    // cold start shows the last-known list instantly (matching the pattern
+    // already used for theme/home content in remote_theme_provider.dart)
+    // instead of leaving the screen blank for an entire network round trip.
+    // A background refresh still runs and silently corrects the screen if
+    // anything actually changed — order placement always re-resolves the
+    // address by id server-side (see checkout_provider.dart), so a
+    // momentarily-stale cached list here can never cause a wrong delivery.
+    final cached = _readCachedAddresses();
+    if (cached != null) {
+      debugPrint(
+        '[AddressNotifier] served ${cached.length} address(es) from cache '
+        'at t=${DateTime.now()}; refreshing in background',
+      );
+      unawaited(_refreshInBackground());
+      return cached;
+    }
+
     final result = await ref.read(getAddressesUseCaseProvider).call();
     return result.fold(
       (failure) => throw StateError(failure.message),
-      _sortAddresses,
+      (addresses) {
+        final sorted = _sortAddresses(addresses);
+        _writeCache(sorted);
+        return sorted;
+      },
     );
+  }
+
+  /// Re-fetches in the background after serving a cached list from [build].
+  /// Only touches `state` if the notifier is still alive and the result
+  /// actually differs from what's cached, so a silent no-op refresh never
+  /// causes a pointless rebuild.
+  Future<void> _refreshInBackground() async {
+    final result = await ref.read(getAddressesUseCaseProvider).call();
+    result.fold(
+      (failure) {
+        debugPrint('[AddressNotifier] background refresh failed: '
+            '${failure.message}');
+      },
+      (addresses) {
+        final sorted = _sortAddresses(addresses);
+        if (!ref.mounted) {
+          return;
+        }
+        if (!listEquals(_currentAddresses, sorted)) {
+          state = AsyncData(sorted);
+        }
+        _writeCache(sorted);
+      },
+    );
+  }
+
+  List<AddressEntity>? _readCachedAddresses() {
+    try {
+      final raw = HiveService.settingsBox.get(StorageKeys.cacheAddresses);
+      if (raw is! String || raw.isEmpty) {
+        return null;
+      }
+      final decoded = jsonDecode(raw);
+      if (decoded is! List) {
+        return null;
+      }
+      return decoded
+          .whereType<Map>()
+          .map((item) => _addressFromJson(Map<String, dynamic>.from(item)))
+          .toList(growable: false);
+    } catch (error) {
+      debugPrint('[AddressNotifier] cache read failed: $error');
+      return null;
+    }
+  }
+
+  void _writeCache(List<AddressEntity> addresses) {
+    try {
+      final encoded = jsonEncode(
+        addresses.map(_addressToJson).toList(growable: false),
+      );
+      unawaited(
+        HiveService.settingsBox.put(StorageKeys.cacheAddresses, encoded),
+      );
+    } catch (error) {
+      debugPrint('[AddressNotifier] cache write failed: $error');
+    }
   }
 
   Future<AddressActionResult> createAddress(AddressUpsertParams params) async {
@@ -106,6 +191,7 @@ class AddressNotifier extends _$AddressNotifier {
           address,
         ]);
         state = AsyncData(next);
+        _writeCache(next);
         ref.invalidateSelf();
         return const AddressActionResult();
       },
@@ -128,6 +214,7 @@ class AddressNotifier extends _$AddressNotifier {
               .toList(growable: false),
         );
         state = AsyncData(next);
+        _writeCache(next);
         return const AddressActionResult();
       },
     );
@@ -153,10 +240,13 @@ class AddressNotifier extends _$AddressNotifier {
     return result.fold(
       (failure) => AddressActionResult(failure: failure),
       (_) {
-        final next = _currentAddresses
-            .where((item) => item.id != id)
-            .toList(growable: false);
-        state = AsyncData(_sortAddresses(next));
+        final next = _sortAddresses(
+          _currentAddresses
+              .where((item) => item.id != id)
+              .toList(growable: false),
+        );
+        state = AsyncData(next);
+        _writeCache(next);
         return const AddressActionResult();
       },
     );
@@ -193,6 +283,7 @@ class AddressNotifier extends _$AddressNotifier {
               .toList(growable: false),
         );
         state = AsyncData(next);
+        _writeCache(next);
         return const AddressActionResult();
       },
     );
@@ -217,3 +308,41 @@ class AddressNotifier extends _$AddressNotifier {
       });
   }
 }
+
+/// Hand-written (no codegen) JSON mapping for the on-device address cache.
+/// [AddressEntity] itself has no `toJson`/`fromJson` — it's a plain freezed
+/// value type — so this mirrors it field-for-field rather than pulling in
+/// build_runner just for local cache persistence.
+Map<String, dynamic> _addressToJson(AddressEntity address) => <String, dynamic>{
+      'id': address.id,
+      'label': address.label,
+      'name': address.name,
+      'phone': address.phone,
+      'addressLine1': address.addressLine1,
+      'addressLine2': address.addressLine2,
+      'city': address.city,
+      'state': address.state,
+      'pincode': address.pincode,
+      'latitude': address.latitude,
+      'longitude': address.longitude,
+      'receiverName': address.receiverName,
+      'receiverPhone': address.receiverPhone,
+      'isDefault': address.isDefault,
+    };
+
+AddressEntity _addressFromJson(Map<String, dynamic> json) => AddressEntity(
+      id: json['id'] as String? ?? '',
+      label: json['label'] as String? ?? 'Other',
+      name: json['name'] as String? ?? '',
+      phone: json['phone'] as String? ?? '',
+      addressLine1: json['addressLine1'] as String? ?? '',
+      addressLine2: json['addressLine2'] as String?,
+      city: json['city'] as String? ?? '',
+      state: json['state'] as String? ?? '',
+      pincode: json['pincode'] as String? ?? '',
+      latitude: (json['latitude'] as num?)?.toDouble() ?? 0,
+      longitude: (json['longitude'] as num?)?.toDouble() ?? 0,
+      receiverName: json['receiverName'] as String?,
+      receiverPhone: json['receiverPhone'] as String?,
+      isDefault: json['isDefault'] as bool? ?? false,
+    );

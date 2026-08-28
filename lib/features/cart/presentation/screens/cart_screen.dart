@@ -1,5 +1,7 @@
 // ignore_for_file: cascade_invocations
 
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
@@ -23,13 +25,13 @@ import 'package:bakaloo_flutter_app/features/cart/presentation/widgets/cart_firs
 import 'package:bakaloo_flutter_app/features/cart/presentation/widgets/cart_item_card.dart';
 import 'package:bakaloo_flutter_app/features/cart/presentation/widgets/cart_misc_widgets.dart';
 import 'package:bakaloo_flutter_app/features/cart/presentation/widgets/cart_ordering_for.dart';
+import 'package:bakaloo_flutter_app/features/cart/presentation/widgets/cart_payment_selector_sheet.dart';
 import 'package:bakaloo_flutter_app/features/cart/presentation/widgets/cart_quick_add_section.dart';
 import 'package:bakaloo_flutter_app/features/cart/presentation/widgets/cart_savings_banner.dart';
 import 'package:bakaloo_flutter_app/features/cart/presentation/widgets/cart_savings_breakdown.dart';
 import 'package:bakaloo_flutter_app/features/cart/presentation/widgets/cart_tip_section.dart';
 import 'package:bakaloo_flutter_app/core/utils/app_toast.dart';
 import 'package:bakaloo_flutter_app/features/purchase_limits/presentation/providers/purchase_limits_provider.dart';
-import 'package:bakaloo_flutter_app/features/checkout/domain/entities/checkout_summary_entity.dart';
 import 'package:bakaloo_flutter_app/features/checkout/domain/entities/delivery_slot_entity.dart';
 import 'package:bakaloo_flutter_app/features/checkout/presentation/providers/checkout_provider.dart';
 import 'package:bakaloo_flutter_app/features/checkout/presentation/providers/delivery_slot_provider.dart';
@@ -37,6 +39,7 @@ import 'package:bakaloo_flutter_app/features/checkout/presentation/providers/sto
 import 'package:bakaloo_flutter_app/features/checkout/presentation/screens/coupons_screen.dart';
 import 'package:bakaloo_flutter_app/features/cart/presentation/widgets/schedule_delivery_sheet.dart';
 import 'package:bakaloo_flutter_app/features/checkout/presentation/widgets/store_hours_sheet.dart';
+import 'package:bakaloo_flutter_app/features/wallet/presentation/providers/wallet_provider.dart';
 import 'package:bakaloo_flutter_app/features/wishlist/presentation/providers/wishlist_ids_provider.dart';
 import 'package:bakaloo_flutter_app/routing/route_names.dart';
 import 'package:bakaloo_flutter_app/shared/widgets/confirmation_dialog.dart';
@@ -57,13 +60,17 @@ class _CartScreenState extends ConsumerState<CartScreen> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       ref.read(priceDropProductsProvider);
       ref.read(paymentOffersProvider);
+      // A line can go out of stock (another customer buying the last unit)
+      // between when this customer added it and when they come back to
+      // look at their cart — refresh on every visit so that shows up
+      // promptly instead of only being discovered at a failed checkout.
+      ref.read(cartProvider.notifier).refresh();
     });
   }
 
   @override
   Widget build(BuildContext context) {
     final cartAsync = ref.watch(cartProvider);
-    final checkoutSummary = ref.read(checkoutProvider.notifier).summary;
     final cart = switch (cartAsync) {
       AsyncData(:final value) => value,
       _ => CartEntity.empty(),
@@ -75,15 +82,33 @@ class _CartScreenState extends ConsumerState<CartScreen> {
       AsyncData(:final value) => value,
       _ => null,
     };
+    // AsyncValue.value keeps the last successfully-loaded summary visible
+    // even while a new one is loading (e.g. after a quantity change),
+    // unlike `billSummary` above which resets to null on every reload.
+    // Used for both payment-method flags (rarely change mid-session, so no
+    // reason to re-flash a loading state on every cart edit) and the "To
+    // Pay" figure below.
+    //
+    // Reported bug: the bottom bar used to fall back to `cart.subtotal`
+    // (item total only — no delivery/platform fee, no coupon/first-time-
+    // offer discount) the instant `billSummary` went back to `AsyncLoading`
+    // on ANY reload, so every quantity change flashed a wrong, lower total
+    // before correcting itself once the backend responded — "price
+    // fluctuates" from the customer's point of view. The backend's
+    // TotalsEngine is the only source of truth for what a customer actually
+    // owes; a client-computed guess must never be shown as if it were that
+    // number. Now: show the last real backend total (still accurate for
+    // the cart as it stood a moment ago) while a fresher one loads, and
+    // only fall back to a genuine "calculating…" shimmer — never a
+    // fabricated number — on the true first load, when there's no real
+    // total yet at all.
+    final lastKnownSummary = billSummaryAsync.value;
     final displayBillSummary = _displayBillSummary(
       cart: cart,
-      checkoutSummary: checkoutSummary,
       remoteSummary: billSummary,
     );
-    // Bottom bar mirrors the bill's "To pay" — backend total when available,
-    // otherwise the item subtotal while the summary loads.
-    final toPay =
-        billSummary != null ? displayBillSummary.payable : cart.subtotal;
+    final summaryKnown = lastKnownSummary != null;
+    final toPay = lastKnownSummary?.payable ?? displayBillSummary.payable;
 
     return Scaffold(
       backgroundColor: const Color(0xFFF5F5F5),
@@ -126,7 +151,12 @@ class _CartScreenState extends ConsumerState<CartScreen> {
               selectedAddress: selectedAddress,
               hasAddress: hasAddress,
               billSummaryAsync: billSummaryAsync,
-              billSummary: displayBillSummary,
+              // Same "never show a fabricated number" rule as the bottom
+              // bar's `toPay`: prefer the last real backend total over the
+              // client-guessed fallback whenever one exists, so a reload
+              // (quantity change, coupon apply, etc.) keeps showing
+              // accurate figures instead of a stale-guess-then-jump.
+              billSummary: lastKnownSummary ?? displayBillSummary,
             ),
           );
         },
@@ -136,8 +166,38 @@ class _CartScreenState extends ConsumerState<CartScreen> {
           : CartBottomBar(
               hasAddress: hasAddress,
               toPay: toPay,
+              isPlacingOrder: ref.watch(
+                checkoutProvider.select((s) => s.isPlacingOrder),
+              ),
+              // Whether the *real* summary (payment methods AND price) is
+              // known yet. Until it is, the bar shows a loading placeholder
+              // for both instead of a guess — see the comment above
+              // `summaryKnown` for why a guess here caused two real bugs
+              // (payment buttons flashing wrong, and "To Pay" fluctuating).
+              paymentMethodsKnown: summaryKnown,
+              onlineEnabled:
+                  lastKnownSummary?.paymentMethods.razorpay.enabled ??
+                      true,
+              codEnabled:
+                  lastKnownSummary?.paymentMethods.cod.enabled ??
+                      true,
+              walletEnabled:
+                  lastKnownSummary?.paymentMethods.wallet.enabled ??
+                      true,
               onAddAddress: () => _ensureAddressAndProceed(context),
-              onProceed: () => _proceedToCheckout(context),
+              onPayOnline: () => _handlePayOnline(context),
+              onCashOrWallet: () => _handleCashOrWallet(
+                context,
+                // Freshest pricing, but the same last-known-good
+                // paymentMethods the button itself is displaying right
+                // now — a reload in flight at tap time must route the
+                // same way the button promised, not fall back to the
+                // guessed-all-enabled placeholder mid-flight.
+                displayBillSummary.copyWith(
+                  paymentMethods: lastKnownSummary?.paymentMethods ??
+                      displayBillSummary.paymentMethods,
+                ),
+              ),
             ),
     );
   }
@@ -268,6 +328,14 @@ class _CartScreenState extends ConsumerState<CartScreen> {
 
     widgets.add(
       billSummaryAsync.when(
+        // Without this, .when() shows `loading` on every reload by
+        // default (any quantity change, coupon apply, etc.), re-shimmering
+        // a breakdown that's already accurate and just being refreshed —
+        // `billSummary` here is now the last-known-good total (see the
+        // call site), so there's real, correct data to keep showing while
+        // the fresher one loads. Only a genuine first load (no previous
+        // value at all) still shows the shimmer.
+        skipLoadingOnReload: true,
         loading: () => RepaintBoundary(child: _buildBillSummaryShimmer()),
         error: (_, __) => RepaintBoundary(
           child: CartBillSummary(summary: billSummary),
@@ -320,6 +388,20 @@ class _CartScreenState extends ConsumerState<CartScreen> {
                   AppToast.show(context, 'Maximum product order complete');
                   return;
                 }
+                // Re-checked fresh for the same reason as the purchase-limit
+                // guard above — a line can go out of stock (another
+                // customer buying the last unit) while this screen is
+                // already open, and the "+" must never push past what's
+                // actually left.
+                if (!item.hasEnoughStock) {
+                  AppToast.show(
+                    context,
+                    item.stockQuantity <= 0
+                        ? 'This item is out of stock'
+                        : 'Only ${item.stockQuantity} left in stock',
+                  );
+                  return;
+                }
                 _updateItemQuantity(
                   context,
                   item.productId,
@@ -340,7 +422,7 @@ class _CartScreenState extends ConsumerState<CartScreen> {
                 );
               },
               onRemove: () => _removeItem(context, item),
-              disableIncrease: isAtLimit,
+              disableIncrease: isAtLimit || !item.hasEnoughStock,
             ),
             if (index != items.length - 1)
               Padding(
@@ -512,13 +594,12 @@ class _CartScreenState extends ConsumerState<CartScreen> {
     return true;
   }
 
+  /// "Add Address to Proceed" button — just adds the address. No further
+  /// auto-proceed step needed: once it's saved, `hasAddress` flips true and
+  /// the bottom bar re-renders into the Pay Online / Cash-Wallet buttons on
+  /// its own for the customer to tap.
   Future<void> _ensureAddressAndProceed(BuildContext context) async {
-    final changed = await _openAddAddress(context);
-    if (!context.mounted || !changed) {
-      return;
-    }
-
-    await _proceedToCheckout(context);
+    await _openAddAddress(context);
   }
 
   Future<void> _openAddressList(BuildContext context) async {
@@ -566,36 +647,184 @@ class _CartScreenState extends ConsumerState<CartScreen> {
     }
   }
 
-  Future<void> _proceedToCheckout(BuildContext context) async {
-    final selectedAddress = ref.read(cartSelectedAddressProvider);
+  /// Shared pre-flight for both payment buttons: resolves the selected
+  /// address (prompting for one if missing) and re-validates the cart
+  /// against the live backend (stock/pricing may have moved since this
+  /// screen opened) — the same two checks `_proceedToCheckout` used to run
+  /// before handing off to the separate checkout page. Returns the address
+  /// to place the order against, or null if the caller should stop (an
+  /// error was already surfaced, or the user backed out of adding one).
+  Future<AddressEntity?> _validateForPayment(BuildContext context) async {
+    var selectedAddress = ref.read(cartSelectedAddressProvider);
     if (selectedAddress == null) {
-      await _ensureAddressAndProceed(context);
-      return;
+      final added = await _openAddAddress(context);
+      if (!context.mounted || !added) {
+        return null;
+      }
+      selectedAddress = ref.read(cartSelectedAddressProvider);
+      if (selectedAddress == null) {
+        return null;
+      }
     }
 
     final validation =
         await ref.read(cartProvider.notifier).validateAndProceed();
     if (!context.mounted) {
-      return;
+      return null;
     }
     if (validation.hasFailure) {
       showCartSnackBar(context, validation.failure!.message);
-      return;
+      return null;
     }
     if (!validation.valid) {
       showCartSnackBar(context, validation.warnings.join('\n'));
+      return null;
+    }
+
+    return selectedAddress;
+  }
+
+  /// Places the order for [method] and surfaces any failure. Success needs
+  /// no handling here: COD navigates to the order-success screen and
+  /// online/wallet hand off to their own payment flow, all already inside
+  /// CheckoutNotifier.placeOrder().
+  Future<void> _placeOrder(BuildContext context, PaymentMethod method) async {
+    final checkoutNotifier = ref.read(checkoutProvider.notifier);
+    checkoutNotifier.selectPaymentMethod(method);
+    final result = await checkoutNotifier.placeOrder();
+
+    if (!context.mounted) {
+      return;
+    }
+    if (result.errorMessage != null) {
+      showCartSnackBar(context, result.errorMessage!);
+    }
+  }
+
+  Future<void> _handlePayOnline(BuildContext context) async {
+    if (ref.read(checkoutProvider).isPlacingOrder) {
+      return;
+    }
+    final address = await _validateForPayment(context);
+    if (address == null || !context.mounted) {
+      return;
+    }
+    ref.read(checkoutProvider.notifier).selectAddress(address);
+    await _placeOrder(context, PaymentMethod.online);
+  }
+
+  /// "Cash / Wallet" — the optimized quick-pay path. When only one of
+  /// wallet/COD is genuinely usable right now, places the order with that
+  /// one method directly (no popup — nothing to choose between). Only opens
+  /// CartPaymentSelectorSheet when both are real options, or when a
+  /// currently-unusable option (e.g. wallet with low balance) is still
+  /// worth showing so the reason is visible instead of silently vanishing.
+  Future<void> _handleCashOrWallet(
+    BuildContext context,
+    BillSummaryEntity billSummary,
+  ) async {
+    if (ref.read(checkoutProvider).isPlacingOrder) {
+      return;
+    }
+    final address = await _validateForPayment(context);
+    if (address == null || !context.mounted) {
+      return;
+    }
+    ref.read(checkoutProvider.notifier).selectAddress(address);
+
+    final paymentMethods = billSummary.paymentMethods;
+    final cod = paymentMethods.cod;
+    final walletEnabled = paymentMethods.wallet.enabled;
+    final codShown = cod.enabled;
+
+    var walletBalance = 0.0;
+    if (walletEnabled) {
+      walletBalance = await _readWalletBalance();
+    }
+    if (!context.mounted) {
+      return;
+    }
+    final walletUsableNow = walletEnabled && walletBalance >= billSummary.payable;
+    final codUsableNow = codShown && cod.available;
+
+    if (!walletEnabled && !codShown) {
+      // Neither method is admin-enabled at all — nothing to fall back to
+      // here; point the customer at the online option instead of a dead
+      // button press.
+      showCartSnackBar(
+        context,
+        'Cash and wallet payment are unavailable right now — please use Pay Online.',
+      );
       return;
     }
 
-    final checkoutNotifier = ref.read(checkoutProvider.notifier);
-    checkoutNotifier.selectAddress(selectedAddress);
-    checkoutNotifier.selectPaymentMethod(PaymentMethod.online);
-    context.push('${RouteNames.cart}/checkout');
+    if (walletUsableNow && !codShown) {
+      await _placeOrder(context, PaymentMethod.wallet);
+      return;
+    }
+    if (codUsableNow && !walletEnabled) {
+      await _placeOrder(context, PaymentMethod.cod);
+      return;
+    }
+    if (walletUsableNow && codUsableNow) {
+      // Both are immediately usable — this is the one case with a real
+      // choice to make, so (and only so) show the picker.
+      if (!context.mounted) return;
+      await _showCashOrWalletSheet(context, billSummary, paymentMethods);
+      return;
+    }
+
+    // Exactly one method is admin-enabled but not currently usable (e.g.
+    // wallet balance too low, or COD outside the bill-total range), or both
+    // are enabled but neither is usable yet — show the sheet so the reason
+    // (and any recovery action, like adding wallet money) is visible rather
+    // than silently doing nothing.
+    if (!context.mounted) return;
+    await _showCashOrWalletSheet(context, billSummary, paymentMethods);
+  }
+
+  /// Mirrors CheckoutNotifier._walletBalance — read the already-fetched
+  /// balance if available, otherwise await one fetch, defaulting to 0 on
+  /// failure rather than blocking the payment decision on it.
+  Future<double> _readWalletBalance() async {
+    final current = ref.read(walletProvider);
+    final value = current.asData?.value.balance;
+    if (value != null) {
+      return value;
+    }
+    try {
+      final wallet = await ref.read(walletProvider.future);
+      return wallet.balance;
+    } catch (_) {
+      return 0;
+    }
+  }
+
+  Future<void> _showCashOrWalletSheet(
+    BuildContext context,
+    BillSummaryEntity billSummary,
+    PaymentMethodsInfo paymentMethods,
+  ) async {
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) => CartPaymentSelectorSheet(
+        orderTotal: billSummary.payable,
+        paymentMethods: paymentMethods,
+        onPaymentMethodSelected: (method) {
+          final resolved = switch (method) {
+            'WALLET' => PaymentMethod.wallet,
+            _ => PaymentMethod.cod,
+          };
+          unawaited(_placeOrder(context, resolved));
+        },
+      ),
+    );
   }
 
   BillSummaryEntity _displayBillSummary({
     required CartEntity cart,
-    required CheckoutSummaryEntity checkoutSummary,
     required BillSummaryEntity? remoteSummary,
   }) {
     // The backend TotalsEngine is the single source of truth — when its

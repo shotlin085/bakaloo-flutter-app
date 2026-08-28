@@ -44,9 +44,21 @@ enum LocationAutoDetectResult {
   permissionPermanentlyDenied,
   locationServiceDisabled,
   geocodingFailed,
+  // The detected pincode resolved fine, but Bakaloo doesn't deliver there —
+  // no shop has it in its serviceable_pincodes/radius. Distinct from
+  // saveFailed so the sheet can show "we don't deliver here" instead of a
+  // generic "could not detect location" that implies a retry might help.
+  notServiceable,
   saveFailed,
   unknown,
 }
+
+// Exact wording the backend returns (addresses.service.js create/update)
+// when its own hard serviceability gate rejects the address — matched here
+// as a defense-in-depth fallback for the rarer case where validatePincode
+// (checked below, pincode-list only) says available but the actual
+// create/update call still gets blocked by the radius-based check.
+const _kNotServiceableMessage = 'Delivery is not available at this address yet.';
 
 /// Requests permission, gets a position, reverse-geocodes it, and saves it
 /// as the user's default address. Used both by the sheet's own "Enable"
@@ -166,6 +178,25 @@ Future<LocationAutoDetectResult> _geocodeAndSave(
   final state = place.administrativeArea ?? '';
   final pincode = place.postalCode ?? '';
 
+  // Same availability check the manual "Add address" form already runs on
+  // every pincode the customer types — reused here so "Use my current
+  // location" rejects an unserviceable area just as reliably instead of
+  // silently saving an address Bakaloo can never actually deliver to.
+  // Skipped when geocoding didn't return a pincode at all (some rural
+  // areas): nothing to validate, so this falls through to the old
+  // behavior rather than blocking on missing data. A validation-call
+  // failure (e.g. flaky network) also falls through rather than blocking —
+  // the create/update call below still enforces serviceability server-side
+  // regardless, via the _kNotServiceableMessage check.
+  if (pincode.isNotEmpty) {
+    final validation =
+        await ref.read(validatePincodeUseCaseProvider).call(pincode);
+    final isServiceable = validation.fold((_) => true, (r) => r.available);
+    if (!isServiceable) {
+      return LocationAutoDetectResult.notServiceable;
+    }
+  }
+
   // Save as default address
   final params = AddressUpsertParams(
     label: 'Home',
@@ -224,6 +255,9 @@ Future<LocationAutoDetectResult> _geocodeAndSave(
       : await ref.read(addressProvider.notifier).createAddress(params);
 
   if (!result.isSuccess) {
+    if (result.failure?.message == _kNotServiceableMessage) {
+      return LocationAutoDetectResult.notServiceable;
+    }
     unawaited(
       FirebaseCrashlytics.instance.recordError(
         StateError(result.failure?.message ?? 'unknown'),

@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 
 import 'package:bakaloo_flutter_app/core/constants/api_constants.dart';
+import 'package:bakaloo_flutter_app/core/constants/storage_keys.dart';
 import 'package:bakaloo_flutter_app/core/storage/hive_service.dart';
 
 /// Single source of truth for app-wide cache invalidation policy.
@@ -107,21 +108,29 @@ class AppCacheManager {
     await _safeClearBox(HiveService.remoteThemeBox);
     await _safeClearBox(HiveService.cacheMetaBox);
     await _clearSectionManifestBox();
+    try {
+      final settings = HiveService.settingsBox;
+      await settings.delete(StorageKeys.cacheUserProfile);
+      await settings.delete(StorageKeys.cacheAddresses);
+    } catch (_) {
+      // best-effort
+    }
   }
 
-  /// Clears only user-scoped data caches (cart/wallet/orders/profile).
+  /// Clears only user-scoped data caches (cart/wallet/orders/profile/addresses).
   /// Layout/theme/product caches are public and need not be wiped here.
   static Future<void> _clearUserSpecificCaches() async {
     await _safeClearBox(HiveService.ordersBox);
     // Cart and wallet are not persisted in their own Hive box (cart lives in
-    // backend Redis, wallet is fetched live), but any cached profile snapshot
-    // and order history must be dropped so the new user starts clean.
+    // backend Redis, wallet is fetched live), but any cached profile/address
+    // snapshot and order history must be dropped so the new user starts clean.
     try {
       final settings = HiveService.settingsBox;
       // Drop only cache-meta timestamps; keep auth/onboarding flags.
       // (cacheMetaBox is cleared on version bump; here we just invalidate
       //  user-derived freshness markers so the next read refetches.)
-      await settings.delete('cache_user_profile');
+      await settings.delete(StorageKeys.cacheUserProfile);
+      await settings.delete(StorageKeys.cacheAddresses);
     } catch (_) {
       // best-effort
     }

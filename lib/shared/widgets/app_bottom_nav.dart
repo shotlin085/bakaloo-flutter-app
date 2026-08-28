@@ -18,8 +18,6 @@ import 'package:bakaloo_flutter_app/features/cart/presentation/providers/cart_en
 import 'package:bakaloo_flutter_app/features/cart/presentation/providers/cart_provider.dart';
 import 'package:bakaloo_flutter_app/features/notifications/presentation/providers/notification_provider.dart';
 import 'package:bakaloo_flutter_app/features/notifications/presentation/providers/unread_count_provider.dart';
-import 'package:bakaloo_flutter_app/features/orders/domain/entities/order_timeline_entity.dart';
-import 'package:bakaloo_flutter_app/features/orders/presentation/providers/active_order_provider.dart';
 import 'package:bakaloo_flutter_app/features/orders/presentation/providers/order_live_sync_provider.dart';
 import 'package:bakaloo_flutter_app/features/tracking/presentation/providers/order_status_stream_provider.dart';
 import 'package:bakaloo_flutter_app/routing/route_access.dart';
@@ -135,6 +133,22 @@ class _AppShellState extends ConsumerState<AppShell>
       ..listen(socketNotificationStreamProvider, (previous, next) {
         next.whenData((event) {
           ref.read(notificationProvider.notifier).addSocketNotification(event);
+          ref.invalidate(unreadCountProvider);
+          // Order/rider status pushes are already surfaced by the purple
+          // OrderTrackingTopBanner on the Home screen (driven by the same
+          // underlying order-status change) — showing this generic banner
+          // too would put two banners on screen for one event. Every other
+          // notification type (promos, wallet, admin broadcasts...) still
+          // gets the banner since nothing else displays those.
+          const orderStatusTypes = <String>{
+            'ORDER_STATUS',
+            'ORDER_UPDATE',
+            'DELIVERY',
+            'RIDER_UPDATE',
+          };
+          if (orderStatusTypes.contains(event.type.toUpperCase())) {
+            return;
+          }
           final messenger = ScaffoldMessenger.maybeOf(context);
           if (messenger == null) return;
           messenger
@@ -168,7 +182,6 @@ class _AppShellState extends ConsumerState<AppShell>
                 ],
               ),
             );
-          ref.invalidate(unreadCountProvider);
           Future<void>.delayed(const Duration(seconds: 4), () {
             messenger.clearMaterialBanners();
           });
@@ -286,24 +299,17 @@ class _AppShellState extends ConsumerState<AppShell>
 }
 
 /// The states the Smart Bottom Bar can be in, in priority order (first
-/// matching state wins — see [_resolveSmartBarState]).
+/// matching state wins — see [_resolveSmartBarState]). Order tracking used
+/// to be a state here too, but that's now shown exclusively by the purple
+/// OrderTrackingTopBanner on the Home screen — showing it in both places
+/// duplicated the same message.
 enum _SmartBarStateKind {
-  orderTracking,
   milestoneProgress,
   unlocked,
   plainCart,
 }
 
 class _SmartBarState {
-  const _SmartBarState.orderTracking({
-    required this.orderId,
-    required this.message,
-  })  : kind = _SmartBarStateKind.orderTracking,
-        cartCount = 0,
-        amountToUnlock = 0,
-        progress = 0,
-        ladder = const <CartMilestoneLadderStep>[];
-
   /// [message] is fully pre-rendered by the caller — either the
   /// free-delivery default ("Add ₹X more to unlock FREE DELIVERY") or an
   /// admin-authored cart-milestone message ("Add ₹200 more to get ₹20
@@ -317,8 +323,7 @@ class _SmartBarState {
     required this.progress,
     required this.message,
     this.ladder = const <CartMilestoneLadderStep>[],
-  }) : kind = _SmartBarStateKind.milestoneProgress,
-       orderId = null;
+  }) : kind = _SmartBarStateKind.milestoneProgress;
 
   /// [message] is the reward that was actually unlocked — "Free delivery
   /// unlocked" or an admin-authored message like "₹100 cashback unlocked".
@@ -327,44 +332,22 @@ class _SmartBarState {
     required this.message,
     this.ladder = const <CartMilestoneLadderStep>[],
   })  : kind = _SmartBarStateKind.unlocked,
-        orderId = null,
         amountToUnlock = 0,
         progress = 1;
 
   const _SmartBarState.plainCart({required this.cartCount})
       : kind = _SmartBarStateKind.plainCart,
-        orderId = null,
         message = null,
         amountToUnlock = 0,
         progress = 0,
         ladder = const <CartMilestoneLadderStep>[];
 
   final _SmartBarStateKind kind;
-  final String? orderId;
   final String? message;
   final int cartCount;
   final List<CartMilestoneLadderStep> ladder;
   final double amountToUnlock;
   final double progress;
-}
-
-/// Maps an active order's status to the short message shown in the bar.
-String _orderTrackingMessage(OrderStatus status) {
-  switch (status) {
-    case OrderStatus.PENDING:
-    case OrderStatus.CONFIRMED:
-      return 'Your order is confirmed';
-    case OrderStatus.PREPARING:
-      return 'Your order is being packed';
-    case OrderStatus.PACKED:
-      return 'Your order is packed and ready';
-    case OrderStatus.OUT_FOR_DELIVERY:
-      return 'Rider is on the way';
-    case OrderStatus.DELIVERED:
-    case OrderStatus.CANCELLED:
-    case OrderStatus.REFUNDED:
-      return '';
-  }
 }
 
 class _CartPillHost extends ConsumerStatefulWidget {
@@ -391,67 +374,7 @@ class _CartPillHost extends ConsumerStatefulWidget {
 }
 
 class _CartPillHostState extends ConsumerState<_CartPillHost> {
-  /// Every genuinely new order-status push gets its own full 5-second
-  /// window before the tracking bar auto-dismisses — not just the first
-  /// status for a given order.
-  static const _autoHideDelay = Duration(seconds: 5);
-  static const _dismissSlideDuration = Duration(milliseconds: 260);
-
-  Timer? _autoHideTimer;
   bool _cartWasResolving = false;
-
-  /// `orderId::status` for whichever order-tracking message is currently
-  /// being tracked for auto-hide purposes. Used to detect a genuinely new
-  /// status push (vs. an unrelated rebuild, e.g. cart count changing)
-  /// so it gets a fresh 5-second window instead of the timer only ever
-  /// firing once per order.
-  String? _trackingKey;
-
-  /// The tracking key that has already been hidden — either the 5-second
-  /// timer fired, or the customer swiped it away. Reset back to null the
-  /// moment a *different* key (new status, or new order) shows up.
-  String? _hiddenTrackingKey;
-
-  /// True for the brief window between the auto-hide timer firing and the
-  /// bar actually being removed — drives the right-slide-out animation so
-  /// an automatic timeout reads the same way as the manual swipe-to-dismiss
-  /// gesture (both exit to the right) instead of just popping away.
-  bool _autoDismissing = false;
-
-  @override
-  void dispose() {
-    _autoHideTimer?.cancel();
-    super.dispose();
-  }
-
-  void _trackStatus(String key) {
-    if (key == _trackingKey) return;
-    _trackingKey = key;
-    _hiddenTrackingKey = null;
-    _autoDismissing = false;
-    _autoHideTimer?.cancel();
-    _autoHideTimer = Timer(_autoHideDelay, () {
-      if (!mounted || _trackingKey != key) return;
-      setState(() => _autoDismissing = true);
-      Future<void>.delayed(_dismissSlideDuration, () {
-        if (!mounted || _trackingKey != key) return;
-        setState(() {
-          _hiddenTrackingKey = key;
-          _autoDismissing = false;
-        });
-      });
-    });
-  }
-
-  void _dismissBySwipe() {
-    final key = _trackingKey;
-    if (key == null) return;
-    _autoHideTimer?.cancel();
-    setState(() {
-      _hiddenTrackingKey = key;
-      _autoDismissing = false;
-    });
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -472,32 +395,13 @@ class _CartPillHostState extends ConsumerState<_CartPillHost> {
     // frame after that goes back to the normal animated slide.
     final wasResolvingLastFrame = _cartWasResolving;
     _cartWasResolving = cartStillResolving;
-    final activeOrderAsync = ref.watch(activeOrderProvider);
     final billSummaryAsync =
         cartCount > 0 ? ref.watch(billSummaryProvider) : null;
 
-    final activeOrder = activeOrderAsync.value;
     final billSummary = billSummaryAsync?.value;
 
     _SmartBarState? state;
-    // Every new status push (a fresh `orderId::status` key) gets shown for
-    // its own 5-second window and slides away to the right automatically —
-    // it doesn't just stay up indefinitely until the customer swipes it, or
-    // stay hidden forever once one status has already been dismissed.
-    if (activeOrder != null && activeOrder.status.isActive) {
-      final message = _orderTrackingMessage(activeOrder.status);
-      if (message.isNotEmpty) {
-        final trackingKey = '${activeOrder.id}::${activeOrder.status.name}';
-        _trackStatus(trackingKey);
-        if (trackingKey != _hiddenTrackingKey) {
-          state = _SmartBarState.orderTracking(
-            orderId: activeOrder.id,
-            message: message,
-          );
-        }
-      }
-    }
-    if (state == null && cartCount > 0) {
+    if (cartCount > 0) {
       final free = billSummary?.freeDelivery;
       final nextTier = billSummary?.cartMilestone.next;
       final unlockedTier = billSummary?.cartMilestone.unlocked;
@@ -614,7 +518,10 @@ class _CartPillHostState extends ConsumerState<_CartPillHost> {
                       curve: Curves.easeOut,
                       child: state == null
                           ? const SizedBox.shrink()
-                          : _buildBarForState(state, context),
+                          : _SmartBottomBar(
+                              state: state,
+                              onTap: widget.onTapCart,
+                            ),
                     ),
                   ),
                 ),
@@ -626,56 +533,6 @@ class _CartPillHostState extends ConsumerState<_CartPillHost> {
     );
   }
 
-  /// Wraps the bar in a swipe-to-dismiss gesture when it's showing order
-  /// tracking (Blinkit-style: the customer can swipe the "Rider is on the
-  /// way" bar away, after which the bar falls through to cart-milestone
-  /// progress / unlocked / plain-cart state for that same order, matching
-  /// the priority order already established elsewhere). Every other state
-  /// is tappable but not swipeable — dismissing a milestone bar doesn't
-  /// make sense since it would just reappear on the next rebuild.
-  ///
-  /// Tapping the order-tracking bar opens the order's details screen
-  /// (not the live map/tracking screen) — the customer wants to see what
-  /// they ordered and its status, not necessarily jump straight to the map.
-  Widget _buildBarForState(_SmartBarState state, BuildContext context) {
-    final bar = _SmartBottomBar(
-      state: state,
-      onTap: () {
-        if (state.kind == _SmartBarStateKind.orderTracking &&
-            state.orderId != null) {
-          context.push('/orders/${state.orderId}');
-        } else {
-          widget.onTapCart();
-        }
-      },
-    );
-
-    if (state.kind != _SmartBarStateKind.orderTracking || state.orderId == null) {
-      return bar;
-    }
-
-    // The automatic 5-second timeout slides the bar away to the right, the
-    // same direction as a manual swipe-to-dismiss, so both exits read the
-    // same way.
-    final slidingBar = AnimatedSlide(
-      offset: _autoDismissing ? const Offset(1.4, 0) : Offset.zero,
-      duration: _dismissSlideDuration,
-      curve: Curves.easeInCubic,
-      child: AnimatedOpacity(
-        opacity: _autoDismissing ? 0.0 : 1.0,
-        duration: _dismissSlideDuration,
-        curve: Curves.easeIn,
-        child: bar,
-      ),
-    );
-
-    return Dismissible(
-      key: ValueKey('order-tracking-${state.orderId}'),
-      direction: DismissDirection.horizontal,
-      onDismissed: (_) => _dismissBySwipe(),
-      child: slidingBar,
-    );
-  }
 }
 
 class _SmartBottomBar extends StatelessWidget {
@@ -692,7 +549,6 @@ class _SmartBottomBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final bool isTracking = state.kind == _SmartBarStateKind.orderTracking;
     final bool isUnlocked = state.kind == _SmartBarStateKind.unlocked;
     final Color barColor = isUnlocked ? _successColor : _barColor;
 
@@ -722,7 +578,7 @@ class _SmartBottomBar extends StatelessWidget {
                 children: <Widget>[
                   Expanded(child: _buildMessage(context)),
                   Gap(10.w),
-                  if (!isTracking) _buildCartSummary(context),
+                  _buildCartSummary(context),
                   Gap(6.w),
                   PhosphorIcon(
                     PhosphorIcons.caretRightBold,
@@ -731,8 +587,7 @@ class _SmartBottomBar extends StatelessWidget {
                   ),
                 ],
               ),
-              if (!isTracking &&
-                  state.kind != _SmartBarStateKind.plainCart) ...<Widget>[
+              if (state.kind != _SmartBarStateKind.plainCart) ...<Widget>[
                 Gap(10.h),
                 state.ladder.isNotEmpty
                     ? _RewardLadderTrack(steps: state.ladder)
@@ -747,30 +602,6 @@ class _SmartBottomBar extends StatelessWidget {
 
   Widget _buildMessage(BuildContext context) {
     switch (state.kind) {
-      case _SmartBarStateKind.orderTracking:
-        return Row(
-          mainAxisSize: MainAxisSize.min,
-          children: <Widget>[
-            PhosphorIcon(
-              PhosphorIcons.mopedFill,
-              size: 18.sp,
-              color: Colors.white,
-            ),
-            Gap(8.w),
-            Flexible(
-              child: Text(
-                state.message ?? '',
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: TextStyle(
-                  color: Colors.white,
-                  fontWeight: FontWeight.w700,
-                  fontSize: 14.sp,
-                ),
-              ),
-            ),
-          ],
-        );
       case _SmartBarStateKind.milestoneProgress:
         return Text(
           state.message ?? '',

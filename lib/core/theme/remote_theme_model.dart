@@ -757,6 +757,7 @@ class TabThemeEntry {
     required this.tabOrder,
     required this.variant,
     required this.themeData,
+    this.isDefault = false,
     this.abTest,
   });
 
@@ -768,6 +769,10 @@ class TabThemeEntry {
   final String? tabIconUrl;
   final Color tabTextColor;
   final int tabOrder;
+
+  /// Admin-set flag (dashboard "Set as default") marking this tab as the one
+  /// customers should land on when the app opens for this store.
+  final bool isDefault;
   final String variant;
   final RemoteTheme themeData;
   final TabABTest? abTest;
@@ -786,6 +791,7 @@ class TabThemeEntry {
         Colors.black,
       ),
       tabOrder: (json['tab_order'] as num?)?.toInt() ?? 0,
+      isDefault: json['is_default'] == true,
       variant: (json['variant'] as String?) ?? 'A',
       themeData: RemoteTheme.fromJson(_asMap(json['theme_data'])),
       abTest: abTestRaw is Map<String, dynamic>
@@ -805,6 +811,7 @@ class TabThemeEntry {
         'tab_icon_url': tabIconUrl,
         'tab_text_color': _colorToHex(tabTextColor),
         'tab_order': tabOrder,
+        'is_default': isDefault,
         'variant': variant,
         'theme_data': themeData.toJson(),
         if (abTest != null) 'ab_test': abTest!.toJson(),
@@ -816,6 +823,19 @@ class TabThemeEntry {
     final int bucket = userId.hashCode.abs() % 100;
     return bucket < abTest!.splitPercent ? abTest!.variantBData : themeData;
   }
+}
+
+/// Resolves which tab a store should land on when no explicit tab is
+/// selected: the admin-flagged default tab, else the legacy 'all' tab, else
+/// the first tab. [tabs] must be non-empty.
+TabThemeEntry resolveDefaultTab(List<TabThemeEntry> tabs) {
+  for (final TabThemeEntry tab in tabs) {
+    if (tab.isDefault) return tab;
+  }
+  return tabs.firstWhere(
+    (TabThemeEntry tab) => tab.tabKey == 'all',
+    orElse: () => tabs.first,
+  );
 }
 
 /// Full API response from GET /theme/tabs
@@ -836,6 +856,10 @@ class TabThemesResponse {
   /// Admin-set delivery-time badge shown on the home screen header (e.g.
   /// "⚡ 45 mins delivery"). Plain display value, not a computed ETA.
   final int? deliveryEtaMinutes;
+
+  /// The tab this store should land on when no tab is explicitly selected.
+  TabThemeEntry? get defaultTabEntry =>
+      tabs.isEmpty ? null : resolveDefaultTab(tabs);
 
   factory TabThemesResponse.fromJson(Map<String, dynamic> json) {
     final List<dynamic> tabsRaw = json['tabs'] as List<dynamic>? ?? <dynamic>[];

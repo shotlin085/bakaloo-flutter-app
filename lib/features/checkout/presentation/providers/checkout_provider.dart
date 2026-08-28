@@ -267,16 +267,22 @@ class CheckoutNotifier extends _$CheckoutNotifier {
     if (lower.contains('expired')) {
       return 'This coupon has expired.';
     }
-    if (lower.contains('minimum') || lower.contains('min_order') || lower.contains('min order')) {
+    if (lower.contains('minimum') ||
+        lower.contains('min_order') ||
+        lower.contains('min order')) {
       return raw; // already includes the ₹ amount — keep as is
     }
     if (lower.contains('usage limit') || lower.contains('limit reached')) {
       return 'This coupon has reached its usage limit.';
     }
-    if (lower.contains('already used') || lower.contains('user_limit') || lower.contains('maximum number')) {
+    if (lower.contains('already used') ||
+        lower.contains('user_limit') ||
+        lower.contains('maximum number')) {
       return 'You have already used this coupon.';
     }
-    if (lower.contains('not found') || lower.contains('invalid coupon') || lower.contains('inactive')) {
+    if (lower.contains('not found') ||
+        lower.contains('invalid coupon') ||
+        lower.contains('inactive')) {
       return 'This coupon is not available.';
     }
     if (lower.contains('not yet active') || lower.contains('not started')) {
@@ -316,6 +322,18 @@ class CheckoutNotifier extends _$CheckoutNotifier {
 
     if (subtotal <= 0) {
       const message = 'Your cart is empty.';
+      state = state.copyWith(errorMessage: message);
+      return const CheckoutPlacementResult(errorMessage: message);
+    }
+
+    // A line can go out of stock (another customer buying the last unit)
+    // while this screen is already open — the backend's validateCart()
+    // would reject the whole order anyway (CHECKOUT_PARTIAL_FAIL), but with
+    // a vague message that doesn't say which item. Catching it here first
+    // gives a clear, actionable message instead of a wasted round trip.
+    if (cart.items.any((item) => !item.hasEnoughStock)) {
+      const message =
+          'Remove the out-of-stock item(s) from your cart to continue.';
       state = state.copyWith(errorMessage: message);
       return const CheckoutPlacementResult(errorMessage: message);
     }
@@ -526,11 +544,10 @@ class CheckoutNotifier extends _$CheckoutNotifier {
   // getter never read that flag at all, so an applied free-delivery coupon
   // showed no visible effect here even though the backend genuinely waives
   // the fee at order placement — this keeps the two in sync.
-  double get deliveryFee =>
-      (state.appliedCoupon?.freeDelivery ?? false) ||
-              subtotal >= AppConstants.freeDeliveryThreshold
-          ? 0
-          : AppConstants.standardDeliveryFee;
+  double get deliveryFee => (state.appliedCoupon?.freeDelivery ?? false) ||
+          subtotal >= AppConstants.freeDeliveryThreshold
+      ? 0
+      : AppConstants.standardDeliveryFee;
 
   double get discount {
     final amount = state.appliedCoupon?.discountAmount ?? 0;
@@ -542,6 +559,16 @@ class CheckoutNotifier extends _$CheckoutNotifier {
 
   double get platformFee => cart.isEmpty ? 0 : AppConstants.platformFee;
 
+  // This is a client-side estimate only (subtotal/discount/deliveryFee/
+  // platformFee) — it knows nothing about handling/small-cart/surge/
+  // packaging fees, GST, tip, quick-delivery surcharge, or an auto-applied
+  // first-time-offer. Callers that need the real charge (e.g. the wallet
+  // sufficiency check) must overlay the backend's billSummaryProvider total
+  // themselves at the widget layer — see checkout_screen.dart's
+  // `effectiveSummary`. This getter used to read billSummaryProvider
+  // directly, but billSummaryProvider's own build() watches checkoutProvider
+  // (for the applied-coupon override), so the two ended up in a mutual
+  // dependency that Riverpod could flag as a CircularDependencyError.
   double get total {
     final value = subtotal - discount + deliveryFee + platformFee;
     return value < 0 ? 0 : value;
@@ -559,11 +586,26 @@ class CheckoutNotifier extends _$CheckoutNotifier {
     final current = state.selectedAddress;
     AddressEntity? selected;
     if (current != null) {
+      AddressEntity? stillExists;
       for (final address in addresses) {
         if (address.id == current.id) {
-          selected = address;
+          stillExists = address;
           break;
         }
+      }
+      if (stillExists != null) {
+        // `current.isDefault` records what kind of selection this was, not
+        // what the address looks like now: if it was the default at the
+        // time it got selected (the common case — nobody explicitly picked
+        // a different address for this cart), keep *tracking* the default
+        // rather than freezing onto this one id forever. Reported bug: a
+        // customer set a new default address elsewhere, but the cart/
+        // checkout — and the address actually used to place the order —
+        // kept silently using the old default, because it still existed in
+        // the list and matched by id, so this loop never got as far as
+        // re-resolving which address is default now.
+        selected =
+            current.isDefault ? _defaultAddress(addresses) : stillExists;
       }
     }
 
@@ -627,8 +669,10 @@ class CheckoutNotifier extends _$CheckoutNotifier {
       return true;
     }
 
-    final productIdSet = hasProductScope ? productIds.toSet() : const <String>{};
-    final categoryIdSet = hasCategoryScope ? categoryIds.toSet() : const <String>{};
+    final productIdSet =
+        hasProductScope ? productIds.toSet() : const <String>{};
+    final categoryIdSet =
+        hasCategoryScope ? categoryIds.toSet() : const <String>{};
 
     return cart.items.any(
       (item) =>

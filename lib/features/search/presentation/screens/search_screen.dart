@@ -10,6 +10,7 @@ import 'package:gap/gap.dart';
 import 'package:go_router/go_router.dart';
 import 'package:infinite_scroll_pagination/infinite_scroll_pagination.dart';
 import 'package:phosphoricons_flutter/phosphoricons_flutter.dart';
+import 'package:speech_to_text/speech_to_text.dart';
 
 import 'package:bakaloo_flutter_app/core/theme/app_colors.dart';
 import 'package:bakaloo_flutter_app/core/theme/app_dimensions.dart';
@@ -159,6 +160,8 @@ class _SearchScreenState extends ConsumerState<SearchScreen>
 
   final TextEditingController _searchController = TextEditingController();
   final FocusNode _focusNode = FocusNode();
+  final SpeechToText _speech = SpeechToText();
+  bool _isListening = false;
   final PagingController<int, ProductEntity> _pagingController =
       PagingController<int, ProductEntity>(firstPageKey: 1);
 
@@ -218,6 +221,9 @@ class _SearchScreenState extends ConsumerState<SearchScreen>
   @override
   void dispose() {
     _hintTimer?.cancel();
+    if (_isListening) {
+      unawaited(_speech.stop());
+    }
     _overlayController.dispose();
     _pagingController.dispose();
     _focusNode.dispose();
@@ -304,6 +310,67 @@ class _SearchScreenState extends ConsumerState<SearchScreen>
     _filterState = const _FilterState();
 
     ref.read(searchProvider.notifier).onQueryChanged(value);
+  }
+
+  // Re-initializes on every tap rather than once in initState — this is a
+  // cheap no-op when the engine's already available, and avoids prompting
+  // for the mic/speech permission the moment the search screen opens (most
+  // customers never touch voice search at all in a given session).
+  Future<void> _toggleVoiceSearch() async {
+    if (_isListening) {
+      await _speech.stop();
+      if (mounted) setState(() => _isListening = false);
+      return;
+    }
+
+    final available = await _speech.initialize(
+      onError: (error) {
+        if (!mounted) return;
+        setState(() => _isListening = false);
+        AppToast.show(
+          context,
+          'Could not start voice search. Please try again.',
+          type: ToastType.warning,
+        );
+      },
+      onStatus: (status) {
+        if (!mounted) return;
+        if (status == 'done' || status == 'notListening') {
+          setState(() => _isListening = false);
+        }
+      },
+    );
+
+    if (!available) {
+      if (!mounted) return;
+      AppToast.show(
+        context,
+        '🎙️ Microphone access is needed for voice search.',
+        type: ToastType.warning,
+      );
+      return;
+    }
+
+    if (!mounted) return;
+    setState(() => _isListening = true);
+    _focusNode.requestFocus();
+    await _speech.listen(
+      onResult: (result) {
+        if (!mounted) return;
+        _searchController.text = result.recognizedWords;
+        _searchController.selection = TextSelection.collapsed(
+          offset: _searchController.text.length,
+        );
+        _onQueryChanged(result.recognizedWords);
+        if (result.finalResult) {
+          setState(() => _isListening = false);
+        }
+      },
+      listenOptions: SpeechListenOptions(
+        listenFor: const Duration(seconds: 15),
+        pauseFor: const Duration(seconds: 3),
+      ),
+    );
   }
 
   // Piggybacks on the search fetch that's already happening — no extra
@@ -844,25 +911,24 @@ class _SearchScreenState extends ConsumerState<SearchScreen>
                         ),
                         Gap(12.w),
                         _CircleIconButton(
-                          icon: _searchController.text.trim().isEmpty
-                              ? PhosphorIcons.microphoneBold
-                              : PhosphorIcons.xBold,
-                          iconColor: _searchController.text.trim().isEmpty
-                              ? AppColors.orderViolet
-                              : AppColors.textSecondary,
-                          semanticLabel: _searchController.text.trim().isEmpty
-                              ? 'Voice search'
-                              : 'Clear search',
-                          onTap: _searchController.text.trim().isEmpty
-                              ? () {
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                    const SnackBar(
-                                      content: Text(
-                                        'Voice search is coming soon.',
-                                      ),
-                                    ),
-                                  );
-                                }
+                          icon: _isListening
+                              ? PhosphorIcons.stopBold
+                              : (_searchController.text.trim().isEmpty
+                                  ? PhosphorIcons.microphoneBold
+                                  : PhosphorIcons.xBold),
+                          iconColor: _isListening
+                              ? AppColors.errorRed
+                              : (_searchController.text.trim().isEmpty
+                                  ? AppColors.orderViolet
+                                  : AppColors.textSecondary),
+                          semanticLabel: _isListening
+                              ? 'Stop voice search'
+                              : (_searchController.text.trim().isEmpty
+                                  ? 'Voice search'
+                                  : 'Clear search'),
+                          onTap: _isListening ||
+                                  _searchController.text.trim().isEmpty
+                              ? _toggleVoiceSearch
                               : () {
                                   _searchController.clear();
                                   _focusNode.requestFocus();

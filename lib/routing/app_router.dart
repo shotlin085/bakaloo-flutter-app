@@ -45,6 +45,8 @@ import 'package:bakaloo_flutter_app/shared/widgets/app_bottom_nav.dart';
 
 part 'app_router.g.dart';
 
+final GlobalKey<NavigatorState> _rootNavigatorKey =
+    GlobalKey<NavigatorState>(debugLabel: 'root');
 final GlobalKey<NavigatorState> _homeBranchNavigatorKey =
     GlobalKey<NavigatorState>(debugLabel: 'homeBranch');
 final GlobalKey<NavigatorState> _ordersBranchNavigatorKey =
@@ -73,6 +75,7 @@ GoRouter appRouter(Ref ref) {
   final authGuard = ref.watch(authGuardProvider.notifier);
 
   return GoRouter(
+    navigatorKey: _rootNavigatorKey,
     initialLocation: RouteNames.splash,
     refreshListenable: authGuard,
     redirect: (BuildContext context, GoRouterState state) {
@@ -308,6 +311,12 @@ GoRouter appRouter(Ref ref) {
                 routes: <RouteBase>[
                   GoRoute(
                     path: 'edit',
+                    // Also pushed from Cart (cart_ordering_for.dart), outside
+                    // the shell — same reasoning as the addresses routes
+                    // above: pin to the root navigator so it always renders
+                    // as a plain full-screen page instead of risking the
+                    // blank-screen shell/branch entanglement.
+                    parentNavigatorKey: _rootNavigatorKey,
                     builder: (BuildContext context, GoRouterState state) {
                       return const EditProfileScreen();
                     },
@@ -340,12 +349,23 @@ GoRouter appRouter(Ref ref) {
                   ),
                   GoRoute(
                     path: 'addresses',
+                    // Pushed from screens outside the shell too (Cart's
+                    // address header, Checkout, the location-unavailable
+                    // screen, the location prompt sheet, notification deep
+                    // links) as well as from Profile itself — pinning it to
+                    // the root navigator makes it always render as a plain
+                    // full-screen page instead of go_router trying to switch
+                    // the StatefulShellRoute to the profile branch mid-push,
+                    // which produced a blank screen with the bottom nav
+                    // stuck showing "Profile" over nothing.
+                    parentNavigatorKey: _rootNavigatorKey,
                     builder: (BuildContext context, GoRouterState state) {
                       return const AddressListScreen();
                     },
                     routes: <RouteBase>[
                       GoRoute(
                         path: 'add',
+                        parentNavigatorKey: _rootNavigatorKey,
                         builder: (BuildContext context, GoRouterState state) {
                           return AddEditAddressScreen(
                             initialAddress: state.extra as AddressEntity?,

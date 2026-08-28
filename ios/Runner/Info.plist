@@ -38,6 +38,10 @@
 		<string>Bakaloo needs your location to autofill your delivery address.</string>
 		<key>NSLocationWhenInUseUsageDescription</key>
 		<string>Bakaloo needs your location to autofill your delivery address.</string>
+		<key>NSMicrophoneUsageDescription</key>
+		<string>Bakaloo needs your microphone for voice search.</string>
+		<key>NSSpeechRecognitionUsageDescription</key>
+		<string>Bakaloo uses speech recognition to turn your voice search into text.</string>
 		<key>NSPhotoLibraryAddUsageDescription</key>
 		<string>Save your profile photo.</string>
 		<key>NSPhotoLibraryUsageDescription</key>

@@ -77,7 +77,10 @@ class CategoryTabsRow extends ConsumerWidget {
       }
 
       final cat = localCategories[index];
-      final bool isSelected = cat.id == selectedId;
+      // Empty selectedId is the "no explicit selection yet" sentinel; the
+      // first local category is always 'all', so highlight that by default.
+      final bool isSelected =
+          cat.id == selectedId || (selectedId.isEmpty && index == 0);
 
       void onTap() {
         HapticFeedback.selectionClick();
@@ -167,11 +170,7 @@ class CategoryTabsRow extends ConsumerWidget {
       return selectedId;
     }
 
-    if (remoteTabs.any((tab) => tab.tabKey == 'all')) {
-      return 'all';
-    }
-
-    return remoteTabs.first.tabKey;
+    return resolveDefaultTab(remoteTabs).tabKey;
   }
 
   Widget _buildRemoteTab({

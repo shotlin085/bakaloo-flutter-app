@@ -12,11 +12,17 @@ class RefreshInterceptor extends Interceptor {
     required SecureStorageService secureStorageService,
     this.onForceLogout,
     this.onTokenRefreshed,
+    Dio? refreshDio,
   })  : _dio = dio,
-        _secureStorageService = secureStorageService;
+        _secureStorageService = secureStorageService,
+        _refreshDio = refreshDio;
 
   final Dio _dio;
   final SecureStorageService _secureStorageService;
+  // Injectable for tests (a fake Dio can simulate transient vs. confirmed-
+  // rejection failures on the refresh call). Production leaves this null
+  // and gets a real, freshly-built Dio per refresh attempt, same as before.
+  final Dio? _refreshDio;
   final Lock _lock = Lock();
   final void Function()? onForceLogout;
   final void Function(String newAccessToken)? onTokenRefreshed;
@@ -64,18 +70,19 @@ class RefreshInterceptor extends Interceptor {
           );
         }
 
-        final refreshDio = Dio(
-          BaseOptions(
-            baseUrl: ApiConstants.baseUrl,
-            connectTimeout: const Duration(
-              seconds: AppConstants.connectTimeoutSeconds,
-            ),
-            receiveTimeout: const Duration(
-              seconds: AppConstants.receiveTimeoutSeconds,
-            ),
-            contentType: 'application/json',
-          ),
-        );
+        final refreshDio = _refreshDio ??
+            Dio(
+              BaseOptions(
+                baseUrl: ApiConstants.baseUrl,
+                connectTimeout: const Duration(
+                  seconds: AppConstants.connectTimeoutSeconds,
+                ),
+                receiveTimeout: const Duration(
+                  seconds: AppConstants.receiveTimeoutSeconds,
+                ),
+                contentType: 'application/json',
+              ),
+            );
 
         final Response<dynamic> refreshResponse;
         try {
@@ -83,7 +90,29 @@ class RefreshInterceptor extends Interceptor {
             ApiConstants.refreshToken,
             data: <String, dynamic>{'refreshToken': refreshToken},
           );
-        } catch (_) {
+        } on DioException catch (refreshError) {
+          final int? status = refreshError.response?.statusCode;
+          final bool isConfirmedRejection =
+              refreshError.type == DioExceptionType.badResponse &&
+                  (status == 401 || status == 403);
+
+          if (!isConfirmedRejection) {
+            // Transient failure (timeout, offline, DNS hiccup, 5xx) — we
+            // have no evidence the refresh token itself is bad. Forcing a
+            // logout here would wipe a perfectly valid session over a
+            // momentary network blip, which is indistinguishable from the
+            // "logged out every few days" symptom this guards against.
+            // Only the request that triggered this refresh fails; the
+            // session (and its 365-day refresh token) survives for the
+            // next attempt.
+            throw _authDioException(
+              requestOptions,
+              const AuthFailure(
+                message: 'Could not reach the server. Please try again.',
+              ),
+            );
+          }
+
           // The refresh token itself is dead (expired/revoked server-side —
           // e.g. a newer login elsewhere bumped session_version). No amount
           // of retrying fixes this, and this failure is a DioException, so

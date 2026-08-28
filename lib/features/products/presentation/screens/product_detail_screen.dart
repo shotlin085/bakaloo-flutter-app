@@ -143,11 +143,6 @@ class _ProductDetailScreenState extends ConsumerState<ProductDetailScreen> {
         final effectiveAttributes = effectiveAttributesForDetail(
           effectiveProduct,
         );
-        final isWishlisted = ref.watch(
-          wishlistIdsProvider.select(
-            (ids) => ids.contains(effectiveProduct.id),
-          ),
-        );
         final cartQty =
             ref.watch(cartItemQuantityProvider(effectiveProduct.id));
         // Purchase-limits: null == unrestricted (the common case, zero
@@ -228,10 +223,8 @@ class _ProductDetailScreenState extends ConsumerState<ProductDetailScreen> {
                     child: RepaintBoundary(
                       child: ProductInfoHeader(
                         product: effectiveProduct,
-                        isWishlisted: isWishlisted,
                         onWishlistToggle: () => _toggleWishlist(
                           effectiveProduct,
-                          action: isWishlisted ? 'remove' : 'add',
                         ),
                       ),
                     ),
@@ -490,20 +483,18 @@ class _ProductDetailScreenState extends ConsumerState<ProductDetailScreen> {
     );
   }
 
-  Future<void> _toggleWishlist(
-    ProductEntity product, {
-    required String action,
-  }) async {
+  Future<void> _toggleWishlist(ProductEntity product) async {
     final authGate = ref.read(authGateControllerProvider);
     final allowed = await authGate.protectWishlist(context, product);
     if (!allowed || !mounted) {
       return;
     }
 
+    final isInWishlist = ref.read(wishlistIdsProvider).contains(product.id);
     unawaited(
       ref.read(analyticsServiceProvider).logWishlistToggle(
             product.id,
-            action,
+            isInWishlist ? 'remove' : 'add',
           ),
     );
     final result =

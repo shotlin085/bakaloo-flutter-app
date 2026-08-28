@@ -36,22 +36,27 @@ class _NamePromptDialogState extends ConsumerState<_NamePromptDialog> {
   // CTAs, so it's defined locally here same as those other call sites do.
   static const Color _brandPurple = Color(0xFF6C4DFF);
 
-  final TextEditingController _nameController = TextEditingController();
-  final FocusNode _focusNode = FocusNode();
+  final TextEditingController _firstNameController = TextEditingController();
+  final TextEditingController _lastNameController = TextEditingController();
+  final FocusNode _firstNameFocusNode = FocusNode();
+  final FocusNode _lastNameFocusNode = FocusNode();
   bool _isSaving = false;
   String? _errorText;
 
   @override
   void dispose() {
-    _nameController.dispose();
-    _focusNode.dispose();
+    _firstNameController.dispose();
+    _lastNameController.dispose();
+    _firstNameFocusNode.dispose();
+    _lastNameFocusNode.dispose();
     super.dispose();
   }
 
   Future<void> _save() async {
-    final name = _nameController.text.trim();
-    if (name.isEmpty) {
-      setState(() => _errorText = 'Please enter your name');
+    final firstName = _firstNameController.text.trim();
+    final lastName = _lastNameController.text.trim();
+    if (firstName.isEmpty || lastName.isEmpty) {
+      setState(() => _errorText = 'Please enter your first and last name');
       return;
     }
 
@@ -60,6 +65,7 @@ class _NamePromptDialogState extends ConsumerState<_NamePromptDialog> {
       _errorText = null;
     });
 
+    final name = '$firstName $lastName';
     final result = await ref.read(profileProvider.notifier).updateProfile(
           name: name,
         );
@@ -68,13 +74,41 @@ class _NamePromptDialogState extends ConsumerState<_NamePromptDialog> {
 
     if (result.isSuccess) {
       Navigator.of(context).pop();
-      AppToast.show(context, '👋 Thanks, $name!', type: ToastType.success);
+      AppToast.show(context, '👋 Thanks, $firstName!', type: ToastType.success);
     } else {
       setState(() {
         _isSaving = false;
         _errorText = result.failure?.message ?? 'Could not save your name.';
       });
     }
+  }
+
+  InputDecoration _nameFieldDecoration(String hint) {
+    return InputDecoration(
+      hintText: hint,
+      counterText: '',
+      filled: true,
+      fillColor: const Color(0xFFF0F4F8),
+      contentPadding: EdgeInsets.symmetric(
+        horizontal: 16.w,
+        vertical: 14.h,
+      ),
+      border: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(10.r),
+        borderSide: BorderSide.none,
+      ),
+      enabledBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(10.r),
+        borderSide: BorderSide.none,
+      ),
+      focusedBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(10.r),
+        borderSide: const BorderSide(
+          color: _brandPurple,
+          width: 1.2,
+        ),
+      ),
+    );
   }
 
   @override
@@ -128,45 +162,52 @@ class _NamePromptDialogState extends ConsumerState<_NamePromptDialog> {
                 ),
               ),
               Gap(20.h),
-              TextField(
-                controller: _nameController,
-                focusNode: _focusNode,
-                autofocus: true,
-                textCapitalization: TextCapitalization.words,
-                textInputAction: TextInputAction.done,
-                maxLength: 60,
-                onSubmitted: (_) => _save(),
-                onChanged: (_) {
-                  if (_errorText != null) setState(() => _errorText = null);
-                },
-                style: AppTextStyles.bodyLarge,
-                decoration: InputDecoration(
-                  hintText: 'e.g. Priya Sharma',
-                  counterText: '',
-                  errorText: _errorText,
-                  filled: true,
-                  fillColor: const Color(0xFFF0F4F8),
-                  contentPadding: EdgeInsets.symmetric(
-                    horizontal: 16.w,
-                    vertical: 14.h,
-                  ),
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(10.r),
-                    borderSide: BorderSide.none,
-                  ),
-                  enabledBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(10.r),
-                    borderSide: BorderSide.none,
-                  ),
-                  focusedBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(10.r),
-                    borderSide: const BorderSide(
-                      color: _brandPurple,
-                      width: 1.2,
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: <Widget>[
+                  Expanded(
+                    child: TextField(
+                      controller: _firstNameController,
+                      focusNode: _firstNameFocusNode,
+                      autofocus: true,
+                      textCapitalization: TextCapitalization.words,
+                      textInputAction: TextInputAction.next,
+                      maxLength: 30,
+                      onSubmitted: (_) => _lastNameFocusNode.requestFocus(),
+                      onChanged: (_) {
+                        if (_errorText != null) setState(() => _errorText = null);
+                      },
+                      style: AppTextStyles.bodyLarge,
+                      decoration: _nameFieldDecoration('First name'),
                     ),
                   ),
-                ),
+                  Gap(12.w),
+                  Expanded(
+                    child: TextField(
+                      controller: _lastNameController,
+                      focusNode: _lastNameFocusNode,
+                      textCapitalization: TextCapitalization.words,
+                      textInputAction: TextInputAction.done,
+                      maxLength: 30,
+                      onSubmitted: (_) => _save(),
+                      onChanged: (_) {
+                        if (_errorText != null) setState(() => _errorText = null);
+                      },
+                      style: AppTextStyles.bodyLarge,
+                      decoration: _nameFieldDecoration('Last name'),
+                    ),
+                  ),
+                ],
               ),
+              if (_errorText != null) ...<Widget>[
+                Gap(6.h),
+                Text(
+                  _errorText!,
+                  style: AppTextStyles.bodySmall.copyWith(
+                    color: Theme.of(context).colorScheme.error,
+                  ),
+                ),
+              ],
               Gap(18.h),
               SizedBox(
                 height: 50.h,

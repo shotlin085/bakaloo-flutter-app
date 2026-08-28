@@ -133,9 +133,8 @@ final activeTabThemeProvider = Provider<RemoteTheme>((Ref ref) {
           ? TabThemesResponse.defaults(storeKey: storeKey)
           : TabThemesResponse.empty(storeKey: storeKey));
 
-  final TabThemeEntry? entry = response.tabMap[selectedTabKey] ??
-      response.tabMap['all'] ??
-      (response.tabs.isNotEmpty ? response.tabs.first : null);
+  final TabThemeEntry? entry =
+      response.tabMap[selectedTabKey] ?? response.defaultTabEntry;
   if (entry == null) {
     return RemoteTheme.defaults();
   }
@@ -202,13 +201,7 @@ final selectedTabHomeContentProvider =
   final TabThemesResponse response =
       snapshot ?? await ref.watch(tabThemesProvider.future);
 
-  final String? resolvedTabKey = response.tabMap.containsKey(selectedTabKey)
-      ? selectedTabKey
-      : response.tabMap.containsKey('all')
-          ? 'all'
-          : response.tabs.isNotEmpty
-              ? response.tabs.first.tabKey
-              : null;
+  final String? resolvedTabKey = _resolveTabKey(response, selectedTabKey);
 
   if (resolvedTabKey == null) {
     return null;
@@ -656,7 +649,7 @@ List<String> _prioritizeTabKeys(
   }
 
   addKey(selectedTabKey);
-  addKey(response.tabMap.containsKey('all') ? 'all' : null);
+  addKey(response.defaultTabEntry?.tabKey);
   for (final TabThemeEntry tab in response.tabs) {
     addKey(tab.tabKey);
   }
@@ -781,10 +774,7 @@ String? _resolveTabKey(TabThemesResponse response, String selectedTabKey) {
   if (response.tabMap.containsKey(selectedTabKey)) {
     return selectedTabKey;
   }
-  if (response.tabMap.containsKey('all')) {
-    return 'all';
-  }
-  return response.tabs.isNotEmpty ? response.tabs.first.tabKey : null;
+  return response.defaultTabEntry?.tabKey;
 }
 
 String? _currentUserId() {

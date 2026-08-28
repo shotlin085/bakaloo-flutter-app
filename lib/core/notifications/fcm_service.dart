@@ -10,6 +10,7 @@ import 'package:riverpod_annotation/riverpod_annotation.dart';
 import 'package:bakaloo_flutter_app/core/notifications/fcm_token_helper.dart';
 import 'package:bakaloo_flutter_app/core/notifications/local_notification_service.dart';
 import 'package:bakaloo_flutter_app/core/notifications/notification_router.dart';
+import 'package:bakaloo_flutter_app/core/session/session_ready_gate.dart';
 import 'package:bakaloo_flutter_app/features/auth/presentation/providers/auth_notifier.dart';
 import 'package:bakaloo_flutter_app/features/auth/presentation/providers/auth_state.dart';
 import 'package:bakaloo_flutter_app/features/notifications/presentation/providers/notification_provider.dart';
@@ -28,6 +29,7 @@ FCMService fcmService(Ref ref) {
   final service = FCMService(
     localNotifications: ref.watch(localNotificationServiceProvider),
     router: ref.watch(appRouterProvider),
+    sessionReadyGate: ref.watch(sessionReadyGateProvider),
   );
   ref.onDispose(service.dispose);
   return service;
@@ -109,13 +111,16 @@ class FCMService {
   FCMService({
     required LocalNotificationService localNotifications,
     required GoRouter router,
+    required SessionReadyGate sessionReadyGate,
     FirebaseMessaging? messaging,
   })  : _localNotifications = localNotifications,
         _router = router,
+        _sessionReadyGate = sessionReadyGate,
         _messaging = messaging ?? FirebaseMessaging.instance;
 
   final LocalNotificationService _localNotifications;
   final GoRouter _router;
+  final SessionReadyGate _sessionReadyGate;
   final FirebaseMessaging _messaging;
 
   final List<StreamSubscription<dynamic>> _subscriptions =
@@ -191,6 +196,16 @@ class FCMService {
     if (path == null || path.isEmpty) {
       return;
     }
+    unawaited(_navigateOnceSessionReady(path));
+  }
+
+  // A cold start via `getInitialMessage()` can resolve before the splash
+  // screen has restored the persisted session, which would otherwise send
+  // an already-logged-in user to the login screen (see SessionReadyGate).
+  // Once the gate is complete (the common case — app was already running),
+  // this resolves on the next microtask with no visible delay.
+  Future<void> _navigateOnceSessionReady(String path) async {
+    await _sessionReadyGate.ready;
     _router.go(path);
   }
 

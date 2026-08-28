@@ -1202,6 +1202,14 @@ class _PremiumPaymentOfferCard extends StatelessWidget {
                           bg: const Color(0xFFF0F2F5),
                           fg: AppColors.textSecondary,
                         ),
+                        if (offer.isPercentage && offer.cashbackPercent != null)
+                          _Chip(
+                            text: offer.maxCashback != null
+                                ? '${offer.cashbackPercent!.toStringAsFixed(offer.cashbackPercent! % 1 == 0 ? 0 : 1)}% up to ${offer.maxCashback!.toInrCurrency}'
+                                : '${offer.cashbackPercent!.toStringAsFixed(offer.cashbackPercent! % 1 == 0 ? 0 : 1)}% cashback',
+                            bg: _kGreenLight,
+                            fg: _kGreen,
+                          ),
                       ],
                     ),
                   ],

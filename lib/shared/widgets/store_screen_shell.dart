@@ -82,7 +82,7 @@ class _StoreScreenShellState extends ConsumerState<StoreScreenShell>
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
       ref.read(selectedStoreProvider.notifier).select(_store);
-      ref.read(selectedCategoryIdProvider.notifier).select('all');
+      ref.read(selectedCategoryIdProvider.notifier).select('');
     });
 
     SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);

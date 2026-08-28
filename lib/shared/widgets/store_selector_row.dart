@@ -66,7 +66,7 @@ class StoreSelectorRow extends ConsumerWidget {
               if (!isActive) {
                 final store = appStores.firstWhere((s) => s.id == chip['id']);
                 ref.read(selectedStoreProvider.notifier).select(store);
-                ref.read(selectedCategoryIdProvider.notifier).select('all');
+                ref.read(selectedCategoryIdProvider.notifier).select('');
               }
               context.go(chip['route']!);
             },

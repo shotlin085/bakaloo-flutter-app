@@ -1,28 +1,32 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:phosphoricons_flutter/phosphoricons_flutter.dart';
 
 import 'package:bakaloo_flutter_app/core/theme/app_colors.dart';
 import 'package:bakaloo_flutter_app/features/products/domain/entities/product_entity.dart';
+import 'package:bakaloo_flutter_app/features/wishlist/presentation/providers/wishlist_ids_provider.dart';
 import 'package:bakaloo_flutter_app/shared/widgets/retro_price_badge.dart';
 
-class ProductInfoHeader extends StatefulWidget {
+class ProductInfoHeader extends ConsumerStatefulWidget {
   const ProductInfoHeader({
     required this.product,
-    required this.isWishlisted,
     required this.onWishlistToggle,
     super.key,
   });
 
   final ProductEntity product;
-  final bool isWishlisted;
   final VoidCallback onWishlistToggle;
 
   @override
-  State<ProductInfoHeader> createState() => _ProductInfoHeaderState();
+  ConsumerState<ProductInfoHeader> createState() => _ProductInfoHeaderState();
 }
 
-class _ProductInfoHeaderState extends State<ProductInfoHeader>
+// Watches wishlistIdsProvider itself (rather than taking isWishlisted from
+// the parent screen's build) so a wishlist toggle only rebuilds this small
+// header, not the whole product-detail page (gallery, banner, variant
+// selector, ...) that was previously watching the same provider up top.
+class _ProductInfoHeaderState extends ConsumerState<ProductInfoHeader>
     with SingleTickerProviderStateMixin {
   late final AnimationController _heartController;
   late final Animation<double> _heartAnimation;
@@ -71,6 +75,9 @@ class _ProductInfoHeaderState extends State<ProductInfoHeader>
   @override
   Widget build(BuildContext context) {
     final product = widget.product;
+    final isWishlisted = ref.watch(
+      wishlistIdsProvider.select((ids) => ids.contains(product.id)),
+    );
     final brandLabel = product.brandDisplay;
     final netQuantity = product.netQuantity?.trim() ?? '';
 
@@ -206,21 +213,31 @@ class _ProductInfoHeaderState extends State<ProductInfoHeader>
           Positioned(
             top: 0,
             right: 0,
-            child: GestureDetector(
-              behavior: HitTestBehavior.opaque,
-              onTap: _handleWishlistTap,
-              child: AnimatedBuilder(
-                animation: _heartAnimation,
-                builder: (context, child) => Transform.scale(
-                  scale: _heartAnimation.value,
-                  child: child,
-                ),
-                child: PhosphorIcon(
-                  widget.isWishlisted
-                      ? PhosphorIcons.heartFill
-                      : PhosphorIcons.heart,
-                  size: 24.sp,
-                  color: AppColors.pdViolet,
+            // Own RepaintBoundary so a wishlist toggle only re-rasterizes
+            // this small icon's layer. Without it, this Positioned sits
+            // inside the same composited layer as the brand/name/price text
+            // above (see the outer RepaintBoundary the parent screen wraps
+            // this whole header in) — every tap forced that entire layer to
+            // be re-rasterized and re-uploaded to the GPU together, which on
+            // this content size showed up as a one-frame blank/grey flash
+            // over the whole header before the repaint completed.
+            child: RepaintBoundary(
+              child: GestureDetector(
+                behavior: HitTestBehavior.opaque,
+                onTap: _handleWishlistTap,
+                child: AnimatedBuilder(
+                  animation: _heartAnimation,
+                  builder: (context, child) => Transform.scale(
+                    scale: _heartAnimation.value,
+                    child: child,
+                  ),
+                  child: PhosphorIcon(
+                    isWishlisted
+                        ? PhosphorIcons.heartFill
+                        : PhosphorIcons.heart,
+                    size: 24.sp,
+                    color: AppColors.pdViolet,
+                  ),
                 ),
               ),
             ),

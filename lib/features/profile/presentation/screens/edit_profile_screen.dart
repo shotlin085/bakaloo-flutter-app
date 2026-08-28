@@ -11,6 +11,7 @@ import 'package:bakaloo_flutter_app/core/theme/app_dimensions.dart';
 import 'package:bakaloo_flutter_app/core/theme/app_text_styles.dart';
 import 'package:bakaloo_flutter_app/core/utils/app_toast.dart';
 import 'package:bakaloo_flutter_app/features/profile/presentation/providers/profile_provider.dart';
+import 'package:bakaloo_flutter_app/routing/route_names.dart';
 
 class EditProfileScreen extends ConsumerStatefulWidget {
   const EditProfileScreen({super.key});
@@ -248,16 +249,31 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
       return;
     }
 
-    setState(() => _isSaving = false);
-
     if (!result.isSuccess && result.failure != null) {
+      // Only re-enable Save on failure, so the customer can fix the issue
+      // and retry — on success this screen is leaving for good (see below),
+      // so there's no case where it needs to become interactive again.
+      setState(() => _isSaving = false);
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text(result.failure!.message)),
       );
       return;
     }
 
-    context.pop(true);
+    // context.pop(true) used to be used here, relying on this screen having
+    // been reached via a plain push. That pop was reported as unreliable —
+    // sometimes leaving this exact form on screen after a successful save,
+    // and repeated Save taps while confused about that could corrupt the
+    // route stack into a blank page. go(home) sidesteps all of that: it's
+    // the same mechanism push-notification deep links already use to land
+    // reliably on a specific screen from anywhere in the app (see
+    // fcm_service.dart) — it replaces the entire navigation stack in one
+    // atomic step instead of depending on however this screen happened to
+    // be reached, so there's no pop-stack state left to get out of sync.
+    ref
+      ..invalidate(profileProvider)
+      ..invalidate(userStatsProvider);
+    context.go(RouteNames.home);
     AppToast.show(
       context,
       'Profile updated successfully',

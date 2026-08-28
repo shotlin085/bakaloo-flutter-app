@@ -186,12 +186,22 @@ class _AddEditAddressScreenState extends ConsumerState<AddEditAddressScreen> {
       _ => null,
     };
 
-    final secondaryParts = _splitSecondaryAddress(address.addressLine2);
     _selectedLabel = _normalizeLabel(address.label);
-    _addressController.text = address.addressLine1;
-    _houseNoController.text = secondaryParts.$1;
-    _buildingController.text = secondaryParts.$2;
-    _landmarkController.text = secondaryParts.$3;
+    // Auto-detected (reverse-geocoded) address: only city/state/pincode/
+    // coordinates are trustworthy enough to pre-fill — reverse geocoding
+    // never reliably captures a house/building number, and guessing at
+    // addressLine1 from it produces a plausible-looking but often wrong
+    // street line. House No., Building, Address and Landmark are left
+    // blank so the customer fills in the real ones themselves; editing an
+    // already-saved address (forceCompletion == false) still pre-fills
+    // everything as before.
+    if (!widget.forceCompletion) {
+      final secondaryParts = _splitSecondaryAddress(address.addressLine2);
+      _addressController.text = address.addressLine1;
+      _houseNoController.text = secondaryParts.$1;
+      _buildingController.text = secondaryParts.$2;
+      _landmarkController.text = secondaryParts.$3;
+    }
     _receiverNameController.text = (_firstNonEmpty(<String?>[
           address.receiverName,
           accountName,
@@ -618,9 +628,32 @@ class _AddEditAddressScreenState extends ConsumerState<AddEditAddressScreen> {
 
   @override
   Widget build(BuildContext context) {
+    // iOS has no hardware/gesture back button to fall back on, and this
+    // screen's SAVE ADDRESS button used to live in bottomNavigationBar,
+    // which Scaffold does not reposition above the software keyboard — so
+    // once it was covered (e.g. the numeric keypad for PIN Code / phone),
+    // tapping elsewhere on the form was the only other way to dismiss it,
+    // and this screen never actually wired that up either. Reported:
+    // customer stuck with the keyboard covering Save, unable to close it by
+    // tapping anywhere. Fixed three ways: tapping outside a field now
+    // unfocuses via the GestureDetector below, a keyboard-hide icon in the
+    // AppBar (never covered by the keyboard) is a second always-visible way
+    // to close it, and SAVE ADDRESS itself is no longer in
+    // bottomNavigationBar at all — it's an AnimatedPositioned that floats
+    // directly above the keyboard and slides back down when it closes.
+    final bottomInset = MediaQuery.of(context).viewInsets.bottom;
+
     return PopScope(
       canPop: !widget.forceCompletion,
       child: Scaffold(
+        // Scaffold's own keyboard-avoidance (on by default) already shrinks
+        // this screen's body to end exactly at the keyboard's top edge —
+        // stacking the AnimatedPositioned's own `bottom: bottomInset` on top
+        // of that double-counts the keyboard height and shoves SAVE ADDRESS
+        // toward the top of the screen instead of sitting on the keyboard.
+        // Turning this off hands keyboard avoidance entirely to the
+        // AnimatedPositioned below, which already accounts for it correctly.
+        resizeToAvoidBottomInset: false,
         backgroundColor: AppColors.bgPrimary,
         appBar: AppBar(
           backgroundColor: Colors.white,
@@ -640,49 +673,23 @@ class _AddEditAddressScreenState extends ConsumerState<AddEditAddressScreen> {
                   ),
                 ),
           title: Text('Add Address Details', style: AppTextStyles.h2),
-        ),
-        bottomNavigationBar: SafeArea(
-          top: false,
-          child: Container(
-            padding: EdgeInsets.fromLTRB(16.w, 12.h, 16.w, 12.h),
-            decoration: const BoxDecoration(
-              color: Colors.white,
-              boxShadow: <BoxShadow>[AppShadows.floatingShadow],
-            ),
-            child: SizedBox(
-              height: 52.h,
-              child: FilledButton(
-                onPressed: _canSave ? _saveAddress : null,
-                style: FilledButton.styleFrom(
-                  backgroundColor: AppColors.primaryGreen,
-                  disabledBackgroundColor: const Color(0xFFE8E8E8),
-                  disabledForegroundColor: AppColors.textTertiary,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(AppDimensions.radiusMd),
-                  ),
-                ),
-                child: _isSaving
-                    ? SizedBox(
-                        width: 20.w,
-                        height: 20.w,
-                        child: const CircularProgressIndicator(
-                          strokeWidth: 2,
-                          valueColor:
-                              AlwaysStoppedAnimation<Color>(Colors.white),
-                        ),
-                      )
-                    : Text(
-                        'SAVE ADDRESS',
-                        style: AppTextStyles.buttonLarge.copyWith(
-                          color:
-                              _canSave ? Colors.white : AppColors.textSecondary,
-                        ),
-                      ),
+          actions: <Widget>[
+            IconButton(
+              onPressed: () => FocusScope.of(context).unfocus(),
+              icon: Icon(
+                Icons.keyboard_hide_rounded,
+                size: 22.sp,
+                color: AppColors.orderViolet,
               ),
             ),
-          ),
+          ],
         ),
-        body: SafeArea(
+        body: Stack(
+          children: <Widget>[
+            GestureDetector(
+          behavior: HitTestBehavior.translucent,
+          onTap: () => FocusScope.of(context).unfocus(),
+          child: SafeArea(
           top: false,
           child: SingleChildScrollView(
             padding: EdgeInsets.only(bottom: 120.h),
@@ -852,6 +859,66 @@ class _AddEditAddressScreenState extends ConsumerState<AddEditAddressScreen> {
               ),
             ),
           ),
+        ),
+            ),
+            // Floats directly above the software keyboard, sliding smoothly
+            // back down to the screen edge when it closes — bottomNavigationBar
+            // does not reposition above the keyboard on its own, so without
+            // this SAVE ADDRESS was left hidden behind it (reported: numeric
+            // keypad for PIN Code / phone covering Save with no way to reach
+            // it except dismissing the keyboard first).
+            AnimatedPositioned(
+              duration: const Duration(milliseconds: 200),
+              curve: Curves.easeOut,
+              left: 0,
+              right: 0,
+              bottom: bottomInset,
+              child: Container(
+                padding: EdgeInsets.fromLTRB(
+                  16.w,
+                  12.h,
+                  16.w,
+                  12.h + (bottomInset == 0 ? MediaQuery.of(context).padding.bottom : 0),
+                ),
+                decoration: const BoxDecoration(
+                  color: Colors.white,
+                  boxShadow: <BoxShadow>[AppShadows.floatingShadow],
+                ),
+                child: SizedBox(
+                  height: 52.h,
+                  child: FilledButton(
+                    onPressed: _canSave ? _saveAddress : null,
+                    style: FilledButton.styleFrom(
+                      backgroundColor: AppColors.primaryGreen,
+                      disabledBackgroundColor: const Color(0xFFE8E8E8),
+                      disabledForegroundColor: AppColors.textTertiary,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(AppDimensions.radiusMd),
+                      ),
+                    ),
+                    child: _isSaving
+                        ? SizedBox(
+                            width: 20.w,
+                            height: 20.w,
+                            child: const CircularProgressIndicator(
+                              strokeWidth: 2,
+                              valueColor:
+                                  AlwaysStoppedAnimation<Color>(Colors.white),
+                            ),
+                          )
+                        : Text(
+                            'SAVE ADDRESS',
+                            style: AppTextStyles.buttonLarge.copyWith(
+                              color: _canSave
+                                  ? Colors.white
+                                  : AppColors.textSecondary,
+                            ),
+                          ),
+                  ),
+                ),
+              ),
+            ),
+          ],
         ),
       ),
     );
@@ -1057,56 +1124,76 @@ class _FormField extends StatelessWidget {
   final Widget? prefix;
   final Widget? suffixIcon;
 
+  // Light-purple highlight for an empty box — a quiet nudge toward the
+  // fields the customer still needs to fill in (most useful right after
+  // auto-detect, which only ever seeds City/State/PIN Code, leaving House
+  // No., Building, Address and Landmark blank on purpose). Listens to the
+  // controller directly rather than needing a StatefulWidget/setState up
+  // the tree — the highlight clears itself the moment the customer types.
+  static const Color _emptyHighlightFill = Color(0xFFF3E8FD);
+  static const Color _emptyHighlightBorder = Color(0xFFC9A6F0);
+
   @override
   Widget build(BuildContext context) {
-    return TextFormField(
-      controller: controller,
-      validator: validator,
-      keyboardType: keyboardType,
-      textInputAction: textInputAction,
-      maxLength: maxLength,
-      style: AppTextStyles.bodyLarge.copyWith(
-        color: AppColors.textPrimary,
-      ),
-      decoration: InputDecoration(
-        labelText: label,
-        floatingLabelBehavior: FloatingLabelBehavior.auto,
-        counterText: '',
-        filled: true,
-        fillColor: const Color(0xFFF0F4F8),
-        prefixIcon: prefix,
-        suffixIcon: suffixIcon,
-        contentPadding: EdgeInsets.symmetric(horizontal: 16.w, vertical: 16.h),
-        labelStyle: AppTextStyles.bodyMedium.copyWith(
-          color: AppColors.textSecondary,
-        ),
-        border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(10.r),
-          borderSide: BorderSide.none,
-        ),
-        enabledBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(10.r),
-          borderSide: BorderSide.none,
-        ),
-        focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(10.r),
-          borderSide: const BorderSide(
-            color: AppColors.borderFocus,
-            width: 1.2,
+    return ValueListenableBuilder<TextEditingValue>(
+      valueListenable: controller,
+      builder: (context, value, _) {
+        final isEmpty = value.text.trim().isEmpty;
+        return TextFormField(
+          controller: controller,
+          validator: validator,
+          keyboardType: keyboardType,
+          textInputAction: textInputAction,
+          maxLength: maxLength,
+          style: AppTextStyles.bodyLarge.copyWith(
+            color: AppColors.textPrimary,
           ),
-        ),
-        errorBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(10.r),
-          borderSide: const BorderSide(color: AppColors.errorRed),
-        ),
-        focusedErrorBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(10.r),
-          borderSide: const BorderSide(
-            color: AppColors.errorRed,
-            width: 1.2,
+          decoration: InputDecoration(
+            labelText: label,
+            floatingLabelBehavior: FloatingLabelBehavior.auto,
+            counterText: '',
+            filled: true,
+            fillColor: isEmpty ? _emptyHighlightFill : const Color(0xFFF0F4F8),
+            prefixIcon: prefix,
+            suffixIcon: suffixIcon,
+            contentPadding:
+                EdgeInsets.symmetric(horizontal: 16.w, vertical: 16.h),
+            labelStyle: AppTextStyles.bodyMedium.copyWith(
+              color: AppColors.textSecondary,
+            ),
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(10.r),
+              borderSide: isEmpty
+                  ? const BorderSide(color: _emptyHighlightBorder, width: 1.2)
+                  : BorderSide.none,
+            ),
+            enabledBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(10.r),
+              borderSide: isEmpty
+                  ? const BorderSide(color: _emptyHighlightBorder, width: 1.2)
+                  : BorderSide.none,
+            ),
+            focusedBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(10.r),
+              borderSide: BorderSide(
+                color: isEmpty ? _emptyHighlightBorder : AppColors.borderFocus,
+                width: 1.2,
+              ),
+            ),
+            errorBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(10.r),
+              borderSide: const BorderSide(color: AppColors.errorRed),
+            ),
+            focusedErrorBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(10.r),
+              borderSide: const BorderSide(
+                color: AppColors.errorRed,
+                width: 1.2,
+              ),
+            ),
           ),
-        ),
-      ),
+        );
+      },
     );
   }
 }
