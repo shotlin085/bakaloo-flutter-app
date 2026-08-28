@@ -1014,6 +1014,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
                               },
                             ),
                           ),
+                          const SliverToBoxAdapter(child: StoreClosedBanner()),
                           SliverToBoxAdapter(
                             child: ValueListenableBuilder<bool>(
                               valueListenable: _isTopChromeMotionEnabled,
@@ -1087,7 +1088,6 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
                               },
                             ),
                           ),
-                          const SliverToBoxAdapter(child: StoreClosedBanner()),
                           // PHASE 1 FIX: Never render old summer/campaign
                           // hardcoded widgets as a loading fallback.
                           // Show skeleton while manifest loads; show

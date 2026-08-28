@@ -5,8 +5,8 @@ import 'package:bakaloo_flutter_app/core/constants/api_constants.dart';
 import 'package:bakaloo_flutter_app/features/checkout/presentation/providers/store_status_provider.dart';
 import 'package:bakaloo_flutter_app/shared/widgets/app_image.dart';
 
-/// "We are closed" banner — shown at the top of the home screen (first row,
-/// right below the search bar and category tabs) whenever the store is
+/// "We are closed" banner — shown at the top of the home screen, right below
+/// the header and above the search bar, whenever the store is
 /// closed, driven entirely by the admin-uploaded image on the Store Hours
 /// settings page (bakaloo-backend migration 075). Renders nothing when the
 /// store is open or no image has ever been uploaded, so it never appears

@@ -5,14 +5,44 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:go_router/go_router.dart';
 
+import 'package:bakaloo_flutter_app/features/notifications/presentation/providers/order_notification_flags_provider.dart';
 import 'package:bakaloo_flutter_app/features/orders/domain/entities/order_timeline_entity.dart';
 import 'package:bakaloo_flutter_app/features/orders/presentation/providers/active_order_provider.dart';
 
 const Color kOrderBannerPurple = Color(0xFF6C4DFF);
 
+/// The order-notification-settings timeline-type key each status maps to,
+/// for looking it up in [orderNotificationFlagsProvider]'s flag map — kept
+/// in sync with bakaloo-backend's order-notification-settings.js registry.
+String? _notificationEventKeyFor(OrderStatus status) {
+  switch (status) {
+    case OrderStatus.PENDING:
+    case OrderStatus.CONFIRMED:
+      return 'CONFIRMED';
+    case OrderStatus.PREPARING:
+      return 'PREPARING';
+    case OrderStatus.PACKED:
+      return 'PACKED';
+    case OrderStatus.OUT_FOR_DELIVERY:
+      return 'PICKED_UP';
+    case OrderStatus.DELIVERED:
+    case OrderStatus.CANCELLED:
+    case OrderStatus.REFUNDED:
+      return null;
+  }
+}
+
 /// Matches the wording already used elsewhere for order-status copy, so
-/// nothing contradicts the Orders screen.
-String _bannerMessageFor(OrderStatus status) {
+/// nothing contradicts the Orders screen. Stays quiet (returns '') for a
+/// status whose matching push/in-app notification is switched off in
+/// Settings → Order Notifications — [notificationFlags] missing a key (still
+/// loading, fetch failed) defaults to enabled, never to suppressed.
+String _bannerMessageFor(OrderStatus status, Map<String, bool> notificationFlags) {
+  final eventKey = _notificationEventKeyFor(status);
+  if (eventKey != null && notificationFlags[eventKey] == false) {
+    return '';
+  }
+
   switch (status) {
     case OrderStatus.PENDING:
     case OrderStatus.CONFIRMED:
@@ -51,6 +81,8 @@ class OrderTrackingBannerController extends Notifier<String> {
     ref.onDispose(() => _hideTimer?.cancel());
 
     final activeOrderAsync = ref.watch(activeOrderProvider);
+    final notificationFlags =
+        ref.watch(orderNotificationFlagsProvider).asData?.value ?? const <String, bool>{};
 
     // `handleStatusEvent` (order_live_sync_provider.dart) invalidates
     // activeOrderProvider on *every* socket push — including ones that
@@ -69,7 +101,7 @@ class OrderTrackingBannerController extends Notifier<String> {
 
     final activeOrder = activeOrderAsync.value;
     final rawMessage = (activeOrder != null && activeOrder.status.isActive)
-        ? _bannerMessageFor(activeOrder.status)
+        ? _bannerMessageFor(activeOrder.status, notificationFlags)
         : '';
 
     if (rawMessage.isEmpty) {
