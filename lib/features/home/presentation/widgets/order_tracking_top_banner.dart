@@ -70,11 +70,11 @@ String _bannerMessageFor(OrderStatus status, Map<String, bool> notificationFlags
 /// brief window and then auto-hides itself — it doesn't stay glued to the
 /// screen for as long as the order remains in that status.
 class OrderTrackingBannerController extends Notifier<String> {
-  static const _visibleDuration = Duration(seconds: 5);
+  static const _visibleDuration = Duration(seconds: 7);
 
   Timer? _hideTimer;
   String? _trackedKey;
-  String? _dismissedKey;
+  DateTime? _shownAt;
 
   @override
   String build() {
@@ -86,15 +86,13 @@ class OrderTrackingBannerController extends Notifier<String> {
 
     // `handleStatusEvent` (order_live_sync_provider.dart) invalidates
     // activeOrderProvider on *every* socket push — including ones that
-    // don't actually change the coarse status (rider-location pings,
-    // duplicate events, the second invalidate after its own REST refetch).
-    // Each invalidation briefly re-enters this loading state. Treating a
-    // valueless loading blip the same as "no active order" would reset
-    // _trackedKey to null, so the very next resolve looks like a *new*
-    // status and restarts the 5-second timer from scratch — the banner
-    // would then never get far enough into its countdown to actually
-    // disappear. Only a *settled* loading/error/no-order result should
-    // clear tracking; an in-flight refetch should change nothing.
+    // don't actually change the coarse status (duplicate events, the
+    // second invalidate after its own REST refetch). Each invalidation
+    // briefly re-enters this loading state. Treating a valueless loading
+    // blip the same as "no active order" would reset _trackedKey to null,
+    // so the very next resolve looks like a *new* status. Only a *settled*
+    // loading/error/no-order result should clear tracking; an in-flight
+    // refetch should change nothing.
     if (activeOrderAsync.isLoading && !activeOrderAsync.hasValue) {
       return state;
     }
@@ -106,23 +104,44 @@ class OrderTrackingBannerController extends Notifier<String> {
 
     if (rawMessage.isEmpty) {
       _trackedKey = null;
-      _dismissedKey = null;
+      _shownAt = null;
       _hideTimer?.cancel();
       return '';
     }
 
     final key = '${activeOrder!.id}::${activeOrder.status.name}';
     if (key != _trackedKey) {
+      // A genuinely new status — (re)start the visible window.
       _trackedKey = key;
-      _dismissedKey = null;
+      _shownAt = DateTime.now();
       _hideTimer?.cancel();
       _hideTimer = Timer(_visibleDuration, () {
-        _dismissedKey = key;
-        state = '';
+        // Only clear if this is still the status that started the timer —
+        // a newer status may have already taken over and started its own.
+        if (_trackedKey == key) {
+          state = '';
+        }
       });
+      return rawMessage;
     }
 
-    return key == _dismissedKey ? '' : rawMessage;
+    // Same status as the last build — this rebuild was triggered by
+    // something *other* than a new status push (activeOrderProvider
+    // resolving after an unrelated invalidate, orderNotificationFlagsProvider
+    // settling, etc.). Deciding visibility from elapsed wall-clock time
+    // here — instead of only ever trusting the single Timer scheduled
+    // above — means an arbitrary number of these unrelated rebuilds can
+    // never keep the banner alive past `_visibleDuration`: previously,
+    // returning the tracked-but-not-yet-dismissed message on every such
+    // rebuild masked whether the timer itself was still the one and only
+    // thing standing between "visible" and "hidden", so a build that
+    // happened to race the timer's own callback could re-show the message
+    // for one more frame right as it was supposed to disappear for good.
+    final shownAt = _shownAt;
+    if (shownAt != null && DateTime.now().difference(shownAt) >= _visibleDuration) {
+      return '';
+    }
+    return rawMessage;
   }
 }
 
