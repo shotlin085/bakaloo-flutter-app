@@ -8,7 +8,23 @@ import 'package:bakaloo_flutter_app/features/products/domain/entities/product_en
 import 'package:bakaloo_flutter_app/features/wishlist/presentation/providers/wishlist_ids_provider.dart';
 import 'package:bakaloo_flutter_app/shared/widgets/retro_price_badge.dart';
 
-class ProductInfoHeader extends ConsumerStatefulWidget {
+// Watches wishlistIdsProvider itself (rather than taking isWishlisted from
+// the parent screen's build) so a wishlist toggle only rebuilds this small
+// header, not the whole product-detail page (gallery, banner, variant
+// selector, ...) that was previously watching the same provider up top.
+//
+// The heart's pop used to run on a hand-rolled AnimationController +
+// TweenSequence + Curves.elasticOut, driving a raw Transform.scale — that
+// combination is exactly what produced a grey flash over the price/name
+// block next to it on every tap (reported, reproduced, and measured from a
+// screen recording). Curves.elasticOut deliberately overshoots past its
+// [0, 1] range, and feeding that into a TweenSequence built for that exact
+// range let the icon's transform spike outside its expected bounds for a
+// frame, forcing an unwanted repaint of everything sharing its compositing
+// layer. Replaced with AnimatedSwitcher + ScaleTransition -- Flutter's own
+// built-in "swap this child for that one" widget, keyed on isWishlisted, no
+// custom AnimationController/TweenSequence to get wrong.
+class ProductInfoHeader extends ConsumerWidget {
   const ProductInfoHeader({
     required this.product,
     required this.onWishlistToggle,
@@ -19,62 +35,7 @@ class ProductInfoHeader extends ConsumerStatefulWidget {
   final VoidCallback onWishlistToggle;
 
   @override
-  ConsumerState<ProductInfoHeader> createState() => _ProductInfoHeaderState();
-}
-
-// Watches wishlistIdsProvider itself (rather than taking isWishlisted from
-// the parent screen's build) so a wishlist toggle only rebuilds this small
-// header, not the whole product-detail page (gallery, banner, variant
-// selector, ...) that was previously watching the same provider up top.
-class _ProductInfoHeaderState extends ConsumerState<ProductInfoHeader>
-    with SingleTickerProviderStateMixin {
-  late final AnimationController _heartController;
-  late final Animation<double> _heartAnimation;
-
-  @override
-  void initState() {
-    super.initState();
-    _heartController = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 350),
-    );
-    _heartAnimation = TweenSequence<double>(<TweenSequenceItem<double>>[
-      TweenSequenceItem<double>(
-        tween: Tween<double>(begin: 1, end: 0.8),
-        weight: 10,
-      ),
-      TweenSequenceItem<double>(
-        tween: Tween<double>(begin: 0.8, end: 1.2),
-        weight: 40,
-      ),
-      TweenSequenceItem<double>(
-        tween: Tween<double>(begin: 1.2, end: 1),
-        weight: 50,
-      ),
-    ]).animate(
-      CurvedAnimation(
-        parent: _heartController,
-        curve: Curves.elasticOut,
-      ),
-    );
-  }
-
-  @override
-  void dispose() {
-    _heartController.dispose();
-    super.dispose();
-  }
-
-  void _handleWishlistTap() {
-    widget.onWishlistToggle();
-    _heartController
-      ..reset()
-      ..forward();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final product = widget.product;
+  Widget build(BuildContext context, WidgetRef ref) {
     final isWishlisted = ref.watch(
       wishlistIdsProvider.select((ids) => ids.contains(product.id)),
     );
@@ -87,16 +48,9 @@ class _ProductInfoHeaderState extends ConsumerState<ProductInfoHeader>
       padding: EdgeInsets.all(16.w),
       child: Stack(
         children: <Widget>[
-          // Own RepaintBoundary, matching the heart icon's below — a
-          // wishlist tap rebuilds this whole widget (isWishlisted flows
-          // through ref.watch), and without this the brand/name/price
-          // text sat in the SAME composited layer as the heart's
-          // Positioned sibling. Isolating the heart alone wasn't enough:
-          // that inner layer's own repaint still forced this outer
-          // Stack's shared layer to recomposite together with it, which
-          // is what actually produced the one-frame grey flash reported
-          // over this exact text block — not the heart animating, but
-          // this content being re-rasterized alongside it.
+          // Own RepaintBoundary so a wishlist toggle's repaint of the heart
+          // (below) never forces this text block to recomposite alongside
+          // it, and vice versa.
           RepaintBoundary(
             child: Padding(
               padding: EdgeInsets.only(right: 42.w),
@@ -232,17 +186,20 @@ class _ProductInfoHeaderState extends ConsumerState<ProductInfoHeader>
             child: RepaintBoundary(
               child: GestureDetector(
                 behavior: HitTestBehavior.opaque,
-                onTap: _handleWishlistTap,
-                child: AnimatedBuilder(
-                  animation: _heartAnimation,
-                  builder: (context, child) => Transform.scale(
-                    scale: _heartAnimation.value,
+                onTap: onWishlistToggle,
+                child: AnimatedSwitcher(
+                  duration: const Duration(milliseconds: 200),
+                  switchInCurve: Curves.easeOut,
+                  switchOutCurve: Curves.easeIn,
+                  transitionBuilder: (child, animation) => ScaleTransition(
+                    scale: animation,
                     child: child,
                   ),
                   child: PhosphorIcon(
                     isWishlisted
                         ? PhosphorIcons.heartFill
                         : PhosphorIcons.heart,
+                    key: ValueKey<bool>(isWishlisted),
                     size: 24.sp,
                     color: AppColors.pdViolet,
                   ),
