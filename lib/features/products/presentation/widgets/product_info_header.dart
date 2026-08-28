@@ -87,140 +87,148 @@ class _ProductInfoHeaderState extends ConsumerState<ProductInfoHeader>
       padding: EdgeInsets.all(16.w),
       child: Stack(
         children: <Widget>[
-          Padding(
-            padding: EdgeInsets.only(right: 42.w),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: <Widget>[
-                if (brandLabel.isNotEmpty)
+          // Own RepaintBoundary, matching the heart icon's below — a
+          // wishlist tap rebuilds this whole widget (isWishlisted flows
+          // through ref.watch), and without this the brand/name/price
+          // text sat in the SAME composited layer as the heart's
+          // Positioned sibling. Isolating the heart alone wasn't enough:
+          // that inner layer's own repaint still forced this outer
+          // Stack's shared layer to recomposite together with it, which
+          // is what actually produced the one-frame grey flash reported
+          // over this exact text block — not the heart animating, but
+          // this content being re-rasterized alongside it.
+          RepaintBoundary(
+            child: Padding(
+              padding: EdgeInsets.only(right: 42.w),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: <Widget>[
+                  if (brandLabel.isNotEmpty)
+                    Text(
+                      brandLabel,
+                      style: TextStyle(
+                        fontFamily: 'Inter',
+                        fontSize: 14.sp,
+                        fontWeight: FontWeight.w600,
+                        color: const Color(0xFF1A1A1A),
+                        height: 1.2,
+                        decoration: TextDecoration.underline,
+                        decorationStyle: TextDecorationStyle.dotted,
+                        decorationColor: const Color(0xFFBBBBBB),
+                      ),
+                    ),
+                  if (brandLabel.isNotEmpty) SizedBox(height: 6.h),
                   Text(
-                    brandLabel,
+                    product.name,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
                     style: TextStyle(
                       fontFamily: 'Inter',
-                      fontSize: 14.sp,
-                      fontWeight: FontWeight.w600,
-                      color: const Color(0xFF1A1A1A),
-                      height: 1.2,
-                      decoration: TextDecoration.underline,
-                      decorationStyle: TextDecorationStyle.dotted,
-                      decorationColor: const Color(0xFFBBBBBB),
+                      fontSize: 15.sp,
+                      fontWeight: FontWeight.w400,
+                      color: const Color(0xFF333333),
+                      height: 1.35,
                     ),
                   ),
-                if (brandLabel.isNotEmpty) SizedBox(height: 6.h),
-                Text(
-                  product.name,
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    fontFamily: 'Inter',
-                    fontSize: 15.sp,
-                    fontWeight: FontWeight.w400,
-                    color: const Color(0xFF333333),
-                    height: 1.35,
-                  ),
-                ),
-                if (netQuantity.isNotEmpty) SizedBox(height: 10.h),
-                if (netQuantity.isNotEmpty)
-                  Container(
-                    padding:
-                        EdgeInsets.symmetric(horizontal: 10.w, vertical: 5.h),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFFF5F5F5),
-                      border: Border.all(color: const Color(0xFFE0E0E0)),
-                      borderRadius: BorderRadius.circular(16.r),
+                  if (netQuantity.isNotEmpty) SizedBox(height: 10.h),
+                  if (netQuantity.isNotEmpty)
+                    Container(
+                      padding:
+                          EdgeInsets.symmetric(horizontal: 10.w, vertical: 5.h),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFF5F5F5),
+                        border: Border.all(color: const Color(0xFFE0E0E0)),
+                        borderRadius: BorderRadius.circular(16.r),
+                      ),
+                      child: RichText(
+                        text: TextSpan(
+                          children: <InlineSpan>[
+                            TextSpan(
+                              text: 'Net Qty: ',
+                              style: TextStyle(
+                                fontFamily: 'Inter',
+                                fontSize: 11.sp,
+                                fontWeight: FontWeight.w400,
+                                color: const Color(0xFF666666),
+                                height: 1.2,
+                              ),
+                            ),
+                            TextSpan(
+                              text: netQuantity,
+                              style: TextStyle(
+                                fontFamily: 'Inter',
+                                fontSize: 11.sp,
+                                fontWeight: FontWeight.w500,
+                                color: const Color(0xFF333333),
+                                height: 1.2,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
                     ),
-                    child: RichText(
+                  SizedBox(height: 12.h),
+                  Wrap(
+                    crossAxisAlignment: WrapCrossAlignment.center,
+                    spacing: 8.w,
+                    runSpacing: 6.h,
+                    children: <Widget>[
+                      RetroPriceBadge(price: product.effectivePrice),
+                      if (product.discountPercent > 0)
+                        Text(
+                          '${product.discountPercent}% Off',
+                          style: TextStyle(
+                            fontFamily: 'Inter',
+                            fontSize: 13.sp,
+                            fontWeight: FontWeight.w600,
+                            color: const Color(0xFF0C831F),
+                            height: 1.2,
+                          ),
+                        ),
+                    ],
+                  ),
+                  if (product.isOnSale) ...<Widget>[
+                    SizedBox(height: 6.h),
+                    RichText(
                       text: TextSpan(
                         children: <InlineSpan>[
                           TextSpan(
-                            text: 'Net Qty: ',
+                            text: '₹${product.price.toStringAsFixed(0)}',
                             style: TextStyle(
                               fontFamily: 'Inter',
-                              fontSize: 11.sp,
+                              fontSize: 12.sp,
                               fontWeight: FontWeight.w400,
-                              color: const Color(0xFF666666),
+                              color: const Color(0xFF999999),
+                              decoration: TextDecoration.lineThrough,
+                              decorationColor: const Color(0xFF999999),
                               height: 1.2,
                             ),
                           ),
                           TextSpan(
-                            text: netQuantity,
+                            text: ' MRP (incl. of all taxes)',
                             style: TextStyle(
                               fontFamily: 'Inter',
-                              fontSize: 11.sp,
-                              fontWeight: FontWeight.w500,
-                              color: const Color(0xFF333333),
+                              fontSize: 12.sp,
+                              fontWeight: FontWeight.w400,
+                              color: const Color(0xFF999999),
                               height: 1.2,
                             ),
                           ),
                         ],
                       ),
                     ),
-                  ),
-                SizedBox(height: 12.h),
-                Wrap(
-                  crossAxisAlignment: WrapCrossAlignment.center,
-                  spacing: 8.w,
-                  runSpacing: 6.h,
-                  children: <Widget>[
-                    RetroPriceBadge(price: product.effectivePrice),
-                    if (product.discountPercent > 0)
-                      Text(
-                        '${product.discountPercent}% Off',
-                        style: TextStyle(
-                          fontFamily: 'Inter',
-                          fontSize: 13.sp,
-                          fontWeight: FontWeight.w600,
-                          color: const Color(0xFF0C831F),
-                          height: 1.2,
-                        ),
-                      ),
                   ],
-                ),
-                if (product.isOnSale) ...<Widget>[
-                  SizedBox(height: 6.h),
-                  RichText(
-                    text: TextSpan(
-                      children: <InlineSpan>[
-                        TextSpan(
-                          text: '₹${product.price.toStringAsFixed(0)}',
-                          style: TextStyle(
-                            fontFamily: 'Inter',
-                            fontSize: 12.sp,
-                            fontWeight: FontWeight.w400,
-                            color: const Color(0xFF999999),
-                            decoration: TextDecoration.lineThrough,
-                            decorationColor: const Color(0xFF999999),
-                            height: 1.2,
-                          ),
-                        ),
-                        TextSpan(
-                          text: ' MRP (incl. of all taxes)',
-                          style: TextStyle(
-                            fontFamily: 'Inter',
-                            fontSize: 12.sp,
-                            fontWeight: FontWeight.w400,
-                            color: const Color(0xFF999999),
-                            height: 1.2,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
                 ],
-              ],
+              ),
             ),
           ),
           Positioned(
             top: 0,
             right: 0,
             // Own RepaintBoundary so a wishlist toggle only re-rasterizes
-            // this small icon's layer. Without it, this Positioned sits
-            // inside the same composited layer as the brand/name/price text
-            // above (see the outer RepaintBoundary the parent screen wraps
-            // this whole header in) — every tap forced that entire layer to
-            // be re-rasterized and re-uploaded to the GPU together, which on
-            // this content size showed up as a one-frame blank/grey flash
-            // over the whole header before the repaint completed.
+            // this small icon's layer — paired with the text block's own
+            // boundary above, so neither one's repaint forces the other
+            // to recomposite together.
             child: RepaintBoundary(
               child: GestureDetector(
                 behavior: HitTestBehavior.opaque,
