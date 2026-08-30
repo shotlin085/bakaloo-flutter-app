@@ -48,6 +48,8 @@ class SocketService {
       StreamController<Map<String, dynamic>>.broadcast();
   final _storeStatusUpdateController =
       StreamController<Map<String, dynamic>>.broadcast();
+  final _brandingUpdateController =
+      StreamController<Map<String, dynamic>>.broadcast();
   final _statusController = StreamController<SocketStatus>.broadcast();
 
   Stream<OrderStatusEvent> get orderStatusStream =>
@@ -62,6 +64,8 @@ class SocketService {
       _sectionUpdateController.stream;
   Stream<Map<String, dynamic>> get storeStatusUpdateStream =>
       _storeStatusUpdateController.stream;
+  Stream<Map<String, dynamic>> get brandingUpdateStream =>
+      _brandingUpdateController.stream;
   Stream<SocketStatus> get statusStream => _statusController.stream;
 
   bool get isConnected => _socket?.connected ?? false;
@@ -120,7 +124,8 @@ class SocketService {
         ..off(SocketEvents.notification)
         ..off(SocketEvents.themeUpdate)
         ..off(SocketEvents.sectionUpdate)
-        ..off(SocketEvents.storeStatusUpdate);
+        ..off(SocketEvents.storeStatusUpdate)
+        ..off(SocketEvents.brandingUpdate);
       for (final event in _externalListeners.keys) {
         socket.off(event);
       }
@@ -162,6 +167,12 @@ class SocketService {
         final payload = _toJson(data);
         if (payload != null) {
           _storeStatusUpdateController.add(payload);
+        }
+      })
+      ..on(SocketEvents.brandingUpdate, (dynamic data) {
+        final payload = _toJson(data);
+        if (payload != null) {
+          _brandingUpdateController.add(payload);
         }
       });
 
@@ -256,6 +267,7 @@ class SocketService {
     _themeUpdateController.close();
     _sectionUpdateController.close();
     _storeStatusUpdateController.close();
+    _brandingUpdateController.close();
     _statusController.close();
   }
 

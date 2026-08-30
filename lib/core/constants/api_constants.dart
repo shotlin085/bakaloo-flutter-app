@@ -170,6 +170,7 @@ class ApiConstants {
   static const tabThemes = '/theme/tabs';
   static const sectionManifest = '/theme/tabs';
   static const themeAnalytics = '/theme/analytics';
+  static const branding = '/branding';
 
   // Allocation
   static const allocationMyShops = '/allocation/my-shops';

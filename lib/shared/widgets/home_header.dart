@@ -4,10 +4,14 @@ import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:gap/gap.dart';
 import 'package:phosphoricons_flutter/phosphoricons_flutter.dart';
 
+import 'package:bakaloo_flutter_app/core/branding/branding_provider.dart';
 import 'package:bakaloo_flutter_app/core/providers/store_provider.dart';
 import 'package:bakaloo_flutter_app/core/theme/remote_theme_model.dart';
 import 'package:bakaloo_flutter_app/features/notifications/presentation/providers/unread_count_provider.dart';
 import 'package:bakaloo_flutter_app/features/wallet/presentation/providers/wallet_provider.dart';
+import 'package:bakaloo_flutter_app/shared/widgets/app_image.dart';
+
+const String _defaultLogoAsset = 'assets/icon/brand_logo.png';
 
 /// Premium white-lavender top header.
 class HomeHeader extends ConsumerWidget {
@@ -49,6 +53,9 @@ class HomeHeader extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final topInset = topPaddingOverride ?? MediaQuery.paddingOf(context).top;
     final store = ref.watch(selectedStoreProvider);
+    final logoImageUrl = ref.watch(
+      brandingProvider.select((config) => config.logoImageUrl),
+    );
 
     // Use the dashboard-configured top bar color when available.
     // Fall back to the default lavender gradient only when no theme is provided.
@@ -76,12 +83,33 @@ class HomeHeader extends ConsumerWidget {
               mainAxisSize: MainAxisSize.min,
               children: <Widget>[
                 // Centered brand logo on top.
-                Image.asset(
-                  'assets/icon/brand_logo.png',
+                SizedBox(
                   height: 40.h,
-                  cacheHeight: 160,
-                  fit: BoxFit.contain,
-                  filterQuality: FilterQuality.medium,
+                  child: logoImageUrl == null
+                      ? Image.asset(
+                          _defaultLogoAsset,
+                          height: 40.h,
+                          cacheHeight: 160,
+                          fit: BoxFit.contain,
+                          filterQuality: FilterQuality.medium,
+                        )
+                      : AppImage(
+                          imageUrl: logoImageUrl,
+                          memCacheWidth: 320,
+                          memCacheHeight: 160,
+                          fit: BoxFit.contain,
+                          filterQuality: FilterQuality.medium,
+                          placeholder: Image.asset(
+                            _defaultLogoAsset,
+                            height: 40.h,
+                            fit: BoxFit.contain,
+                          ),
+                          errorWidget: Image.asset(
+                            _defaultLogoAsset,
+                            height: 40.h,
+                            fit: BoxFit.contain,
+                          ),
+                        ),
                 ),
                 // Pull the bottom row up so it sits tight under the logo.
                 Transform.translate(

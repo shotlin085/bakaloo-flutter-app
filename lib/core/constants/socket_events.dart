@@ -9,4 +9,5 @@ class SocketEvents {
   static const themeUpdate = 'theme:update';
   static const sectionUpdate = 'section:update';
   static const storeStatusUpdate = 'store:status:update';
+  static const brandingUpdate = 'branding:update';
 }

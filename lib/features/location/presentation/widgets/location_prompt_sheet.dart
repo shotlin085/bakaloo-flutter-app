@@ -1,5 +1,3 @@
-import 'dart:async';
-
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
@@ -10,6 +8,7 @@ import 'package:phosphoricons_flutter/phosphoricons_flutter.dart';
 
 import 'package:bakaloo_flutter_app/core/theme/app_colors.dart';
 import 'package:bakaloo_flutter_app/core/theme/app_text_styles.dart';
+import 'package:bakaloo_flutter_app/core/utils/location_service_resolver.dart';
 import 'package:bakaloo_flutter_app/features/addresses/domain/entities/address_entity.dart';
 import 'package:bakaloo_flutter_app/features/addresses/presentation/providers/address_provider.dart';
 import 'package:bakaloo_flutter_app/features/location/presentation/providers/location_prompt_provider.dart';
@@ -103,6 +102,15 @@ class _LocationPromptSheetState extends ConsumerState<_LocationPromptSheet> {
       _statusMessage = 'Detecting your location…';
     });
 
+    await _detectAndHandleResult();
+  }
+
+  // Split out from _onEnable so the locationServiceDisabled case below can
+  // retry detection immediately after the native "turn on location" dialog
+  // resolves, without going back through _onEnable's loading-guard (which
+  // would just no-op since _state is still _SheetState.loading at that
+  // point).
+  Future<void> _detectAndHandleResult() async {
     final result = await detectAndSaveCurrentLocation(ref);
 
     if (!mounted) return;
@@ -143,17 +151,40 @@ class _LocationPromptSheetState extends ConsumerState<_LocationPromptSheet> {
         });
 
       case LocationAutoDetectResult.locationServiceDisabled:
+        // Show the native "Turn on Location Accuracy" resolution dialog
+        // in-app (Android, via requestEnableLocationService) instead of
+        // bouncing the customer out to the OS Settings app and back —
+        // matches the Zomato/Blinkit-style flow: tap Enable, the native
+        // dialog appears right over this sheet, tap "Turn on", and
+        // detection continues immediately without ever leaving the app.
+        // Reported: "that direct redirect map turn on settings page... not
+        // do... like Blinkit, Zomato... I need that way."
+        //
+        // On iOS specifically this can now sit here for a while — there's
+        // no native in-app dialog on iOS, so requestEnableLocationService
+        // opens Settings and then genuinely waits for the customer to find
+        // Location Services and switch it on before returning, rather than
+        // wrongly reporting failure the instant Settings finishes opening
+        // (the bug this replaced). "Detecting…" would be misleading during
+        // that wait, since nothing is being detected yet.
+        setState(
+          () => _statusMessage = 'Turn on location, then come back here…',
+        );
+        final enabled = await requestEnableLocationService();
+        if (!mounted) return;
+
+        if (enabled) {
+          // Service is on now — retry detection right away instead of
+          // making the customer tap Enable a second time.
+          setState(() => _statusMessage = 'Detecting your location…');
+          await _detectAndHandleResult();
+          return;
+        }
+
         setState(() {
           _state = _SheetState.idle;
           _statusMessage = 'Please turn on device location and try again.';
         });
-        // Previously this just told the customer to go turn location on
-        // themselves, with no way to actually get there from here — they'd
-        // tap "Enable" and just see the same text again as if it did
-        // nothing. Send them straight to the OS location-settings screen so
-        // "Enable" actually enables something; they come back and tap
-        // Enable again once it's on.
-        unawaited(Geolocator.openLocationSettings());
 
       case LocationAutoDetectResult.geocodingFailed:
       case LocationAutoDetectResult.saveFailed:

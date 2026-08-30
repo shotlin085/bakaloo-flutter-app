@@ -31,6 +31,12 @@ dependencies:
   firebase_analytics: ^11.3.0
   maplibre_gl: ^0.27.0
   geolocator: ^13.0.1
+  # Used solely for its Android SettingsClient integration (requestService())
+  # — the native "Turn on Location Accuracy" resolution dialog that lets the
+  # customer enable device location in-app (Zomato/Blinkit-style) instead of
+  # being bounced out to the OS Settings app. geolocator has no equivalent;
+  # it can only open Settings.
+  location: ^6.0.2
   geocoding: ^3.0.0
   cached_network_image: ^3.4.1
   flutter_svg: ^2.0.10+1

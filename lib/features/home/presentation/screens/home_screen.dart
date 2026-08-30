@@ -9,6 +9,7 @@ import 'package:geolocator/geolocator.dart';
 import 'package:go_router/go_router.dart';
 import 'package:phosphoricons_flutter/phosphoricons_flutter.dart';
 
+import 'package:bakaloo_flutter_app/core/branding/branding_provider.dart';
 import 'package:bakaloo_flutter_app/core/constants/api_constants.dart';
 import 'package:bakaloo_flutter_app/core/theme/remote_theme_model.dart';
 import 'package:bakaloo_flutter_app/core/theme/remote_theme_provider.dart';
@@ -88,6 +89,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
       _themeSocketSub;
   late final ProviderSubscription<AsyncValue<Map<String, dynamic>>>
       _sectionSocketSub;
+  late final ProviderSubscription<AsyncValue<Map<String, dynamic>>>
+      _brandingSocketSub;
   late final ProviderSubscription<Timer> _themeRefreshTimerSub;
   late final ProviderSubscription<AuthState> _authStateSub;
   late final ProviderSubscription<AsyncValue<HomeScreenData>> _homeDataSub;
@@ -171,6 +174,14 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
       (previous, next) {
         next.whenData((event) {
           unawaited(handleThemeSocketEvent(ref, event));
+        });
+      },
+    );
+    _brandingSocketSub = ref.listenManual(
+      socketBrandingUpdateStreamProvider,
+      (previous, next) {
+        next.whenData((event) {
+          unawaited(ref.read(brandingProvider.notifier).refresh());
         });
       },
     );
@@ -514,6 +525,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
     _locationServiceStatusSub?.cancel();
     _themeSocketSub.close();
     _sectionSocketSub.close();
+    _brandingSocketSub.close();
     _themeRefreshTimerSub.close();
     _authStateSub.close();
     _homeDataSub.close();
