@@ -20,7 +20,7 @@ import 'package:bakaloo_flutter_app/features/orders/presentation/widgets/order_c
 import 'package:bakaloo_flutter_app/features/orders/presentation/widgets/order_card_skeleton.dart';
 import 'package:bakaloo_flutter_app/features/orders/presentation/widgets/order_filter_tabs.dart';
 import 'package:bakaloo_flutter_app/routing/route_names.dart';
-import 'package:bakaloo_flutter_app/shared/widgets/confirmation_dialog.dart';
+import 'package:bakaloo_flutter_app/shared/widgets/cancel_order_sheet.dart';
 
 class OrdersScreen extends ConsumerStatefulWidget {
   const OrdersScreen({super.key});
@@ -97,14 +97,12 @@ class _OrdersScreenState extends ConsumerState<OrdersScreen> {
       return;
     }
 
-    final confirmed = await ConfirmationDialog.show(
+    final reason = await CancelOrderSheet.show(
       context,
-      title: 'Cancel Order?',
-      message: 'Do you really want to cancel ${order.orderNumber}?',
-      confirmLabel: 'Cancel Order',
+      orderNumber: order.orderNumber,
     );
 
-    if (confirmed != true || !mounted) {
+    if (reason == null || !mounted) {
       return;
     }
 
@@ -112,8 +110,9 @@ class _OrdersScreenState extends ConsumerState<OrdersScreen> {
       _cancellingIds.add(order.id);
     });
 
-    final result =
-        await ref.read(orderListControllerProvider).cancelOrder(order.id);
+    final result = await ref
+        .read(orderListControllerProvider)
+        .cancelOrder(order.id, reason: reason);
 
     if (!mounted) {
       return;

@@ -1,18 +1,15 @@
 import 'dart:async';
-import 'dart:io';
 
-import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter_map/flutter_map.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:gap/gap.dart';
-import 'package:geocoding/geocoding.dart';
 import 'package:geolocator/geolocator.dart';
-import 'package:latlong2/latlong.dart' as map;
+import 'package:maplibre_gl/maplibre_gl.dart';
 import 'package:phosphoricons_flutter/phosphoricons_flutter.dart';
 
 import 'package:bakaloo_flutter_app/core/maps/geo_point.dart';
-import 'package:bakaloo_flutter_app/core/maps/maps_service.dart';
+import 'package:bakaloo_flutter_app/core/maps/ola/ola_maps_service.dart';
 import 'package:bakaloo_flutter_app/core/theme/app_colors.dart';
 import 'package:bakaloo_flutter_app/core/theme/app_dimensions.dart';
 import 'package:bakaloo_flutter_app/core/theme/app_shadows.dart';
@@ -20,7 +17,7 @@ import 'package:bakaloo_flutter_app/core/theme/app_text_styles.dart';
 import 'package:bakaloo_flutter_app/core/utils/debouncer.dart';
 import 'package:bakaloo_flutter_app/core/utils/resilient_location.dart';
 
-class AddressMapPickerScreen extends StatefulWidget {
+class AddressMapPickerScreen extends ConsumerStatefulWidget {
   const AddressMapPickerScreen({
     super.key,
     this.initialPoint,
@@ -29,54 +26,32 @@ class AddressMapPickerScreen extends StatefulWidget {
   final GeoPoint? initialPoint;
 
   @override
-  State<AddressMapPickerScreen> createState() => _AddressMapPickerScreenState();
+  ConsumerState<AddressMapPickerScreen> createState() => _AddressMapPickerScreenState();
 }
 
-class _AddressMapPickerScreenState extends State<AddressMapPickerScreen>
-    with TickerProviderStateMixin {
+class _AddressMapPickerScreenState extends ConsumerState<AddressMapPickerScreen> {
   static const GeoPoint _fallbackPoint = GeoPoint(lat: 22.5726, lng: 88.3639);
-  static const String _mapUserAgent = 'BakalooCustomerAddressPicker/1.0';
 
-  final MapController _mapController = MapController();
-  final MapsService _mapsService = MapsService();
-  final Dio _searchDio = Dio(
-    BaseOptions(
-      connectTimeout: const Duration(seconds: 10),
-      receiveTimeout: const Duration(seconds: 10),
-      headers: const <String, String>{
-        HttpHeaders.userAgentHeader: _mapUserAgent,
-        HttpHeaders.acceptHeader: 'application/json',
-      },
-    ),
-  );
-  final Debouncer _mapIdleDebouncer = Debouncer(
-    delay: const Duration(milliseconds: 500),
-  );
+  MapLibreMapController? _controller;
   final Debouncer _searchDebouncer = Debouncer(
     delay: const Duration(milliseconds: 300),
   );
   final TextEditingController _searchController = TextEditingController();
   final FocusNode _searchFocusNode = FocusNode();
 
-  late final AnimationController _mapAnimationController;
   late GeoPoint _selectedPoint;
 
-  Tween<double>? _latTween;
-  Tween<double>? _lngTween;
-  Tween<double>? _zoomTween;
-  GeoPoint? _animationTargetPoint;
-  double? _animationTargetZoom;
+  OlaMapsStyle? _style;
+  bool _isLoadingStyle = true;
 
   GeoPoint? _currentLocationPoint;
   _ResolvedLocationDetails? _resolvedLocation;
-  List<_SearchSuggestion> _searchSuggestions = const <_SearchSuggestion>[];
+  List<OlaPlaceSuggestion> _searchSuggestions = const <OlaPlaceSuggestion>[];
 
-  bool _mapReady = false;
   bool _isLocating = false;
   bool _isConfirming = false;
   bool _isResolvingLocation = true;
   bool _isSearching = false;
-  bool _isAnimatingMap = false;
   String? _searchError;
 
   int _searchRequestId = 0;
@@ -100,17 +75,11 @@ class _AddressMapPickerScreenState extends State<AddressMapPickerScreen>
         : _fallbackPoint;
     _currentZoom = widget.initialPoint?.isValid == true ? 16 : 14;
 
-    _mapAnimationController = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 420),
-    )
-      ..addListener(_handleMapAnimationTick)
-      ..addStatusListener(_handleMapAnimationStatus);
-
     _searchController.addListener(_handleSearchChanged);
     _searchFocusNode.addListener(_handleSearchFocusChanged);
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
+      unawaited(_loadStyle());
       unawaited(_resolvePointDetails(_selectedPoint, showLoader: true));
       unawaited(_captureCurrentLocationSilently());
     });
@@ -118,10 +87,7 @@ class _AddressMapPickerScreenState extends State<AddressMapPickerScreen>
 
   @override
   void dispose() {
-    _mapIdleDebouncer.dispose();
     _searchDebouncer.dispose();
-    _searchDio.close(force: true);
-    _mapAnimationController.dispose();
     _searchController
       ..removeListener(_handleSearchChanged)
       ..dispose();
@@ -131,114 +97,163 @@ class _AddressMapPickerScreenState extends State<AddressMapPickerScreen>
     super.dispose();
   }
 
+  Future<void> _loadStyle() async {
+    final style = await ref.read(olaMapsServiceProvider).getStyle();
+    if (!mounted) {
+      return;
+    }
+    setState(() {
+      _style = style;
+      _isLoadingStyle = false;
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       resizeToAvoidBottomInset: false,
       backgroundColor: AppColors.bgPrimary,
-      body: Stack(
-        children: <Widget>[
-          Positioned.fill(child: _buildMap()),
-          Positioned(
-            top: 0,
-            left: 0,
-            right: 0,
-            child: _buildTopOverlay(),
-          ),
-          Positioned(
-            top: 152.h,
-            right: 16.w,
-            child: IgnorePointer(
-              ignoring: _showSearchOverlay,
-              child: AnimatedOpacity(
-                opacity: _showSearchOverlay ? 0 : 1,
-                duration: const Duration(milliseconds: 180),
-                child: _MapFab(
-                  isLoading: _isLocating,
-                  onTap: _moveToCurrentLocation,
-                  child: PhosphorIcon(
-                    PhosphorIcons.crosshairSimpleBold,
-                    size: 20.sp,
-                    color: AppColors.textSecondary,
-                  ),
+      body: _buildBody(),
+    );
+  }
+
+  Widget _buildBody() {
+    if (_isLoadingStyle) {
+      return const Center(child: CircularProgressIndicator());
+    }
+
+    final styleUrl = _style?.styleUrl;
+    if (_style?.configured != true || styleUrl == null) {
+      return _buildMapUnavailable();
+    }
+
+    return Stack(
+      children: <Widget>[
+        Positioned.fill(child: _buildMap(styleUrl)),
+        Positioned(
+          top: 0,
+          left: 0,
+          right: 0,
+          child: _buildTopOverlay(),
+        ),
+        Positioned(
+          top: 152.h,
+          right: 16.w,
+          child: IgnorePointer(
+            ignoring: _showSearchOverlay,
+            child: AnimatedOpacity(
+              opacity: _showSearchOverlay ? 0 : 1,
+              duration: const Duration(milliseconds: 180),
+              child: _MapFab(
+                isLoading: _isLocating,
+                onTap: _moveToCurrentLocation,
+                child: PhosphorIcon(
+                  PhosphorIcons.crosshairSimpleBold,
+                  size: 20.sp,
+                  color: AppColors.textSecondary,
                 ),
               ),
             ),
           ),
-          const Positioned.fill(
-            child: IgnorePointer(
-              child: Center(
-                child: _CenterPinOverlay(),
+        ),
+        const Positioned.fill(
+          child: IgnorePointer(
+            child: Center(
+              child: _CenterPinOverlay(),
+            ),
+          ),
+        ),
+        Positioned(
+          left: 0,
+          right: 0,
+          bottom: 0,
+          child: _BottomLocationSheet(
+            isResolving: _isResolvingLocation,
+            isConfirming: _isConfirming,
+            distanceLabel: _distanceLabel,
+            onConfirm: _confirmSelection,
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildMapUnavailable() {
+    return SafeArea(
+      child: Padding(
+        padding: EdgeInsets.symmetric(horizontal: 32.w),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: <Widget>[
+            PhosphorIcon(
+              PhosphorIcons.mapTrifoldLight,
+              size: 48.sp,
+              color: AppColors.textTertiary,
+            ),
+            Gap(16.h),
+            Text(
+              'Map unavailable right now',
+              textAlign: TextAlign.center,
+              style: AppTextStyles.h3.copyWith(fontWeight: FontWeight.w700),
+            ),
+            Gap(8.h),
+            Text(
+              'Please try again in a moment.',
+              textAlign: TextAlign.center,
+              style: AppTextStyles.bodyMedium.copyWith(
+                color: AppColors.textSecondary,
               ),
             ),
-          ),
-          Positioned(
-            left: 0,
-            right: 0,
-            bottom: 0,
-            child: _BottomLocationSheet(
-              isResolving: _isResolvingLocation,
-              isConfirming: _isConfirming,
-              distanceLabel: _distanceLabel,
-              onConfirm: _confirmSelection,
+            Gap(20.h),
+            OutlinedButton(
+              onPressed: () {
+                setState(() {
+                  _isLoadingStyle = true;
+                });
+                unawaited(_loadStyle());
+              },
+              child: const Text('Retry'),
             ),
-          ),
-        ],
+            Gap(12.h),
+            TextButton(
+              onPressed: () => Navigator.of(context).maybePop(),
+              child: const Text('Go back'),
+            ),
+          ],
+        ),
       ),
     );
   }
 
-  Widget _buildMap() {
-    return FlutterMap(
-      mapController: _mapController,
-      options: MapOptions(
-        initialCenter: _toLatLng(_selectedPoint),
-        initialZoom: _currentZoom,
-        interactionOptions: const InteractionOptions(
-          flags: InteractiveFlag.all & ~InteractiveFlag.rotate,
-        ),
-        onMapReady: () {
-          _mapReady = true;
-          _mapController.move(_toLatLng(_selectedPoint), _currentZoom);
-        },
-        onTap: (_, __) => _dismissSearchOverlay(),
-        onPositionChanged: (MapCamera camera, bool hasGesture) {
-          _currentZoom = camera.zoom;
-          final nextPoint = GeoPoint(
-            lat: camera.center.latitude,
-            lng: camera.center.longitude,
-          );
-
-          if (!_samePoint(nextPoint, _selectedPoint) && mounted) {
-            setState(() {
-              _selectedPoint = nextPoint;
-            });
-          }
-
-          if (!_isAnimatingMap) {
-            _mapIdleDebouncer.run(() {
-              unawaited(_resolvePointDetails(nextPoint));
-            });
-          }
-
-          if (hasGesture && _searchFocusNode.hasFocus) {
-            _dismissSearchOverlay();
-          }
-        },
+  Widget _buildMap(String styleUrl) {
+    return MapLibreMap(
+      styleString: styleUrl,
+      initialCameraPosition: CameraPosition(
+        target: LatLng(_selectedPoint.lat, _selectedPoint.lng),
+        zoom: _currentZoom,
       ),
-      children: <Widget>[
-        TileLayer(
-          urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
-          userAgentPackageName: 'com.bakaloo.india',
-          maxNativeZoom: 19,
-          maxZoom: 19,
-        ),
-        const RichAttributionWidget(
-          attributions: <SourceAttribution>[
-            TextSourceAttribution('OpenStreetMap contributors'),
-          ],
-        ),
-      ],
+      trackCameraPosition: true,
+      compassEnabled: false,
+      onMapCreated: (MapLibreMapController controller) {
+        _controller = controller;
+      },
+      onMapClick: (_, __) => _dismissSearchOverlay(),
+      onCameraIdle: () {
+        final position = _controller?.cameraPosition;
+        final target = position?.target;
+        if (target == null) {
+          return;
+        }
+        _currentZoom = position!.zoom;
+        final nextPoint = GeoPoint(lat: target.latitude, lng: target.longitude);
+        if (_samePoint(nextPoint, _selectedPoint)) {
+          return;
+        }
+        setState(() {
+          _selectedPoint = nextPoint;
+        });
+        unawaited(_resolvePointDetails(nextPoint));
+      },
     );
   }
 
@@ -300,7 +315,7 @@ class _AddressMapPickerScreenState extends State<AddressMapPickerScreen>
         setState(() {
           _isSearching = false;
           _searchError = null;
-          _searchSuggestions = const <_SearchSuggestion>[];
+          _searchSuggestions = const <OlaPlaceSuggestion>[];
         });
       }
       return;
@@ -345,94 +360,24 @@ class _AddressMapPickerScreenState extends State<AddressMapPickerScreen>
       });
     }
 
-    try {
-      final response = await _searchDio.get<dynamic>(
-        'https://nominatim.openstreetmap.org/search',
-        queryParameters: <String, dynamic>{
-          'q': trimmed,
-          'format': 'jsonv2',
-          'limit': 6,
-          'addressdetails': 1,
-          'countrycodes': 'in',
-        },
-        options: Options(
-          headers: const <String, String>{
-            HttpHeaders.userAgentHeader: _mapUserAgent,
-            'Accept-Language': 'en-IN,en;q=0.9',
-          },
-        ),
-      );
+    final suggestions = await ref.read(olaMapsServiceProvider).search(trimmed);
 
-      final suggestions = _parseSearchSuggestions(response.data);
-      final fallbackSuggestions =
-          suggestions.isEmpty ? await _fallbackSearch(trimmed) : suggestions;
-
-      if (!mounted || requestId != _searchRequestId) {
-        return;
-      }
-
-      setState(() {
-        _isSearching = false;
-        _searchSuggestions = fallbackSuggestions;
-        _searchError = fallbackSuggestions.isEmpty ? 'No places found.' : null;
-      });
-    } catch (_) {
-      final fallbackSuggestions = await _fallbackSearch(trimmed);
-      if (!mounted || requestId != _searchRequestId) {
-        return;
-      }
-
-      setState(() {
-        _isSearching = false;
-        _searchSuggestions = fallbackSuggestions;
-        _searchError =
-            fallbackSuggestions.isEmpty ? 'Unable to search right now.' : null;
-      });
-    }
-  }
-
-  Future<List<_SearchSuggestion>> _fallbackSearch(String query) async {
-    try {
-      final locations = await locationFromAddress(query);
-      return locations
-          .take(3)
-          .map(
-            (location) => _SearchSuggestion(
-              title: query,
-              subtitle: 'Detected from geocoder',
-              point: GeoPoint(
-                lat: location.latitude,
-                lng: location.longitude,
-              ),
-            ),
-          )
-          .toList(growable: false);
-    } catch (_) {
-      return const <_SearchSuggestion>[];
-    }
-  }
-
-  List<_SearchSuggestion> _parseSearchSuggestions(dynamic data) {
-    final results = switch (data) {
-      final List<dynamic> list => list,
-      _ => const <dynamic>[],
-    };
-
-    return results
-        .map((dynamic item) => _SearchSuggestion.fromJson(item))
-        .whereType<_SearchSuggestion>()
-        .toList(growable: false);
-  }
-
-  Future<void> _selectSearchSuggestion(_SearchSuggestion suggestion) async {
-    _dismissSearchOverlay(clearQuery: true);
-    if (!mounted) {
+    if (!mounted || requestId != _searchRequestId) {
       return;
     }
 
     setState(() {
-      _selectedPoint = suggestion.point;
+      _isSearching = false;
+      _searchSuggestions = suggestions;
+      _searchError = suggestions.isEmpty ? 'No places found.' : null;
     });
+  }
+
+  Future<void> _selectSearchSuggestion(OlaPlaceSuggestion suggestion) async {
+    _dismissSearchOverlay(clearQuery: true);
+    if (!mounted) {
+      return;
+    }
 
     await _animateMapTo(suggestion.point, zoom: 17);
   }
@@ -504,7 +449,6 @@ class _AddressMapPickerScreenState extends State<AddressMapPickerScreen>
 
       setState(() {
         _currentLocationPoint = currentPoint;
-        _selectedPoint = currentPoint;
       });
 
       await _animateMapTo(currentPoint, zoom: 17);
@@ -535,7 +479,8 @@ class _AddressMapPickerScreenState extends State<AddressMapPickerScreen>
 
   Future<void> _animateMapTo(GeoPoint point, {double? zoom}) async {
     final nextZoom = zoom ?? _currentZoom;
-    if (!_mapReady) {
+    final controller = _controller;
+    if (controller == null) {
       setState(() {
         _selectedPoint = point;
         _currentZoom = nextZoom;
@@ -544,54 +489,11 @@ class _AddressMapPickerScreenState extends State<AddressMapPickerScreen>
       return;
     }
 
-    final startCenter = _mapController.camera.center;
-    final startZoom = _mapController.camera.zoom;
-
-    _latTween = Tween<double>(begin: startCenter.latitude, end: point.lat);
-    _lngTween = Tween<double>(begin: startCenter.longitude, end: point.lng);
-    _zoomTween = Tween<double>(begin: startZoom, end: nextZoom);
-    _animationTargetPoint = point;
-    _animationTargetZoom = nextZoom;
-    _isAnimatingMap = true;
-
-    await _mapAnimationController.forward(from: 0);
-  }
-
-  void _handleMapAnimationTick() {
-    if (!_mapReady ||
-        _latTween == null ||
-        _lngTween == null ||
-        _zoomTween == null) {
-      return;
-    }
-
-    final t = Curves.easeInOutCubic.transform(_mapAnimationController.value);
-    _mapController.move(
-      map.LatLng(_latTween!.transform(t), _lngTween!.transform(t)),
-      _zoomTween!.transform(t),
+    await controller.animateCamera(
+      CameraUpdate.newLatLngZoom(LatLng(point.lat, point.lng), nextZoom),
     );
-  }
-
-  void _handleMapAnimationStatus(AnimationStatus status) {
-    if (status != AnimationStatus.completed) {
-      return;
-    }
-
-    _isAnimatingMap = false;
-    final targetPoint = _animationTargetPoint;
-    final targetZoom = _animationTargetZoom;
-    if (targetPoint == null) {
-      return;
-    }
-
-    if (mounted) {
-      setState(() {
-        _selectedPoint = targetPoint;
-        _currentZoom = targetZoom ?? _currentZoom;
-      });
-    }
-
-    unawaited(_resolvePointDetails(targetPoint));
+    // onCameraIdle fires once the animation settles and handles the
+    // point update + resolve itself — nothing left to do here.
   }
 
   Future<void> _resolvePointDetails(
@@ -606,13 +508,7 @@ class _AddressMapPickerScreenState extends State<AddressMapPickerScreen>
     }
 
     try {
-      final reverse = await _mapsService.reverseGeocode(point);
-      Placemark? fallbackPlacemark;
-
-      if (reverse == null || !_hasUsefulReverseDetails(reverse)) {
-        final placemarks = await placemarkFromCoordinates(point.lat, point.lng);
-        fallbackPlacemark = placemarks.isEmpty ? null : placemarks.first;
-      }
+      final reverse = await ref.read(olaMapsServiceProvider).reverseGeocode(point);
 
       if (!mounted || requestId != _resolveRequestId) {
         return;
@@ -622,7 +518,6 @@ class _AddressMapPickerScreenState extends State<AddressMapPickerScreen>
         _resolvedLocation = _ResolvedLocationDetails.fromSources(
           point: point,
           reverse: reverse,
-          placemark: fallbackPlacemark,
         );
         _isResolvingLocation = false;
       });
@@ -636,23 +531,6 @@ class _AddressMapPickerScreenState extends State<AddressMapPickerScreen>
         _isResolvingLocation = false;
       });
     }
-  }
-
-  bool _hasUsefulReverseDetails(ReverseGeocodeResult reverse) {
-    // Nominatim (OSM) reliably covers broad fields — city/state/pincode —
-    // almost everywhere in India, even where its fine-grained coverage of
-    // small residential colonies is sparse. Checking "any field" here meant
-    // the richer on-device geocoder fallback below almost never ran, since
-    // state/pincode alone were enough to satisfy it — leaving the specific
-    // road/colony name blank in exactly the areas it matters most. Only
-    // treat Nominatim's answer as sufficient when it actually names the
-    // place (addressLine1/addressLine2); otherwise fetch the native
-    // placemark too so _ResolvedLocationDetails.fromSources can merge in
-    // whichever source has the better road/locality name.
-    return <String?>[
-      reverse.addressLine1,
-      reverse.addressLine2,
-    ].any((value) => (value ?? '').trim().isNotEmpty);
   }
 
   Future<void> _confirmSelection() async {
@@ -684,6 +562,7 @@ class _AddressMapPickerScreenState extends State<AddressMapPickerScreen>
           city: details?.city,
           state: details?.state,
           pincode: details?.pincode,
+          landmark: details?.landmark,
         ),
       );
     } finally {
@@ -707,7 +586,7 @@ class _AddressMapPickerScreenState extends State<AddressMapPickerScreen>
       setState(() {
         _isSearching = false;
         _searchError = null;
-        _searchSuggestions = const <_SearchSuggestion>[];
+        _searchSuggestions = const <OlaPlaceSuggestion>[];
       });
     }
   }
@@ -735,8 +614,6 @@ class _AddressMapPickerScreenState extends State<AddressMapPickerScreen>
   bool _samePoint(GeoPoint a, GeoPoint b) {
     return (a.lat - b.lat).abs() < 0.000001 && (a.lng - b.lng).abs() < 0.000001;
   }
-
-  map.LatLng _toLatLng(GeoPoint point) => map.LatLng(point.lat, point.lng);
 }
 
 class AddressMapPickerResult {
@@ -748,6 +625,7 @@ class AddressMapPickerResult {
     this.city,
     this.state,
     this.pincode,
+    this.landmark,
   });
 
   final GeoPoint point;
@@ -757,6 +635,7 @@ class AddressMapPickerResult {
   final String? city;
   final String? state;
   final String? pincode;
+  final String? landmark;
 
   String get previewLabel {
     final parts = <String>[
@@ -904,8 +783,8 @@ class _SearchResultsCard extends StatelessWidget {
 
   final bool isLoading;
   final String? errorText;
-  final List<_SearchSuggestion> suggestions;
-  final ValueChanged<_SearchSuggestion> onSuggestionTap;
+  final List<OlaPlaceSuggestion> suggestions;
+  final ValueChanged<OlaPlaceSuggestion> onSuggestionTap;
 
   @override
   Widget build(BuildContext context) {
@@ -981,7 +860,7 @@ class _SearchSuggestionTile extends StatelessWidget {
     required this.onTap,
   });
 
-  final _SearchSuggestion suggestion;
+  final OlaPlaceSuggestion suggestion;
   final VoidCallback onTap;
 
   @override
@@ -1288,6 +1167,7 @@ class _ResolvedLocationDetails {
     this.city,
     this.state,
     this.pincode,
+    this.landmark,
   });
 
   final String areaName;
@@ -1298,42 +1178,18 @@ class _ResolvedLocationDetails {
   final String? city;
   final String? state;
   final String? pincode;
+  final String? landmark;
 
   factory _ResolvedLocationDetails.fromSources({
     required GeoPoint point,
     ReverseGeocodeResult? reverse,
-    Placemark? placemark,
   }) {
-    final addressLine1 = _pickFirstNonEmpty(<String?>[
-      reverse?.addressLine1,
-      _joinParts(<String?>[
-        placemark?.subThoroughfare,
-        placemark?.thoroughfare,
-      ]),
-      placemark?.street,
-    ]);
-    final addressLine2 = _pickFirstNonEmpty(<String?>[
-      reverse?.addressLine2,
-      _joinParts(<String?>[
-        placemark?.subLocality,
-        placemark?.locality,
-      ]),
-      placemark?.subAdministrativeArea,
-    ]);
-    final city = _pickFirstNonEmpty(<String?>[
-      reverse?.city,
-      placemark?.locality,
-      placemark?.subAdministrativeArea,
-      placemark?.administrativeArea,
-    ]);
-    final state = _pickFirstNonEmpty(<String?>[
-      reverse?.state,
-      placemark?.administrativeArea,
-    ]);
-    final pincode = _pickFirstNonEmpty(<String?>[
-      reverse?.pincode,
-      placemark?.postalCode,
-    ]);
+    final addressLine1 = (reverse?.addressLine1 ?? '').trim();
+    final addressLine2 = (reverse?.addressLine2 ?? '').trim();
+    final city = (reverse?.city ?? '').trim();
+    final state = (reverse?.state ?? '').trim();
+    final pincode = (reverse?.pincode ?? '').trim();
+    final landmark = (reverse?.landmark ?? '').trim();
     final displayName = _pickFirstNonEmpty(<String?>[
       reverse?.displayName,
       _joinParts(<String?>[
@@ -1370,6 +1226,7 @@ class _ResolvedLocationDetails {
       city: city.isEmpty ? null : city,
       state: state.isEmpty ? null : state,
       pincode: pincode.isEmpty ? null : pincode,
+      landmark: landmark.isEmpty ? null : landmark,
     );
   }
 
@@ -1407,60 +1264,5 @@ class _ResolvedLocationDetails {
       }
     }
     return parts.join(', ');
-  }
-}
-
-class _SearchSuggestion {
-  const _SearchSuggestion({
-    required this.title,
-    required this.subtitle,
-    required this.point,
-  });
-
-  final String title;
-  final String subtitle;
-  final GeoPoint point;
-
-  factory _SearchSuggestion.fromJson(dynamic json) {
-    if (json is! Map) {
-      throw const FormatException('Invalid search result');
-    }
-
-    final mapJson = Map<String, dynamic>.from(json);
-    final lat = double.tryParse('${mapJson['lat'] ?? ''}');
-    final lng = double.tryParse('${mapJson['lon'] ?? ''}');
-    if (lat == null || lng == null) {
-      throw const FormatException('Missing coordinates');
-    }
-
-    final address = switch (mapJson['address']) {
-      final Map value => Map<String, dynamic>.from(value),
-      _ => const <String, dynamic>{},
-    };
-
-    final title = _ResolvedLocationDetails._pickFirstNonEmpty(<String?>[
-      address['name'] as String?,
-      address['road'] as String?,
-      address['suburb'] as String?,
-      address['city'] as String?,
-      address['town'] as String?,
-      address['village'] as String?,
-      (mapJson['display_name'] as String?)?.split(',').first,
-    ]);
-
-    final subtitle = _ResolvedLocationDetails._joinParts(<String?>[
-      address['suburb'] as String?,
-      address['city'] as String? ?? address['town'] as String?,
-      address['state'] as String?,
-      address['postcode'] as String?,
-    ]);
-
-    return _SearchSuggestion(
-      title: title.isEmpty ? 'Selected place' : title,
-      subtitle: subtitle.isEmpty
-          ? ((mapJson['display_name'] as String?) ?? '').trim()
-          : subtitle,
-      point: GeoPoint(lat: lat, lng: lng),
-    );
   }
 }

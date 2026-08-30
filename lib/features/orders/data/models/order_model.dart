@@ -21,6 +21,7 @@ class OrderModel {
     required this.paymentMethod,
     required this.paymentStatus,
     required this.createdAt,
+    this.walletAmountUsed = 0,
     this.razorpayPaymentId,
     this.couponCode,
     this.deliveredAt,
@@ -47,6 +48,7 @@ class OrderModel {
   final Map<String, dynamic> tracking;
   final String paymentMethod;
   final String paymentStatus;
+  final double walletAmountUsed;
   final String? razorpayPaymentId;
   final String? couponCode;
   final DateTime createdAt;
@@ -126,6 +128,10 @@ class OrderModel {
         json,
         <String>['paymentStatus', 'payment_status'],
       ),
+      walletAmountUsed: _readDouble(
+        json,
+        <String>['walletAmountUsed', 'wallet_amount_used'],
+      ),
       razorpayPaymentId: _readNullableString(
         json,
         <String>['razorpayPaymentId', 'razorpay_payment_id'],
@@ -170,6 +176,7 @@ class OrderModel {
       tracking: Map<String, dynamic>.from(tracking),
       paymentMethod: paymentMethod,
       paymentStatus: paymentStatus,
+      walletAmountUsed: walletAmountUsed,
       razorpayPaymentId: razorpayPaymentId,
       couponCode: couponCode,
       createdAt: createdAt,
@@ -200,6 +207,7 @@ class OrderModel {
       'tracking': tracking,
       'paymentMethod': paymentMethod,
       'paymentStatus': paymentStatus,
+      'walletAmountUsed': walletAmountUsed,
       'razorpayPaymentId': razorpayPaymentId,
       'couponCode': couponCode,
       'createdAt': createdAt.toIso8601String(),

@@ -170,6 +170,10 @@ abstract class CartMilestoneTier with _$CartMilestoneTier {
     @Default(0) double amountToUnlock,
     @Default('') String message,
     String? iconUrl,
+    // Only ever populated on the `unlocked` tier of a CASHBACK-type
+    // milestone — the wallet credit the customer will actually earn on
+    // this order, computed server-side (CartMilestonesService.computeReward).
+    @Default(0) double cashbackAmount,
   }) = _CartMilestoneTier;
 
   factory CartMilestoneTier.fromJson(Map<String, dynamic> json) =>
@@ -283,6 +287,9 @@ abstract class FirstTimeOfferInfo with _$FirstTimeOfferInfo {
     @Default('') String rewardType,
     @Default(0) double discount,
     @Default(false) bool freeDelivery,
+    // Only non-zero for rewardType WALLET_CASHBACK — the wallet credit the
+    // customer will actually earn on this order.
+    @Default(0) double cashbackAmount,
   }) = _FirstTimeOfferInfo;
 
   factory FirstTimeOfferInfo.fromJson(Map<String, dynamic> json) =>

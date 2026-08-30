@@ -17,10 +17,12 @@ class CartEnhancementsRemoteDataSource {
 
   Future<Either<Failure, BillSummaryEntity>> getCartSummary({
     bool quickDeliverySelected = false,
+    String? addressId,
   }) async {
     try {
       final response = await _apiClient.getCartSummary(
         quickDeliverySelected: quickDeliverySelected,
+        addressId: addressId,
       );
       final data = response.data;
       if (data == null) {

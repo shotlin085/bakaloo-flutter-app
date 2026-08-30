@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:dio/dio.dart';
 import 'package:freezed_annotation/freezed_annotation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
@@ -21,7 +22,6 @@ import 'package:bakaloo_flutter_app/features/payments/domain/usecases/create_pay
 import 'package:bakaloo_flutter_app/features/payments/domain/usecases/get_history.dart';
 import 'package:bakaloo_flutter_app/features/payments/domain/usecases/verify_payment.dart';
 import 'package:bakaloo_flutter_app/features/payments/presentation/service/razorpay_service.dart';
-import 'package:bakaloo_flutter_app/features/wallet/presentation/providers/wallet_provider.dart';
 import 'package:bakaloo_flutter_app/routing/app_router.dart';
 
 part 'payment_provider.freezed.dart';
@@ -32,6 +32,14 @@ abstract class PaymentState with _$PaymentState {
   const factory PaymentState({
     @Default(false) bool isLoading,
     @Default(false) bool isVerifying,
+    // Set while the checkout SDK has reported an error that ISN'T a
+    // confirmed user cancellation and we're checking with the backend
+    // before deciding anything — and again, with a different
+    // [pendingMessage], if that check exhausts its bounded wait with no
+    // definitive answer yet. Never means "failed"; the UI must not show a
+    // dead-end error while this is true.
+    @Default(false) bool isPendingConfirmation,
+    String? pendingMessage,
     String? errorMessage,
     PaymentEntity? lastPayment,
     String? activeOrderId,
@@ -237,48 +245,6 @@ class PaymentNotifier extends _$PaymentNotifier {
     );
   }
 
-  Future<PaymentActionResult> payOrderFromWallet(
-    PlacedOrderEntity order,
-  ) async {
-    if (state.isLoading || state.isVerifying) {
-      const message = 'A payment is already in progress.';
-      state = state.copyWith(errorMessage: message);
-      return const PaymentActionResult(errorMessage: message);
-    }
-
-    state = state.copyWith(
-      isLoading: true,
-      isVerifying: false,
-      errorMessage: null,
-      activeOrderId: order.id,
-      isWalletTopupFlow: false,
-    );
-
-    final result = await _repository.payFromWallet(order.id);
-    return result.fold(
-      (failure) {
-        state = PaymentState.idle().copyWith(errorMessage: failure.message);
-        return PaymentActionResult(errorMessage: failure.message);
-      },
-      (_) {
-        ref.invalidate(walletBalanceProvider);
-        // The Wallet tab is backed by the separate, keepAlive `walletProvider`
-        // (WalletNotifier) — invalidating only walletBalanceProvider above
-        // left that screen showing the pre-debit balance until a manual
-        // pull-to-refresh or app restart. verifyTopup()/transfer() in
-        // wallet_provider.dart already invalidate both; this path was missing it.
-        // ignore: cascade_invocations
-        ref.invalidate(walletProvider);
-        // ignore: cascade_invocations
-        ref.invalidate(cartProvider); // Clear cart after wallet payment success
-        ref.read(checkoutProvider.notifier).resetForNewOrder();
-        state = PaymentState.idle();
-        ref.read(appRouterProvider).go('/orders/success/${order.id}');
-        return const PaymentActionResult();
-      },
-    );
-  }
-
   void clearError() {
     if (state.errorMessage == null) {
       return;
@@ -301,8 +267,17 @@ class PaymentNotifier extends _$PaymentNotifier {
         );
       }
       ..onFailure = _handleFailure
+      // Handing off to an external wallet app (PayZapp, Airtel Money, etc.)
+      // is a dead end for the SDK callbacks — neither onSuccess nor
+      // onFailure fires once the wallet app takes over, so this attempt's
+      // outcome can ONLY ever be learned by asking the backend. Previously
+      // this just reset to idle, silently dropping any signal of an
+      // in-flight payment the moment the wallet app opened.
       ..onExternalWallet = (_) {
-        state = state.copyWith(isLoading: false);
+        _beginPendingConfirmation(
+          orderId: orderId,
+          razorpayOrderId: razorpayOrderId,
+        );
       };
   }
 
@@ -411,37 +386,154 @@ class PaymentNotifier extends _$PaymentNotifier {
     );
   }
 
+  /// Only `PAYMENT_CANCELLED` is Razorpay's own unambiguous "the user
+  /// backed out" signal. Every other code — `NETWORK_ERROR`, `TLS_ERROR`,
+  /// `UNKNOWN_ERROR`, and even a blank/missing message — means Razorpay's
+  /// own checkout couldn't confirm what happened, NOT that the payment
+  /// failed. The bank/UPI side can already have succeeded (this is exactly
+  /// the "paid but shows failed" bug): declaring failure on this signal
+  /// alone and immediately cancelling, as this used to do unconditionally,
+  /// is the root cause. Only a confirmed cancellation short-circuits
+  /// straight to cancelling; everything else goes through
+  /// [_beginPendingConfirmation] to ask the backend first.
   void _handleFailure(PaymentFailureResponse response) {
     final orderId = state.activeOrderId;
-    final normalizedMessage = response.message?.trim();
-    final hasMeaningfulMessage = normalizedMessage != null &&
-        normalizedMessage.isNotEmpty &&
-        normalizedMessage.toLowerCase() != 'undefined' &&
-        normalizedMessage.toLowerCase() != 'null';
-    final isCancellation =
-        response.code == Razorpay.PAYMENT_CANCELLED || !hasMeaningfulMessage;
+    final razorpayOrderId = state.activeRazorpayOrderId;
 
-    // Best-effort: cancel the pending backend order so it doesn't linger
-    if (orderId != null) {
-      unawaited(
-        _cancelPendingOrder(
-          orderId,
-          reason: isCancellation
-              ? 'Payment cancelled by user'
-              : 'Payment failed: $normalizedMessage',
-        ),
+    if (response.code == Razorpay.PAYMENT_CANCELLED) {
+      if (orderId != null) {
+        unawaited(
+          _cancelPendingOrder(orderId, reason: 'Payment cancelled by user'),
+        );
+      }
+      state = PaymentState.idle().copyWith(
+        errorMessage: 'Payment cancelled. You can try again.',
       );
+      return;
     }
 
-    state = PaymentState.idle().copyWith(
-      errorMessage: isCancellation
-          ? 'Payment cancelled. You can try again.'
-          : (hasMeaningfulMessage
-              ? normalizedMessage
-              : 'Payment failed. Please try again.'),
+    if (orderId == null || razorpayOrderId == null) {
+      // No in-flight order to check against — nothing left to do but
+      // surface a generic failure (this shouldn't normally happen, since
+      // both are set before Razorpay Checkout ever opens).
+      state = PaymentState.idle().copyWith(
+        errorMessage: 'Payment failed. Please try again.',
+      );
+      return;
+    }
+
+    _beginPendingConfirmation(orderId: orderId, razorpayOrderId: razorpayOrderId);
+  }
+
+  void _beginPendingConfirmation({
+    required String orderId,
+    required String razorpayOrderId,
+  }) {
+    state = state.copyWith(
+      isLoading: false,
+      isVerifying: false,
+      isPendingConfirmation: true,
+      pendingMessage: 'Verifying your payment…',
+      errorMessage: null,
     );
-    // NOTE: cartProvider is NOT invalidated here.
-    // The user's cart items are preserved for retry.
+    unawaited(
+      _pollPaymentStatus(orderId: orderId, razorpayOrderId: razorpayOrderId),
+    );
+  }
+
+  /// Bounded poll (~90s total) against the backend's authoritative status
+  /// for this Razorpay order, mirroring the wait-with-attempts-cap idiom
+  /// already used for the APNs-token race in fcm_token_helper.dart. Never
+  /// declares failure on its own timing out — if the backend still can't
+  /// say for certain, this leaves the order exactly as-is so the backend's
+  /// own reconciliation (webhook / expiry-worker sweep) can resolve it
+  /// later; the customer is notified whenever that happens.
+  static const List<int> _pollDelaysMs = <int>[0, 3000, 6000, 12000, 24000, 45000];
+
+  Future<void> _pollPaymentStatus({
+    required String orderId,
+    required String razorpayOrderId,
+  }) async {
+    for (final delayMs in _pollDelaysMs) {
+      if (delayMs > 0) {
+        await Future<void>.delayed(Duration(milliseconds: delayMs));
+      }
+      // A newer checkout attempt (or another caller of recheckIfPending())
+      // has already moved past this one — stop, don't stomp on it.
+      if (state.activeRazorpayOrderId != razorpayOrderId) {
+        return;
+      }
+
+      PaymentStatusResult? status;
+      try {
+        final result = await _repository.getPaymentStatus(razorpayOrderId);
+        status = result.fold((_) => null, (value) => value);
+      } catch (_) {
+        status = null;
+      }
+
+      if (status == null) {
+        continue; // transient error or "not found yet" — keep polling
+      }
+      if (status.isPaid) {
+        unawaited(_onPaymentConfirmed(orderId: orderId));
+        return;
+      }
+      if (status.isFailed) {
+        _onPaymentDefinitivelyFailed(
+          orderId: orderId,
+          reason: status.displayReason,
+        );
+        return;
+      }
+      // Still PENDING per the backend — keep polling.
+    }
+
+    if (state.activeRazorpayOrderId == razorpayOrderId) {
+      state = state.copyWith(
+        isPendingConfirmation: true,
+        pendingMessage: "We're still confirming your payment with the bank. "
+            "This can take a few minutes — you'll get a notification and "
+            "your order will appear automatically. Please don't pay again.",
+      );
+    }
+  }
+
+  /// Re-check now, e.g. when the app resumes from being backgrounded while
+  /// a UPI/wallet app had control — the checkout screen calls this from
+  /// its lifecycle observer so a payment left in limbo by an OS-killed
+  /// activity doesn't just sit there until the poll's own next tick.
+  void recheckIfPending() {
+    final orderId = state.activeOrderId;
+    final razorpayOrderId = state.activeRazorpayOrderId;
+    if (!state.isPendingConfirmation || orderId == null || razorpayOrderId == null) {
+      return;
+    }
+    unawaited(
+      _pollPaymentStatus(orderId: orderId, razorpayOrderId: razorpayOrderId),
+    );
+  }
+
+  Future<void> _onPaymentConfirmed({required String orderId}) async {
+    ref.invalidate(cartProvider); // Clear cart ONLY after confirmed payment
+    ref.read(checkoutProvider.notifier).resetForNewOrder();
+    state = PaymentState.idle();
+    ref.read(appRouterProvider).go('/orders/success/$orderId');
+  }
+
+  void _onPaymentDefinitivelyFailed({
+    required String orderId,
+    String? reason,
+  }) {
+    unawaited(
+      _cancelPendingOrder(
+        orderId,
+        reason: reason == null ? 'Payment failed' : 'Payment failed: $reason',
+      ),
+    );
+    state = PaymentState.idle().copyWith(
+      errorMessage: reason ?? 'Payment failed. Please try again.',
+    );
   }
 
   Future<void> _cancelPendingOrder(
@@ -449,19 +541,41 @@ class PaymentNotifier extends _$PaymentNotifier {
     required String reason,
   }) async {
     try {
-      await ref.read(dioClientProvider).post<dynamic>(
-        ApiConstants.orderCancel(orderId),
-        data: <String, dynamic>{'reason': reason},
-      );
+      final cancelResponse = await ref.read(dioClientProvider).post<dynamic>(
+            ApiConstants.orderCancel(orderId),
+            data: <String, dynamic>{'reason': reason},
+          );
+      if (_isPaymentConfirmedResponse(cancelResponse.data)) {
+        unawaited(_onPaymentConfirmed(orderId: orderId));
+        return;
+      }
       await ref.read(dioClientProvider).post<dynamic>(
         ApiConstants.orderReorder(orderId),
         data: const <String, dynamic>{},
       );
+    } on DioException catch (error) {
+      // The backend refuses to cancel (and confirms the order instead) when
+      // its own live Razorpay check finds the payment was actually
+      // captured — signalled by a 409 with `paymentConfirmed: true` in the
+      // body. Previously this response was discarded entirely (any
+      // non-2xx just landed in a silent catch-all), so that save was
+      // invisible here and nothing ever stopped the customer's cart from
+      // being restored on top of an order that had actually succeeded.
+      if (_isPaymentConfirmedResponse(error.response?.data)) {
+        unawaited(_onPaymentConfirmed(orderId: orderId));
+        return;
+      }
+      // Any other failure: silent fail — backend auto-cancels unpaid
+      // orders after timeout. Best effort only. If reorder fails, the
+      // existing cart state in memory still lets the user retry without
+      // getting stuck on a blank flow.
     } catch (_) {
-      // Silent fail — backend auto-cancels unpaid orders after timeout.
-      // Best effort only. If reorder fails, the existing cart state in memory
-      // still lets the user retry without getting stuck on a blank flow.
+      // Non-Dio failure — same best-effort reasoning as above.
     }
+  }
+
+  bool _isPaymentConfirmedResponse(dynamic data) {
+    return data is Map && data['paymentConfirmed'] == true;
   }
 
   void _resetCallbacks() {

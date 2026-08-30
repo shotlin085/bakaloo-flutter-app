@@ -106,6 +106,32 @@ class CartBillSummary extends StatelessWidget {
                 Gap(14.h),
               ],
 
+              // ── Cashback already earned on this order ───────────
+              // Unlike the discount above, cashback doesn't reduce what's
+              // payable now — it's a wallet credit after the order — so
+              // it never touches the discount slot and both an unlocked
+              // first-time-offer cashback and a cart-milestone cashback
+              // can show at once if the customer happens to qualify for
+              // both. Purely informational: only ever shown once the
+              // reward is actually locked in, not as a "still trying to
+              // unlock" progress hint (that lives in the Smart Bottom Bar).
+              if ((summary.firstTimeOffer?.cashbackAmount ?? 0) > 0) ...<Widget>[
+                _CashbackEarnedRow(
+                  amount: summary.firstTimeOffer!.cashbackAmount,
+                  label: summary.firstTimeOffer!.name,
+                ),
+                Gap(14.h),
+              ],
+              if (summary.cartMilestone.unlocked?.rewardType == 'CASHBACK' &&
+                  (summary.cartMilestone.unlocked?.cashbackAmount ?? 0) >
+                      0) ...<Widget>[
+                _CashbackEarnedRow(
+                  amount: summary.cartMilestone.unlocked!.cashbackAmount,
+                  label: summary.cartMilestone.unlocked!.name,
+                ),
+                Gap(14.h),
+              ],
+
               // ── Delivery fee ────────────────────────────────────
               _BillRow(
                 label: 'Delivery fee',
@@ -538,6 +564,75 @@ class _CouponDiscountRow extends StatelessWidget {
           ),
         ),
       ],
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Cashback-earned row — green, confirms a wallet credit already locked in
+// (unlike _CouponDiscountRow, this never subtracts from "To pay")
+// ─────────────────────────────────────────────────────────────────────────────
+
+class _CashbackEarnedRow extends StatelessWidget {
+  const _CashbackEarnedRow({required this.amount, required this.label});
+
+  final double amount;
+  final String label;
+
+  static const Color _green = Color(0xFF0AC26B);
+  static const Color _greenBg = Color(0xFFEAFBF3);
+  static const Color _greenBorder = Color(0xFFBEEED9);
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: EdgeInsets.symmetric(horizontal: 12.w, vertical: 10.h),
+      decoration: BoxDecoration(
+        color: _greenBg,
+        borderRadius: BorderRadius.circular(10.r),
+        border: Border.all(color: _greenBorder),
+      ),
+      child: Row(
+        children: <Widget>[
+          PhosphorIcon(
+            PhosphorIcons.wallet,
+            size: 18.sp,
+            color: _green,
+          ),
+          Gap(10.w),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: <Widget>[
+                Text(
+                  '₹${amount.toStringAsFixed(0)} cashback on this order',
+                  style: TextStyle(
+                    fontSize: 13.5.sp,
+                    fontWeight: FontWeight.w700,
+                    color: _green,
+                    fontFamily: 'Inter',
+                  ),
+                ),
+                if (label.isNotEmpty) ...<Widget>[
+                  Gap(2.h),
+                  Text(
+                    label,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      fontSize: 11.5.sp,
+                      fontWeight: FontWeight.w500,
+                      color: _green.withValues(alpha: 0.8),
+                      fontFamily: 'Inter',
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

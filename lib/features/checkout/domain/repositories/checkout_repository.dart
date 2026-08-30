@@ -14,6 +14,7 @@ class PlaceOrderParams {
     this.scheduledSlotEnd,
     this.scheduledSlotLabel,
     this.quickDeliverySelected = false,
+    this.useWallet = false,
   });
 
   final String addressId;
@@ -27,6 +28,10 @@ class PlaceOrderParams {
   final String? scheduledSlotLabel;
   /// Explicit opt-in only — never implied by `deliveryMode == 'ASAP'` alone.
   final bool quickDeliverySelected;
+  /// Explicit opt-in only — applies wallet balance against the total on top
+  /// of [paymentMethod] rather than replacing it. Ignored by the backend
+  /// when paymentMethod is the legacy 'WALLET'.
+  final bool useWallet;
 
   Map<String, dynamic> toJson() {
     return <String, dynamic>{
@@ -47,6 +52,9 @@ class PlaceOrderParams {
       },
       if (deliveryMode == 'ASAP' && quickDeliverySelected)
         'quickDeliverySelected': true,
+      // Always explicit — unlike couponCode/deliveryNotes, false here is a
+      // meaningful, deliberate value, not an absent one.
+      'useWallet': useWallet,
     };
   }
 }
@@ -66,6 +74,7 @@ class PlacedOrderEntity {
     required this.createdAt,
     this.couponCode,
     this.estimatedDelivery,
+    this.walletAmountUsed = 0,
   });
 
   final String id;
@@ -81,6 +90,7 @@ class PlacedOrderEntity {
   final DateTime createdAt;
   final String? couponCode;
   final DateTime? estimatedDelivery;
+  final double walletAmountUsed;
 }
 
 abstract class CheckoutRepository {

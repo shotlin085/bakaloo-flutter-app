@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:dio/dio.dart';
 import 'package:freezed_annotation/freezed_annotation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
@@ -23,7 +24,6 @@ import 'package:bakaloo_flutter_app/features/checkout/domain/usecases/place_orde
 import 'package:bakaloo_flutter_app/features/checkout/presentation/providers/coupon_provider.dart';
 import 'package:bakaloo_flutter_app/features/checkout/presentation/providers/store_status_provider.dart';
 import 'package:bakaloo_flutter_app/features/payments/presentation/providers/payment_provider.dart';
-import 'package:bakaloo_flutter_app/features/wallet/presentation/providers/wallet_provider.dart';
 import 'package:bakaloo_flutter_app/routing/app_router.dart';
 
 part 'checkout_provider.freezed.dart';
@@ -31,23 +31,26 @@ part 'checkout_provider.g.dart';
 
 typedef CartValidationEntity = CartValidationResult;
 
+// `wallet` was retired as an exclusive payment method — wallet balance is
+// now an orthogonal toggle (see CheckoutState.useWallet) that can combine
+// with either COD or online payment, applied as a discount against
+// whichever method is chosen. The backend still accepts the legacy
+// paymentMethod:'WALLET' value from any not-yet-updated app install; it
+// simply can never be sent by this build anymore.
 enum PaymentMethod {
   cod,
   online,
-  wallet,
 }
 
 extension PaymentMethodX on PaymentMethod {
   String get apiValue => switch (this) {
         PaymentMethod.cod => 'COD',
         PaymentMethod.online => 'ONLINE',
-        PaymentMethod.wallet => 'WALLET',
       };
 
   String get title => switch (this) {
         PaymentMethod.cod => 'Cash on Delivery',
         PaymentMethod.online => 'Pay Online',
-        PaymentMethod.wallet => 'Bakaloo Wallet',
       };
 }
 
@@ -70,6 +73,10 @@ abstract class CheckoutState with _$CheckoutState {
     String? errorMessage,
     // Delivery slot — null means ASAP (default)
     SelectedDeliverySlot? selectedDeliverySlot,
+    // Wallet-balance toggle — explicit opt-in only, same convention as
+    // Quick Delivery. Applies on top of `paymentMethod`, offsetting the
+    // total rather than replacing the method.
+    @Default(false) bool useWallet,
   }) = _CheckoutState;
 }
 
@@ -167,6 +174,13 @@ class CheckoutNotifier extends _$CheckoutNotifier {
     );
   }
 
+  /// Toggles applying wallet balance against the total, on top of whichever
+  /// [PaymentMethod] is currently selected — does not change the method
+  /// itself.
+  void setUseWallet(bool value) {
+    state = state.copyWith(useWallet: value, errorMessage: null);
+  }
+
   Future<bool> applyCoupon(String code) async {
     final normalizedCode = code.trim().toUpperCase();
     if (normalizedCode.isEmpty) {
@@ -243,6 +257,7 @@ class CheckoutNotifier extends _$CheckoutNotifier {
       appliedCoupon: null,
       selectedDeliverySlot: null,
       paymentMethod: PaymentMethod.online,
+      useWallet: false,
       currentStep: CheckoutStep.address,
       errorMessage: null,
     );
@@ -354,14 +369,6 @@ class CheckoutNotifier extends _$CheckoutNotifier {
       }
     }
 
-    final walletBalance = await _walletBalance;
-    if (selectedPaymentMethod == PaymentMethod.wallet &&
-        walletBalance < total) {
-      const message = 'Insufficient wallet balance. Please add money first.';
-      state = state.copyWith(errorMessage: message);
-      return const CheckoutPlacementResult(errorMessage: message);
-    }
-
     state = state.copyWith(isPlacingOrder: true, errorMessage: null);
     unawaited(
       ref.read(analyticsServiceProvider).logBeginCheckout(
@@ -381,6 +388,7 @@ class CheckoutNotifier extends _$CheckoutNotifier {
             scheduledSlotEnd: _scheduledSlotEnd,
             scheduledSlotLabel: _scheduledSlotLabel,
             quickDeliverySelected: effectiveDeliverySlot.quickDeliverySelected,
+            useWallet: state.useWallet,
           ),
         );
 
@@ -420,7 +428,14 @@ class CheckoutNotifier extends _$CheckoutNotifier {
     // This prevents the blank-page-after-Razorpay-cancel bug.
     var handedOffToPayment = false;
 
-    if (selectedPaymentMethod == PaymentMethod.online) {
+    // A wallet-toggle order can arrive here already fully paid (the wallet
+    // covered the entire total server-side) even though ONLINE was the
+    // selected method — no Razorpay order was created for it, so it must
+    // take the same "already done" path as COD below, not the Razorpay
+    // handoff.
+    final alreadyPaid = order.paymentStatus == 'PAID';
+
+    if (selectedPaymentMethod == PaymentMethod.online && !alreadyPaid) {
       final paymentResult =
           await ref.read(paymentProvider.notifier).startRazorpayFlow(order);
       if (!paymentResult.isSuccess) {
@@ -443,29 +458,11 @@ class CheckoutNotifier extends _$CheckoutNotifier {
       handedOffToPayment = true;
     }
 
-    if (selectedPaymentMethod == PaymentMethod.wallet) {
-      final paymentResult =
-          await ref.read(paymentProvider.notifier).payOrderFromWallet(order);
-      if (!paymentResult.isSuccess) {
-        await _tryCancelOrder(
-          order.id,
-          reason: 'Wallet payment failed',
-        );
-        state = state.copyWith(
-          isPlacingOrder: false,
-          errorMessage: paymentResult.errorMessage,
-        );
-        return CheckoutPlacementResult(
-          errorMessage: paymentResult.errorMessage,
-        );
-      }
-      handedOffToPayment = true;
-    }
-
-    if (selectedPaymentMethod == PaymentMethod.cod) {
-      // COD has no payment-gateway handoff — clear the cart and navigate to
-      // the order success screen ourselves, mirroring what payment_provider
-      // does for wallet/online once their gateway confirms success.
+    if (selectedPaymentMethod == PaymentMethod.cod || alreadyPaid) {
+      // COD has no payment-gateway handoff, and an order the wallet already
+      // fully paid has nothing left to hand off to either — clear the cart
+      // and navigate to the order success screen ourselves, mirroring what
+      // payment_provider does for online once its gateway confirms success.
       ref.invalidate(cartProvider);
       resetForNewOrder();
       ref.read(appRouterProvider).go('/orders/success/${order.id}');
@@ -482,38 +479,49 @@ class CheckoutNotifier extends _$CheckoutNotifier {
     );
   }
 
-  Future<double> get _walletBalance async {
-    // FIX: Read from walletProvider (WalletNotifier, keepAlive) so balance
-    // is always available from the already-fetched WalletEntity.
-    final current = ref.read(walletProvider);
-    final value = current.asData?.value.balance;
-    if (value != null) {
-      return value;
-    }
-    try {
-      final wallet = await ref.read(walletProvider.future);
-      return wallet.balance;
-    } catch (_) {
-      return 0;
-    }
-  }
-
   Future<void> _tryCancelOrder(
     String orderId, {
     required String reason,
   }) async {
     try {
-      await ref.read(dioClientProvider).post<dynamic>(
-        ApiConstants.orderCancel(orderId),
-        data: <String, dynamic>{'reason': reason},
-      );
+      final cancelResponse = await ref.read(dioClientProvider).post<dynamic>(
+            ApiConstants.orderCancel(orderId),
+            data: <String, dynamic>{'reason': reason},
+          );
+      if (_isPaymentConfirmedResponse(cancelResponse.data)) {
+        _onPaymentConfirmedDuringCancel(orderId);
+        return;
+      }
       await ref.read(dioClientProvider).post<dynamic>(
         ApiConstants.orderReorder(orderId),
         data: const <String, dynamic>{},
       );
+    } on DioException catch (error) {
+      // The backend refuses to cancel (and confirms the order instead) when
+      // its own live Razorpay check finds the payment was actually
+      // captured — signalled by a 409 with `paymentConfirmed: true` in the
+      // body. This call site only fires when the gateway itself failed to
+      // even launch, so this is a narrow race, but it's the same class of
+      // bug as _cancelPendingOrder in payment_provider.dart and worth the
+      // same guard rather than discarding the response.
+      if (_isPaymentConfirmedResponse(error.response?.data)) {
+        _onPaymentConfirmedDuringCancel(orderId);
+        return;
+      }
+      // If cancellation fails, keep the original payment failure visible.
     } catch (_) {
       // If cancellation fails, keep the original payment failure visible.
     }
+  }
+
+  bool _isPaymentConfirmedResponse(dynamic data) {
+    return data is Map && data['paymentConfirmed'] == true;
+  }
+
+  void _onPaymentConfirmedDuringCancel(String orderId) {
+    ref.invalidate(cartProvider);
+    resetForNewOrder();
+    ref.read(appRouterProvider).go('/orders/success/$orderId');
   }
 
   CheckoutSummaryEntity get summary {

@@ -103,6 +103,14 @@ class ApiConstants {
   static String addressById(String id) => '/addresses/$id';
   static String addressDefault(String id) => '/addresses/$id/default';
 
+  // Ola Maps (Beta/test module) — proxied through the backend so the
+  // provider API key never ships inside the app build.
+  // See lib/core/maps/ola/ola_maps_service.dart.
+  static const olaMapsStyleUrl = '/maps/ola/style-url';
+  static const olaMapsGeocode = '/maps/ola/geocode';
+  static const olaMapsReverseGeocode = '/maps/ola/reverse-geocode';
+  static const olaMapsDirections = '/maps/ola/directions';
+
   static const couponsAvailable = '/coupons/available';
   static const couponsValidate = '/coupons/validate';
 
@@ -116,6 +124,8 @@ class ApiConstants {
   static const paymentsCreateOrder = '/payments/create-order';
   static const paymentsVerify = '/payments/verify';
   static const paymentsHistory = '/payments/history';
+  static String paymentStatus(String razorpayOrderId) =>
+      '/payments/status/$razorpayOrderId';
   static const paymentOffers = '/payment-offers';
 
   static const tipPresets = '/tip-presets';
@@ -144,6 +154,8 @@ class ApiConstants {
   static String reviewEligibility(String id) => '/reviews/eligibility/$id';
   static String orderReviews(String orderId) => '/reviews/order/$orderId';
   static String reviewById(String id) => '/reviews/$id';
+
+  static const refundRequests = '/refund-requests';
 
   static const notifications = '/notifications';
   static const notificationTokens = '/notifications/tokens';

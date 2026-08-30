@@ -9,6 +9,7 @@ import 'package:go_router/go_router.dart';
 
 import 'package:bakaloo_flutter_app/features/addresses/domain/entities/address_entity.dart';
 import 'package:bakaloo_flutter_app/features/addresses/presentation/providers/address_provider.dart';
+import 'package:bakaloo_flutter_app/features/addresses/presentation/screens/add_edit_address_screen.dart';
 import 'package:bakaloo_flutter_app/features/cart/domain/entities/bill_summary_entity.dart';
 import 'package:bakaloo_flutter_app/features/cart/domain/entities/cart_entity.dart';
 import 'package:bakaloo_flutter_app/features/cart/domain/entities/cart_item_entity.dart';
@@ -25,7 +26,6 @@ import 'package:bakaloo_flutter_app/features/cart/presentation/widgets/cart_firs
 import 'package:bakaloo_flutter_app/features/cart/presentation/widgets/cart_item_card.dart';
 import 'package:bakaloo_flutter_app/features/cart/presentation/widgets/cart_misc_widgets.dart';
 import 'package:bakaloo_flutter_app/features/cart/presentation/widgets/cart_ordering_for.dart';
-import 'package:bakaloo_flutter_app/features/cart/presentation/widgets/cart_payment_selector_sheet.dart';
 import 'package:bakaloo_flutter_app/features/cart/presentation/widgets/cart_quick_add_section.dart';
 import 'package:bakaloo_flutter_app/features/cart/presentation/widgets/cart_savings_banner.dart';
 import 'package:bakaloo_flutter_app/features/cart/presentation/widgets/cart_savings_breakdown.dart';
@@ -39,6 +39,7 @@ import 'package:bakaloo_flutter_app/features/checkout/presentation/providers/sto
 import 'package:bakaloo_flutter_app/features/checkout/presentation/screens/coupons_screen.dart';
 import 'package:bakaloo_flutter_app/features/cart/presentation/widgets/schedule_delivery_sheet.dart';
 import 'package:bakaloo_flutter_app/features/checkout/presentation/widgets/store_hours_sheet.dart';
+import 'package:bakaloo_flutter_app/features/location/presentation/providers/non_serviceable_location_provider.dart';
 import 'package:bakaloo_flutter_app/features/wallet/presentation/providers/wallet_provider.dart';
 import 'package:bakaloo_flutter_app/features/wishlist/presentation/providers/wishlist_ids_provider.dart';
 import 'package:bakaloo_flutter_app/routing/route_names.dart';
@@ -77,6 +78,17 @@ class _CartScreenState extends ConsumerState<CartScreen> {
     };
     final selectedAddress = ref.watch(cartSelectedAddressProvider);
     final hasAddress = selectedAddress != null;
+    // Only meaningful while hasAddress is false — see
+    // non_serviceable_location_provider.dart.
+    final isLocationNotServiceable =
+        !hasAddress && ref.watch(nonServiceableLocationProvider);
+    // House No./Building is no longer forced at app open (see
+    // home_screen.dart's _maybeShowLocationPrompt) — an address that only
+    // ever came from reverse geocoding can reach checkout with
+    // addressLine2 still empty. This is the one place that actually needs
+    // to block on it.
+    final hasCompleteAddress = hasAddress &&
+        (selectedAddress.addressLine2 ?? '').trim().isNotEmpty;
     final billSummaryAsync = ref.watch(billSummaryProvider);
     final billSummary = switch (billSummaryAsync) {
       AsyncData(:final value) => value,
@@ -109,6 +121,33 @@ class _CartScreenState extends ConsumerState<CartScreen> {
     );
     final summaryKnown = lastKnownSummary != null;
     final toPay = lastKnownSummary?.payable ?? displayBillSummary.payable;
+
+    // Wallet-balance toggle — a pure client-side derivation from two values
+    // already loaded here (walletProvider, billSummaryProvider), same
+    // approach as the full checkout screen's equivalent calculation. The
+    // actual charged amounts are independently and authoritatively computed
+    // server-side at order-creation time regardless of what this preview
+    // shows.
+    final walletAsync = ref.watch(walletProvider);
+    final walletBalance = walletAsync.asData?.value.balance ?? 0.0;
+    final walletMethodEnabled =
+        lastKnownSummary?.paymentMethods.wallet.enabled ??
+            displayBillSummary.paymentMethods.wallet.enabled;
+    // Shown even at zero balance (as long as the admin allows wallet at
+    // all) — a customer who's never topped up otherwise never discovers
+    // this option exists. `_WalletToggleStripe` itself swaps the switch for
+    // an "Add Money" button whenever there's nothing to toggle on yet.
+    final showWalletStripe = walletMethodEnabled;
+    final canUseWallet = walletMethodEnabled && walletBalance > 0;
+    final useWallet = ref.watch(
+      checkoutProvider.select((s) => s.useWallet),
+    );
+    final walletApplied = (useWallet && canUseWallet)
+        ? (walletBalance < toPay ? walletBalance : toPay)
+        : 0.0;
+    final remainderToPay = toPay - walletApplied < 0
+        ? 0.0
+        : toPay - walletApplied;
 
     return Scaffold(
       backgroundColor: const Color(0xFFF5F5F5),
@@ -165,7 +204,9 @@ class _CartScreenState extends ConsumerState<CartScreen> {
           ? null
           : CartBottomBar(
               hasAddress: hasAddress,
-              toPay: toPay,
+              hasCompleteAddress: hasCompleteAddress,
+              isLocationNotServiceable: isLocationNotServiceable,
+              toPay: remainderToPay,
               isPlacingOrder: ref.watch(
                 checkoutProvider.select((s) => s.isPlacingOrder),
               ),
@@ -181,23 +222,30 @@ class _CartScreenState extends ConsumerState<CartScreen> {
               codEnabled:
                   lastKnownSummary?.paymentMethods.cod.enabled ??
                       true,
-              walletEnabled:
-                  lastKnownSummary?.paymentMethods.wallet.enabled ??
-                      true,
-              onAddAddress: () => _ensureAddressAndProceed(context),
-              onPayOnline: () => _handlePayOnline(context),
-              onCashOrWallet: () => _handleCashOrWallet(
+              showWalletToggle: showWalletStripe,
+              walletBalance: walletBalance,
+              walletApplied: walletApplied,
+              orderTotal: toPay,
+              useWallet: useWallet,
+              onToggleWallet: (value) =>
+                  ref.read(checkoutProvider.notifier).setUseWallet(value),
+              onAddMoney: () => _goToTopup(
                 context,
-                // Freshest pricing, but the same last-known-good
-                // paymentMethods the button itself is displaying right
-                // now — a reload in flight at tap time must route the
-                // same way the button promised, not fall back to the
-                // guessed-all-enabled placeholder mid-flight.
-                displayBillSummary.copyWith(
-                  paymentMethods: lastKnownSummary?.paymentMethods ??
-                      displayBillSummary.paymentMethods,
-                ),
+                suggestedAmount: toPay - walletBalance > 0
+                    ? toPay - walletBalance
+                    : null,
               ),
+              onPayFullWallet: () => _handlePayFullWallet(
+                context,
+                codEnabled:
+                    lastKnownSummary?.paymentMethods.cod.enabled ?? true,
+              ),
+              onAddAddress: () => _ensureAddressAndProceed(context),
+              onCompleteAddress: selectedAddress == null
+                  ? null
+                  : () => _completeAddress(context, selectedAddress),
+              onPayOnline: () => _handlePayOnline(context),
+              onCod: () => _handleCod(context),
             ),
     );
   }
@@ -208,6 +256,28 @@ class _CartScreenState extends ConsumerState<CartScreen> {
       elevation: 0,
       surfaceTintColor: Colors.transparent,
       titleSpacing: 16.w,
+      // Explicit rather than relying on Flutter's automatic back button:
+      // a notification deep link (e.g. CART_REMINDER, "your cart is
+      // waiting") lands here via GoRouter's `.go()`, which REPLACES the
+      // whole navigation stack rather than pushing on top of it — so Cart
+      // can end up as the only route on the stack, with nothing to pop and
+      // no back arrow at all. Reported bug: opening the cart from that
+      // notification left no way back to the app. Home is always a safe,
+      // sensible landing spot for that case; an ordinary in-app visit
+      // (bottom nav, "See all", etc.) still just pops as before.
+      leading: IconButton(
+        icon: const Icon(
+          Icons.arrow_back_rounded,
+          color: Color(0xFF222222),
+        ),
+        onPressed: () {
+          if (Navigator.of(context).canPop()) {
+            Navigator.of(context).pop();
+          } else {
+            context.go(RouteNames.home);
+          }
+        },
+      ),
       title: Text(
         'My Cart${itemCount > 0 ? ' ($itemCount)' : ''}',
         style: TextStyle(
@@ -594,6 +664,32 @@ class _CartScreenState extends ConsumerState<CartScreen> {
     return true;
   }
 
+  /// "Complete Your Address" button — opens the same forced completion
+  /// screen home_screen.dart used to push automatically on every app open
+  /// (see _maybeShowLocationPrompt there for why that was removed); this is
+  /// the checkout-time equivalent, only reached when the customer actually
+  /// tries to order with House No./Building still missing.
+  Future<void> _completeAddress(
+    BuildContext context,
+    AddressEntity address,
+  ) async {
+    await Navigator.of(context).push<void>(
+      MaterialPageRoute<void>(
+        builder: (_) => AddEditAddressScreen(
+          initialAddress: address,
+          forceCompletion: true,
+        ),
+      ),
+    );
+    if (!context.mounted) {
+      return;
+    }
+    ref.read(addressProvider.notifier).refresh();
+    try {
+      await ref.read(addressProvider.future);
+    } catch (_) {}
+  }
+
   /// "Add Address to Proceed" button — just adds the address. No further
   /// auto-proceed step needed: once it's saved, `hasAddress` flips true and
   /// the bottom bar re-renders into the Pay Online / Cash-Wallet buttons on
@@ -648,12 +744,17 @@ class _CartScreenState extends ConsumerState<CartScreen> {
   }
 
   /// Shared pre-flight for both payment buttons: resolves the selected
-  /// address (prompting for one if missing) and re-validates the cart
-  /// against the live backend (stock/pricing may have moved since this
-  /// screen opened) — the same two checks `_proceedToCheckout` used to run
-  /// before handing off to the separate checkout page. Returns the address
-  /// to place the order against, or null if the caller should stop (an
-  /// error was already surfaced, or the user backed out of adding one).
+  /// address (prompting for one if missing, or completing it if it's still
+  /// missing House No./Building — see CartBottomBar's hasCompleteAddress)
+  /// and re-validates the cart against the live backend (stock/pricing may
+  /// have moved since this screen opened) — the same two checks
+  /// `_proceedToCheckout` used to run before handing off to the separate
+  /// checkout page. Returns the address to place the order against, or null
+  /// if the caller should stop (an error was already surfaced, or the user
+  /// backed out of adding/completing one). Defense-in-depth alongside the
+  /// bottom bar's own gating — the buttons this guards are only ever
+  /// reachable once the bar shows them at all, but this makes the guarantee
+  /// hold regardless of how that ever changes.
   Future<AddressEntity?> _validateForPayment(BuildContext context) async {
     var selectedAddress = ref.read(cartSelectedAddressProvider);
     if (selectedAddress == null) {
@@ -665,6 +766,19 @@ class _CartScreenState extends ConsumerState<CartScreen> {
       if (selectedAddress == null) {
         return null;
       }
+    }
+
+    if ((selectedAddress.addressLine2 ?? '').trim().isEmpty) {
+      await _completeAddress(context, selectedAddress);
+      if (!context.mounted) {
+        return null;
+      }
+      final completedAddress = ref.read(cartSelectedAddressProvider);
+      if (completedAddress == null ||
+          (completedAddress.addressLine2 ?? '').trim().isEmpty) {
+        return null;
+      }
+      selectedAddress = completedAddress;
     }
 
     final validation =
@@ -713,16 +827,13 @@ class _CartScreenState extends ConsumerState<CartScreen> {
     await _placeOrder(context, PaymentMethod.online);
   }
 
-  /// "Cash / Wallet" — the optimized quick-pay path. When only one of
-  /// wallet/COD is genuinely usable right now, places the order with that
-  /// one method directly (no popup — nothing to choose between). Only opens
-  /// CartPaymentSelectorSheet when both are real options, or when a
-  /// currently-unusable option (e.g. wallet with low balance) is still
-  /// worth showing so the reason is visible instead of silently vanishing.
-  Future<void> _handleCashOrWallet(
-    BuildContext context,
-    BillSummaryEntity billSummary,
-  ) async {
+  /// "Cash on Delivery" — wallet is no longer a separate exclusive method
+  /// here; it's the orthogonal toggle in [CartBottomBar] (see
+  /// `useWallet`/`onToggleWallet` wiring in `build()`), which offsets the
+  /// total regardless of which button is tapped. This handler just places
+  /// the order as COD — whatever the toggle is currently set to travels
+  /// with it via `checkoutProvider`'s own state.
+  Future<void> _handleCod(BuildContext context) async {
     if (ref.read(checkoutProvider).isPlacingOrder) {
       return;
     }
@@ -731,95 +842,52 @@ class _CartScreenState extends ConsumerState<CartScreen> {
       return;
     }
     ref.read(checkoutProvider.notifier).selectAddress(address);
+    await _placeOrder(context, PaymentMethod.cod);
+  }
 
-    final paymentMethods = billSummary.paymentMethods;
-    final cod = paymentMethods.cod;
-    final walletEnabled = paymentMethods.wallet.enabled;
-    final codShown = cod.enabled;
-
-    var walletBalance = 0.0;
-    if (walletEnabled) {
-      walletBalance = await _readWalletBalance();
-    }
+  /// Opens wallet top-up from the cart's "Add Money" button — pre-filled
+  /// with the shortfall so the customer doesn't have to work out how much
+  /// more they need — and refreshes the balance on return. The customer may
+  /// have topped up even if they didn't pop with `true`, so always refresh
+  /// rather than trusting the pop result.
+  Future<void> _goToTopup(BuildContext context, {double? suggestedAmount}) async {
+    await context.push<bool>(
+      RouteNames.topup,
+      extra: suggestedAmount,
+    );
     if (!context.mounted) {
       return;
     }
-    final walletUsableNow = walletEnabled && walletBalance >= billSummary.payable;
-    final codUsableNow = codShown && cod.available;
-
-    if (!walletEnabled && !codShown) {
-      // Neither method is admin-enabled at all — nothing to fall back to
-      // here; point the customer at the online option instead of a dead
-      // button press.
-      showCartSnackBar(
-        context,
-        'Cash and wallet payment are unavailable right now — please use Pay Online.',
-      );
-      return;
-    }
-
-    if (walletUsableNow && !codShown) {
-      await _placeOrder(context, PaymentMethod.wallet);
-      return;
-    }
-    if (codUsableNow && !walletEnabled) {
-      await _placeOrder(context, PaymentMethod.cod);
-      return;
-    }
-    if (walletUsableNow && codUsableNow) {
-      // Both are immediately usable — this is the one case with a real
-      // choice to make, so (and only so) show the picker.
-      if (!context.mounted) return;
-      await _showCashOrWalletSheet(context, billSummary, paymentMethods);
-      return;
-    }
-
-    // Exactly one method is admin-enabled but not currently usable (e.g.
-    // wallet balance too low, or COD outside the bill-total range), or both
-    // are enabled but neither is usable yet — show the sheet so the reason
-    // (and any recovery action, like adding wallet money) is visible rather
-    // than silently doing nothing.
-    if (!context.mounted) return;
-    await _showCashOrWalletSheet(context, billSummary, paymentMethods);
+    ref.invalidate(walletProvider);
   }
 
-  /// Mirrors CheckoutNotifier._walletBalance — read the already-fetched
-  /// balance if available, otherwise await one fetch, defaulting to 0 on
-  /// failure rather than blocking the payment decision on it.
-  Future<double> _readWalletBalance() async {
-    final current = ref.read(walletProvider);
-    final value = current.asData?.value.balance;
-    if (value != null) {
-      return value;
+  /// "Pay via Wallet" — the wallet stripe's dedicated one-tap action once
+  /// the balance already covers the order in full. Reuses the same
+  /// placeOrder path as COD/Online (useWallet is already true by the time
+  /// this button is visible); the nominal method just needs to be one the
+  /// admin actually has enabled, since the backend's payment-method gate
+  /// checks that regardless of the wallet fully covering the remainder.
+  Future<void> _handlePayFullWallet(
+    BuildContext context, {
+    required bool codEnabled,
+  }) async {
+    if (ref.read(checkoutProvider).isPlacingOrder) {
+      return;
     }
-    try {
-      final wallet = await ref.read(walletProvider.future);
-      return wallet.balance;
-    } catch (_) {
-      return 0;
+    final address = await _validateForPayment(context);
+    if (address == null || !context.mounted) {
+      return;
     }
-  }
-
-  Future<void> _showCashOrWalletSheet(
-    BuildContext context,
-    BillSummaryEntity billSummary,
-    PaymentMethodsInfo paymentMethods,
-  ) async {
-    await showModalBottomSheet<void>(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (_) => CartPaymentSelectorSheet(
-        orderTotal: billSummary.payable,
-        paymentMethods: paymentMethods,
-        onPaymentMethodSelected: (method) {
-          final resolved = switch (method) {
-            'WALLET' => PaymentMethod.wallet,
-            _ => PaymentMethod.cod,
-          };
-          unawaited(_placeOrder(context, resolved));
-        },
-      ),
+    ref.read(checkoutProvider.notifier)
+      ..selectAddress(address)
+      // The "Pay with Wallet" button is reachable without the switch ever
+      // having been toggled on (it only shows when balance already covers
+      // the order) — set this explicitly rather than assuming it's already
+      // true.
+      ..setUseWallet(true);
+    await _placeOrder(
+      context,
+      codEnabled ? PaymentMethod.cod : PaymentMethod.online,
     );
   }
 

@@ -2,14 +2,16 @@ import 'dart:async';
 
 import 'package:firebase_crashlytics/firebase_crashlytics.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:geocoding/geocoding.dart';
 import 'package:geolocator/geolocator.dart';
 
+import 'package:bakaloo_flutter_app/core/maps/geo_point.dart';
+import 'package:bakaloo_flutter_app/core/maps/ola/ola_maps_service.dart';
 import 'package:bakaloo_flutter_app/core/utils/resilient_location.dart';
 import 'package:bakaloo_flutter_app/features/addresses/domain/repositories/address_repository.dart';
 import 'package:bakaloo_flutter_app/features/addresses/presentation/providers/address_provider.dart';
 import 'package:bakaloo_flutter_app/features/auth/presentation/providers/auth_notifier.dart';
 import 'package:bakaloo_flutter_app/features/auth/presentation/providers/auth_state.dart';
+import 'package:bakaloo_flutter_app/features/location/presentation/providers/non_serviceable_location_provider.dart';
 
 /// Returns true if the location-enable prompt should be shown right now:
 /// the user is authenticated AND has no saved address at all.
@@ -131,22 +133,34 @@ Future<LocationAutoDetectResult> detectAndSaveCurrentLocation(
 }
 
 /// Reverse-geocodes [position] and saves it as the user's default address.
-/// Shared tail end of both detect paths above.
+/// Shared tail end of both detect paths above. Goes through Ola Maps (same
+/// provider the map picker uses) rather than the phone's own OS geocoder —
+/// Ola's response also carries a landmark, which the OS geocoder never gave
+/// us at all.
 Future<LocationAutoDetectResult> _geocodeAndSave(
   WidgetRef ref,
   Position position,
 ) async {
-  List<Placemark> placemarks;
-  try {
-    placemarks = await placemarkFromCoordinates(
-      position.latitude,
-      position.longitude,
-    );
-  } catch (err, stack) {
+  final reverse = await ref.read(olaMapsServiceProvider).reverseGeocode(
+        GeoPoint(lat: position.latitude, lng: position.longitude),
+      );
+
+  final city = reverse?.city ?? '';
+  final state = reverse?.state ?? '';
+  final pincode = reverse?.pincode ?? '';
+  final road = reverse?.addressLine1 ?? '';
+  final displayName = reverse?.displayName ?? '';
+
+  if (reverse == null ||
+      (city.isEmpty &&
+          state.isEmpty &&
+          pincode.isEmpty &&
+          road.isEmpty &&
+          displayName.isEmpty)) {
     unawaited(
       FirebaseCrashlytics.instance.recordError(
-        err,
-        stack,
+        StateError('Ola reverseGeocode returned nothing usable'),
+        StackTrace.current,
         reason: '_geocodeAndSave: reverse geocoding failed',
         fatal: false,
       ),
@@ -154,29 +168,30 @@ Future<LocationAutoDetectResult> _geocodeAndSave(
     return LocationAutoDetectResult.geocodingFailed;
   }
 
-  if (placemarks.isEmpty) {
-    return LocationAutoDetectResult.geocodingFailed;
-  }
+  // A bare city name ("Shimulpur") reads as broken, not as an address — Ola's
+  // full formatted address (still specific to the pin, just without a named
+  // road) is what belongs here when there's no distinct road/route
+  // component; city/state are the very last resort, only when Ola gave
+  // nothing descriptive back at all.
+  final addressLine1 = road.isNotEmpty
+      ? road
+      : (displayName.isNotEmpty
+          ? displayName
+          : (city.isNotEmpty
+              ? city
+              : (state.isNotEmpty ? state : 'My Location')));
 
-  final place = placemarks.first;
-
-  // Build address parts from geocoding result
-  final street = [
-    place.subThoroughfare,
-    place.thoroughfare,
-    place.subLocality,
-  ].where((s) => s != null && s.trim().isNotEmpty).join(', ');
-
-  final addressLine1 = street.isNotEmpty
-      ? street
-      : place.locality ?? place.administrativeArea ?? 'My Location';
-
-  final city = place.locality ??
-      place.subAdministrativeArea ??
-      place.administrativeArea ??
-      '';
-  final state = place.administrativeArea ?? '';
-  final pincode = place.postalCode ?? '';
+  // addressLine2 is deliberately left null here, never filled with Ola's
+  // landmark/sub-locality — home_screen.dart's _maybeShowLocationPrompt (and
+  // the "complete your address" banner check) both treat a non-empty
+  // addressLine2 as proof the customer has already supplied a house/floor
+  // number, since that's the only path that ever writes it today
+  // (_composeSecondaryAddress in add_edit_address_screen.dart always puts
+  // House No. first). Landmark is instead fetched live when the completion
+  // screen opens — see _seedFromInitialAddress's forceCompletion branch —
+  // so this silent auto-save can't accidentally mark a house-number-less
+  // address as "done."
+  const addressLine2 = null;
 
   // Same availability check the manual "Add address" form already runs on
   // every pincode the customer types — reused here so "Use my current
@@ -193,6 +208,13 @@ Future<LocationAutoDetectResult> _geocodeAndSave(
         await ref.read(validatePincodeUseCaseProvider).call(pincode);
     final isServiceable = validation.fold((_) => true, (r) => r.available);
     if (!isServiceable) {
+      // Nothing gets saved (the backend would reject it anyway — see
+      // ADDRESS_NOT_SERVICEABLE) so this flag is the only trace that
+      // detection happened, for the cart's benefit later — see
+      // non_serviceable_location_provider.dart.
+      unawaited(
+        ref.read(nonServiceableLocationProvider.notifier).markDetected(),
+      );
       return LocationAutoDetectResult.notServiceable;
     }
   }
@@ -201,9 +223,7 @@ Future<LocationAutoDetectResult> _geocodeAndSave(
   final params = AddressUpsertParams(
     label: 'Home',
     addressLine1: addressLine1,
-    addressLine2: place.subLocality != null && place.subLocality!.isNotEmpty
-        ? place.subLocality
-        : null,
+    addressLine2: addressLine2,
     city: city,
     state: state,
     pincode: pincode,
@@ -256,6 +276,9 @@ Future<LocationAutoDetectResult> _geocodeAndSave(
 
   if (!result.isSuccess) {
     if (result.failure?.message == _kNotServiceableMessage) {
+      unawaited(
+        ref.read(nonServiceableLocationProvider.notifier).markDetected(),
+      );
       return LocationAutoDetectResult.notServiceable;
     }
     unawaited(

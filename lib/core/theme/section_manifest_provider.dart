@@ -10,6 +10,8 @@ import 'package:bakaloo_flutter_app/core/constants/api_constants.dart';
 import 'package:bakaloo_flutter_app/core/providers/store_provider.dart';
 import 'package:bakaloo_flutter_app/core/socket/socket_service.dart';
 import 'package:bakaloo_flutter_app/core/storage/hive_service.dart';
+import 'package:bakaloo_flutter_app/core/theme/remote_theme_model.dart';
+import 'package:bakaloo_flutter_app/core/theme/remote_theme_provider.dart';
 import 'package:bakaloo_flutter_app/core/theme/section_manifest_model.dart';
 import 'package:bakaloo_flutter_app/core/theme/theme_asset_warmer.dart';
 
@@ -32,7 +34,17 @@ final _sectionManifestEpochProvider =
 );
 
 final activeTabKeyProvider = Provider<String>((Ref ref) {
-  return ref.watch(selectedCategoryIdProvider);
+  final String selectedTabKey = ref.watch(selectedCategoryIdProvider);
+  final TabThemesResponse? snapshot = ref.watch(tabThemesSnapshotProvider);
+  final AsyncValue<TabThemesResponse> tabThemes = ref.watch(tabThemesProvider);
+  final TabThemesResponse? response = snapshot ?? tabThemes.asData?.value;
+
+  if (response != null && response.tabMap.containsKey(selectedTabKey)) {
+    return selectedTabKey;
+  }
+
+  return response?.defaultTabEntry?.tabKey ??
+      (selectedTabKey.isEmpty ? 'all' : selectedTabKey);
 });
 
 final socketSectionUpdateStreamProvider =

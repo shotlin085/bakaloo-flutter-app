@@ -74,6 +74,32 @@ class PaymentHistoryResult {
   final PaginationEntity pagination;
 }
 
+/// Current authoritative status of a Razorpay order, per the backend's
+/// `payments` record — polled after the checkout SDK reports an ambiguous
+/// result instead of assuming failure.
+class PaymentStatusResult {
+  const PaymentStatusResult({
+    required this.status,
+    this.errorCode,
+    this.errorDescription,
+    this.errorReason,
+  });
+
+  /// One of PENDING / PAID / FAILED / EXPIRED (mirrors the backend's
+  /// `payments.status` column verbatim).
+  final String status;
+  final String? errorCode;
+  final String? errorDescription;
+  final String? errorReason;
+
+  bool get isPaid => status == 'PAID';
+  bool get isFailed => status == 'FAILED' || status == 'EXPIRED';
+
+  /// The best available human-readable reason for a failure, preferring
+  /// Razorpay's own `error_reason` over its longer `error_description`.
+  String? get displayReason => errorReason ?? errorDescription;
+}
+
 abstract class PaymentRepository {
   Future<Either<Failure, RazorpayOrderEntity>> createPaymentOrder(
     String orderId,
@@ -87,6 +113,10 @@ abstract class PaymentRepository {
     int page = 1,
     int limit = 10,
   });
+
+  Future<Either<Failure, PaymentStatusResult>> getPaymentStatus(
+    String razorpayOrderId,
+  );
 
   Future<Either<Failure, RazorpayOrderEntity>> createWalletTopup(
     WalletTopupParams params,

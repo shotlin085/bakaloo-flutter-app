@@ -43,9 +43,21 @@ class BillSummaryNotifier extends _$BillSummaryNotifier {
       ),
     );
 
-    final result = await ref
-        .read(cartEnhancementsDataSourceProvider)
-        .getCartSummary(quickDeliverySelected: quickDeliverySelected);
+    // BUG FIX: this previously never sent an addressId at all, so the
+    // preview always priced delivery against the customer's DEFAULT saved
+    // address — even when they'd picked a different one for this order —
+    // while placeOrder() (orders.service.js) always uses the real submitted
+    // address. Ordering to a non-default address showed one delivery
+    // fee/free-delivery threshold here and charged a different one at
+    // checkout. `cartSelectedAddress` already resolves the right address
+    // (checkout selection, falling back to default) — it just wasn't wired
+    // into this request.
+    final selectedAddress = ref.watch(cartSelectedAddressProvider);
+
+    final result = await ref.read(cartEnhancementsDataSourceProvider).getCartSummary(
+          quickDeliverySelected: quickDeliverySelected,
+          addressId: selectedAddress?.id,
+        );
 
     return result.fold(
       (failure) => throw StateError(failure.message),
@@ -57,8 +69,9 @@ class BillSummaryNotifier extends _$BillSummaryNotifier {
         // (backend-resolved, no customer action needed) — a manual coupon
         // takes priority over that and replaces it rather than stacking on
         // top (single discount slot, matching OrdersService.placeOrder()'s
-        // rule), so the first-time-offer amount is added back before the
-        // coupon discount is subtracted.
+        // rule), so the auto-discount amount is added back into the pre-tax
+        // total before the coupon discount is subtracted (see
+        // preTaxTotalOld below).
         //
         // CASHBACK/FREE_DELIVERY coupons always have discountAmount == 0
         // by backend design (they don't reduce the bill — a cashback is a
@@ -82,35 +95,80 @@ class BillSummaryNotifier extends _$BillSummaryNotifier {
         final discount = appliedCoupon.discountAmount;
         final basePayable =
             summary.totalPayable > 0 ? summary.totalPayable : summary.toPay.finalAmount;
-        final basePayableBeforeAutoDiscount = basePayable + summary.couponDiscount;
-        var newPayable =
-            (basePayableBeforeAutoDiscount - discount).clamp(0.0, double.infinity);
+
+        // BUG FIX: GST is computed server-side on the PRE-TAX total, i.e.
+        // AFTER the auto-applied discount but BEFORE tip — see
+        // bill-summary.service.js's `preTaxTotal = itemTotalDiscounted -
+        // autoAppliedDiscount + feesTotal` followed by `gstAmount =
+        // preTaxTotal * gstRate`. Naively subtracting the manual coupon's
+        // discount straight from the tax-INCLUSIVE total (as this used to
+        // do) silently keeps the OLD auto-discount's tax baked in, so the
+        // displayed total drifts from what checkout will actually charge
+        // whenever GST is enabled and the coupon's discount differs from
+        // the auto-applied one it replaces (verified: subtotal ₹1000,
+        // auto-discount ₹100, coupon discount ₹50, GST 18% — old code
+        // showed ₹1112, real charge is ₹1121). Fix: derive the effective
+        // GST rate from what the backend already computed for this exact
+        // cart (tax ÷ pre-tax-total-at-the-OLD-discount), then reapply that
+        // same rate to the pre-tax total at the NEW discount — this stays a
+        // no-op (rate resolves to 0) whenever GST is disabled.
+        final gstAmount = summary.fees
+            .firstWhere((f) => f.code == 'GST', orElse: () => const FeeLine())
+            .amount;
+        final preTaxTotalOld = basePayable - gstAmount - summary.tipAmount;
+        final gstRate = (gstAmount > 0 && preTaxTotalOld > 0)
+            ? gstAmount / preTaxTotalOld
+            : 0.0;
+        var preTaxTotalNew =
+            (preTaxTotalOld + summary.couponDiscount - discount).clamp(0.0, double.infinity);
 
         var deliveryFee = summary.deliveryFee;
         if (hasFreeDelivery && !deliveryFee.isFree) {
           // The FTO's own free-delivery waiver (if any) is already reflected
-          // in basePayableBeforeAutoDiscount's delivery component via the
-          // backend response — only waive here (and refund the fee into the
-          // payable total) when delivery wasn't already free.
-          newPayable = (newPayable - deliveryFee.amount).clamp(0.0, double.infinity);
+          // in preTaxTotalOld's delivery component via the backend response
+          // — only waive here (reducing the pre-tax total, same as the
+          // discount above, so tax is recomputed on the smaller base too)
+          // when delivery wasn't already free.
+          preTaxTotalNew =
+              (preTaxTotalNew - deliveryFee.amount).clamp(0.0, double.infinity);
           deliveryFee = deliveryFee.copyWith(amount: 0, isFree: true, freeIn: 0);
         }
 
-        // The "Your savings" breakdown is computed server-side from the
-        // auto-applied first-time-offer only (the backend has no idea a
-        // manual coupon exists client-side) — when the coupon replaces the
-        // FTO above, drop its now-stale line here too, or the savings card
-        // and the main bill row disagree about which reward is active.
+        final gstAmountNew = preTaxTotalNew * gstRate;
+        final newPayable = preTaxTotalNew + gstAmountNew + summary.tipAmount;
+
+        // The "Your savings" breakdown is computed server-side from whichever
+        // auto-applied discount was active — first-time-offer OR cart-
+        // milestone (bill-summary.service.js never sets both at once, see
+        // its "single discount slot" comment) — and the backend has no idea
+        // a manual coupon exists client-side. When the coupon replaces that
+        // auto-discount above (via preTaxTotalOld, which adds back
+        // summary.couponDiscount regardless of which of the two it came
+        // from), its now-stale line must be dropped here too, or the savings
+        // card keeps showing a reward that was actually replaced, disagreeing
+        // with the main bill row about which reward is active.
+        //
+        // Reported bug: this used to only check for a 'first_time_offer'
+        // line — a customer who unlocked a cart-milestone discount and then
+        // applied a coupon code still saw the milestone's rupee amount
+        // counted in "Your savings" (inflating savings.total) even though
+        // checkout no longer actually applied it, i.e. exactly the
+        // "sometimes right, sometimes wrong" totals customers reported.
         var savings = summary.savings;
-        final ftoLine = savings.items
-            .where((item) => item.type == 'first_time_offer')
+        const autoDiscountTypes = <String>{'first_time_offer', 'cart_milestone'};
+        final autoDiscountLines = savings.items
+            .where((item) => autoDiscountTypes.contains(item.type))
             .toList();
-        if (ftoLine.isNotEmpty) {
-          final ftoAmount = ftoLine.first.amount;
+        if (autoDiscountLines.isNotEmpty) {
+          final autoDiscountAmount = autoDiscountLines.fold<double>(
+            0,
+            (sum, item) => sum + item.amount,
+          );
           savings = savings.copyWith(
-            total: (savings.total - ftoAmount).clamp(0.0, double.infinity),
+            total:
+                (savings.total - autoDiscountAmount).clamp(0.0, double.infinity),
             items: savings.items
-                .where((item) => item.type != 'first_time_offer')
+                .where((item) => !autoDiscountTypes.contains(item.type))
                 .toList(),
           );
         }

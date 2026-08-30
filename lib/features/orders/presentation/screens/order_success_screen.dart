@@ -155,12 +155,7 @@ class _OrderSuccessScreenState extends ConsumerState<OrderSuccessScreen> {
                         label: 'Order',
                         value: order.orderNumber,
                       ),
-                      _DetailRow(
-                        icon: Icons.payments_outlined,
-                        label: 'Payment',
-                        value:
-                            '${_prettyText(order.paymentMethod)} • ${_prettyText(order.paymentStatus)}',
-                      ),
+                      ..._paymentRows(order),
                       _DetailRow(
                         icon: Icons.discount_outlined,
                         label: 'Savings',
@@ -839,6 +834,47 @@ class _SuccessBottomBar extends StatelessWidget {
       ),
     );
   }
+}
+
+/// The "What happens next" card's payment row(s) — split into a wallet
+/// line and a remainder line whenever the wallet-balance toggle covered
+/// part of the total, instead of a single "COD • Pending" row that erases
+/// the fact that part of this order was already paid from the wallet.
+List<Widget> _paymentRows(OrderEntity order) {
+  final walletUsed = order.walletAmountUsed;
+  if (walletUsed <= 0) {
+    return <Widget>[
+      _DetailRow(
+        icon: Icons.payments_outlined,
+        label: 'Payment',
+        value:
+            '${_prettyText(order.paymentMethod)} • ${_prettyText(order.paymentStatus)}',
+      ),
+    ];
+  }
+
+  final remainder = order.total - walletUsed;
+  final walletRow = _DetailRow(
+    icon: Icons.account_balance_wallet_rounded,
+    label: 'Wallet',
+    value: '${walletUsed.toInrCurrency} deducted',
+    valueColor: AppColors.orderViolet,
+  );
+
+  // Wallet covered the whole order — nothing left to collect via COD/Online,
+  // so there's no second row to show.
+  if (remainder <= 0) {
+    return <Widget>[walletRow];
+  }
+
+  return <Widget>[
+    walletRow,
+    _DetailRow(
+      icon: Icons.payments_outlined,
+      label: _prettyText(order.paymentMethod),
+      value: '${remainder.toInrCurrency} • ${_prettyText(order.paymentStatus)}',
+    ),
+  ];
 }
 
 String _prettyText(String value) {

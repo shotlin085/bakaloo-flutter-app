@@ -1,19 +1,19 @@
 import 'dart:async';
+import 'dart:math' show Point;
 
 import 'package:flutter/material.dart';
-import 'package:flutter_map/flutter_map.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:gap/gap.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
-import 'package:latlong2/latlong.dart' as map;
+import 'package:maplibre_gl/maplibre_gl.dart';
 import 'package:phosphoricons_flutter/phosphoricons_flutter.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:wakelock_plus/wakelock_plus.dart';
 
 import 'package:bakaloo_flutter_app/core/maps/geo_point.dart';
-import 'package:bakaloo_flutter_app/core/maps/maps_service.dart';
+import 'package:bakaloo_flutter_app/core/maps/ola/ola_maps_service.dart';
 import 'package:bakaloo_flutter_app/core/maps/route_model.dart';
 import 'package:bakaloo_flutter_app/core/theme/app_colors.dart';
 import 'package:bakaloo_flutter_app/core/theme/app_shadows.dart';
@@ -39,15 +39,24 @@ class OrderTrackingScreen extends ConsumerStatefulWidget {
 }
 
 class _OrderTrackingScreenState extends ConsumerState<OrderTrackingScreen> {
-  final MapController _mapController = MapController();
-  final MapsService _mapsService = MapsService();
+  MapLibreMapController? _controller;
+  bool _styleLoaded = false;
+  Line? _routeOutlineLine;
+  Line? _routeLine;
+  Point? _riderScreenPoint;
+  Point? _destinationScreenPoint;
+
+  /// True for the duration of a camera move we initiated ourselves
+  /// (animateCamera), so the onCameraIdle it ends with isn't mistaken for
+  /// a user drag — flutter_map used to pass this as a `hasGesture` flag
+  /// directly; MapLibre's callbacks don't, so this tracks the same intent.
+  bool _isProgrammaticMove = false;
 
   GeoPoint? _riderPosition;
   GeoPoint? _destination;
   RouteModel? _route;
   String? _mapMessage;
   bool _isLoadingRoute = false;
-  bool _mapReady = false;
   bool _userMovedMap = false;
   String? _boundFingerprint;
 
@@ -70,6 +79,7 @@ class _OrderTrackingScreenState extends ConsumerState<OrderTrackingScreen> {
   @override
   Widget build(BuildContext context) {
     final orderAsync = ref.watch(orderDetailProvider(widget.id));
+    final styleAsync = ref.watch(olaMapsStyleProvider);
 
     ref.listen(riderLocationEntityForOrderProvider(widget.id),
         (previous, next) {
@@ -113,6 +123,10 @@ class _OrderTrackingScreenState extends ConsumerState<OrderTrackingScreen> {
                 : order.timeline;
             final latestEvent =
                 orderTimeline.isEmpty ? null : orderTimeline.last;
+            final styleUrl = styleAsync.asData?.value.styleUrl;
+            final mapReady = destination != null &&
+                styleAsync.asData?.value.configured == true &&
+                styleUrl != null;
 
             return LayoutBuilder(
               builder: (BuildContext context, BoxConstraints constraints) {
@@ -125,81 +139,35 @@ class _OrderTrackingScreenState extends ConsumerState<OrderTrackingScreen> {
                 return Stack(
                   children: <Widget>[
                     Positioned.fill(
-                      child: destination == null
+                      child: !mapReady
                           ? _MapUnavailableState(
                               message: _mapMessage ??
                                   'Unable to resolve the delivery location right now.',
                               onRetry: () => ref
                                   .invalidate(orderDetailProvider(widget.id)),
                             )
-                          : FlutterMap(
-                              mapController: _mapController,
-                              options: MapOptions(
-                                initialCenter:
-                                    _toMapPoint(rider ?? destination),
-                                initialZoom: 14,
-                                interactionOptions: const InteractionOptions(
-                                  flags: InteractiveFlag.all &
-                                      ~InteractiveFlag.rotate,
-                                ),
-                                onMapReady: () {
-                                  _mapReady = true;
-                                  _fitToVisiblePoints();
-                                },
-                                onPositionChanged:
-                                    (MapCamera camera, bool hasGesture) {
-                                  if (hasGesture && mounted && !_userMovedMap) {
-                                    setState(() {
-                                      _userMovedMap = true;
-                                    });
-                                  }
-                                },
-                              ),
-                              children: <Widget>[
-                                TileLayer(
-                                  urlTemplate:
-                                      'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
-                                  userAgentPackageName: 'com.bakaloo.customer',
-                                  maxNativeZoom: 19,
-                                  maxZoom: 19,
-                                ),
-                                if (_route != null && _route!.points.isNotEmpty)
-                                  PolylineLayer(
-                                    polylines: <Polyline>[
-                                      Polyline(
-                                        points: _route!.points
-                                            .map(_toMapPoint)
-                                            .toList(growable: false),
-                                        strokeWidth: 10,
-                                        color: Colors.white.withValues(
-                                          alpha: 0.85,
-                                        ),
-                                      ),
-                                      Polyline(
-                                        points: _route!.points
-                                            .map(_toMapPoint)
-                                            .toList(growable: false),
-                                        strokeWidth: 6,
-                                        color: AppColors.infoBlue,
-                                      ),
-                                    ],
-                                  ),
-                                MarkerLayer(
-                                  markers: _buildMarkers(
-                                    rider: rider,
-                                    destination: destination,
-                                  ),
-                                ),
-                                const RichAttributionWidget(
-                                  attributions: <SourceAttribution>[
-                                    TextSourceAttribution(
-                                      'OpenStreetMap contributors',
-                                    ),
-                                  ],
-                                ),
-                              ],
-                            ),
+                          : _buildMap(styleUrl, rider, destination),
                     ),
+                    if (mapReady && _destinationScreenPoint != null)
+                      _buildMarkerOverlay(
+                        point: _destinationScreenPoint!,
+                        marker: const _TrackingMarker(
+                          icon: Icons.home_rounded,
+                          label: 'You',
+                          accent: AppColors.primaryGreen,
+                          tint: Color(0xFFE8F5E9),
+                        ),
+                      ),
+                    if (mapReady && rider != null && _riderScreenPoint != null)
+                      _buildMarkerOverlay(
+                        point: _riderScreenPoint!,
+                        marker: const _TrackingMarker(
+                          icon: Icons.two_wheeler_rounded,
+                          label: 'Rider',
+                          accent: AppColors.infoBlue,
+                          tint: Color(0xFFE3F2FD),
+                        ),
+                      ),
                     Positioned.fill(
                       child: IgnorePointer(
                         child: DecoratedBox(
@@ -240,19 +208,17 @@ class _OrderTrackingScreenState extends ConsumerState<OrderTrackingScreen> {
                       bottom: controlsBottomInset,
                       child: _MapControls(
                         showRecenter: _userMovedMap,
-                        onZoomIn: () => _mapController.move(
-                          _mapController.camera.center,
-                          _mapController.camera.zoom + 1,
+                        onZoomIn: () => unawaited(
+                          _controller?.animateCamera(CameraUpdate.zoomIn()),
                         ),
-                        onZoomOut: () => _mapController.move(
-                          _mapController.camera.center,
-                          _mapController.camera.zoom - 1,
+                        onZoomOut: () => unawaited(
+                          _controller?.animateCamera(CameraUpdate.zoomOut()),
                         ),
                         onRecenter: () {
                           setState(() {
                             _userMovedMap = false;
                           });
-                          _fitToVisiblePoints();
+                          unawaited(_fitToVisiblePoints());
                         },
                       ),
                     ),
@@ -299,6 +265,47 @@ class _OrderTrackingScreenState extends ConsumerState<OrderTrackingScreen> {
               },
             );
           },
+        ),
+      ),
+    );
+  }
+
+  Widget _buildMap(String styleUrl, GeoPoint? rider, GeoPoint destination) {
+    return MapLibreMap(
+      styleString: styleUrl,
+      initialCameraPosition: CameraPosition(
+        target: _toMapPoint(rider ?? destination),
+        zoom: 14,
+      ),
+      rotateGesturesEnabled: false,
+      compassEnabled: false,
+      onMapCreated: (MapLibreMapController controller) {
+        _controller = controller;
+      },
+      onStyleLoadedCallback: () {
+        _styleLoaded = true;
+        unawaited(_syncMapAnnotations());
+        unawaited(_fitToVisiblePoints());
+      },
+      onCameraIdle: () {
+        if (!_isProgrammaticMove && mounted && !_userMovedMap) {
+          setState(() {
+            _userMovedMap = true;
+          });
+        }
+        unawaited(_refreshMarkerScreenPositions());
+      },
+    );
+  }
+
+  Widget _buildMarkerOverlay({required Point point, required Widget marker}) {
+    return Positioned(
+      left: point.x.toDouble(),
+      top: point.y.toDouble(),
+      child: IgnorePointer(
+        child: FractionalTranslation(
+          translation: const Offset(-0.5, -0.5),
+          child: marker,
         ),
       ),
     );
@@ -400,7 +407,7 @@ class _OrderTrackingScreenState extends ConsumerState<OrderTrackingScreen> {
     }
 
     final address = _formatAddress(order);
-    return _mapsService.geocodeAddress(address);
+    return ref.read(olaMapsServiceProvider).geocodeAddress(address);
   }
 
   GeoPoint? _resolveInitialRider(OrderEntity order) {
@@ -425,7 +432,7 @@ class _OrderTrackingScreenState extends ConsumerState<OrderTrackingScreen> {
       _mapMessage = null;
     });
 
-    final route = await _mapsService.getRoute(origin, destination);
+    final route = await ref.read(olaMapsServiceProvider).getRoute(origin, destination);
     if (!mounted) {
       return;
     }
@@ -438,13 +445,94 @@ class _OrderTrackingScreenState extends ConsumerState<OrderTrackingScreen> {
       }
     });
 
+    unawaited(_syncMapAnnotations());
+
     if (fitCamera && !_userMovedMap) {
-      _fitToVisiblePoints();
+      unawaited(_fitToVisiblePoints());
     }
   }
 
-  void _fitToVisiblePoints() {
-    if (!_mapReady) {
+  /// Adds/updates the route polyline (double-stroke: white outline + blue
+  /// center, matching the old flutter_map PolylineLayer) and refreshes
+  /// marker screen positions. No-ops until the map + style are ready.
+  Future<void> _syncMapAnnotations() async {
+    final controller = _controller;
+    if (controller == null || !_styleLoaded) {
+      return;
+    }
+
+    final points = _route?.points;
+    if (points != null && points.length >= 2) {
+      final geometry = points.map(_toMapPoint).toList(growable: false);
+      final outline = _routeOutlineLine;
+      final line = _routeLine;
+      if (outline == null || line == null) {
+        _routeOutlineLine = await controller.addLine(
+          LineOptions(
+            geometry: geometry,
+            lineWidth: 10,
+            lineColor: '#FFFFFF',
+            lineOpacity: 0.85,
+          ),
+        );
+        _routeLine = await controller.addLine(
+          LineOptions(
+            geometry: geometry,
+            lineWidth: 6,
+            lineColor: _colorToHex(AppColors.infoBlue),
+          ),
+        );
+      } else {
+        await controller.updateLine(outline, LineOptions(geometry: geometry));
+        await controller.updateLine(line, LineOptions(geometry: geometry));
+      }
+    } else {
+      if (_routeOutlineLine != null) {
+        await controller.removeLine(_routeOutlineLine!);
+        _routeOutlineLine = null;
+      }
+      if (_routeLine != null) {
+        await controller.removeLine(_routeLine!);
+        _routeLine = null;
+      }
+    }
+
+    await _refreshMarkerScreenPositions();
+  }
+
+  /// MapLibre has no declarative "marker at this LatLng" widget like
+  /// flutter_map's Marker — [_TrackingMarker] is a rich custom widget, and
+  /// native symbol layers can only render bitmap icons, not Flutter
+  /// widgets. So markers are plain Positioned overlays converted from
+  /// geo-coordinates via toScreenLocationBatch, refreshed on every camera
+  /// idle (pan/zoom/programmatic-move-settle) — see onCameraIdle above.
+  Future<void> _refreshMarkerScreenPositions() async {
+    final controller = _controller;
+    final destination = _destination;
+    if (controller == null || destination == null || !mounted) {
+      return;
+    }
+
+    final rider = _riderPosition;
+    final targets = <LatLng>[
+      if (rider != null) _toMapPoint(rider),
+      _toMapPoint(destination),
+    ];
+    final screenPoints = await controller.toScreenLocationBatch(targets);
+    if (!mounted) {
+      return;
+    }
+
+    setState(() {
+      var index = 0;
+      _riderScreenPoint = rider != null ? screenPoints[index++] : null;
+      _destinationScreenPoint = screenPoints[index];
+    });
+  }
+
+  Future<void> _fitToVisiblePoints() async {
+    final controller = _controller;
+    if (controller == null || !_styleLoaded) {
       return;
     }
 
@@ -457,51 +545,39 @@ class _OrderTrackingScreenState extends ConsumerState<OrderTrackingScreen> {
       return;
     }
 
+    _isProgrammaticMove = true;
     if (points.length == 1) {
-      _mapController.move(_toMapPoint(points.first), 16);
-      return;
-    }
+      await controller.animateCamera(
+        CameraUpdate.newLatLngZoom(_toMapPoint(points.first), 16),
+      );
+    } else {
+      var minLat = points.first.lat;
+      var maxLat = points.first.lat;
+      var minLng = points.first.lng;
+      var maxLng = points.first.lng;
+      for (final point in points) {
+        if (point.lat < minLat) minLat = point.lat;
+        if (point.lat > maxLat) maxLat = point.lat;
+        if (point.lng < minLng) minLng = point.lng;
+        if (point.lng > maxLng) maxLng = point.lng;
+      }
 
-    final bounds = LatLngBounds.fromPoints(
-      points.map(_toMapPoint).toList(growable: false),
-    );
-    _mapController.fitCamera(
-      CameraFit.bounds(
-        bounds: bounds,
-        padding: EdgeInsets.fromLTRB(48.w, 120.h, 48.w, 280.h),
-      ),
-    );
-  }
-
-  List<Marker> _buildMarkers({
-    required GeoPoint? rider,
-    required GeoPoint destination,
-  }) {
-    return <Marker>[
-      if (rider != null)
-        Marker(
-          point: _toMapPoint(rider),
-          width: 80,
-          height: 80,
-          child: const _TrackingMarker(
-            icon: Icons.two_wheeler_rounded,
-            label: 'Rider',
-            accent: AppColors.infoBlue,
-            tint: Color(0xFFE3F2FD),
+      await controller.animateCamera(
+        CameraUpdate.newLatLngBounds(
+          LatLngBounds(
+            southwest: LatLng(minLat, minLng),
+            northeast: LatLng(maxLat, maxLng),
           ),
+          left: 48.w,
+          top: 120.h,
+          right: 48.w,
+          bottom: 280.h,
         ),
-      Marker(
-        point: _toMapPoint(destination),
-        width: 110,
-        height: 88,
-        child: const _TrackingMarker(
-          icon: Icons.home_rounded,
-          label: 'You',
-          accent: AppColors.primaryGreen,
-          tint: Color(0xFFE8F5E9),
-        ),
-      ),
-    ];
+      );
+    }
+    _isProgrammaticMove = false;
+
+    unawaited(_refreshMarkerScreenPositions());
   }
 
   Future<void> _launchCaller() async {
@@ -526,8 +602,10 @@ class _OrderTrackingScreenState extends ConsumerState<OrderTrackingScreen> {
     }
 
     final uri = Uri.parse(
-      'https://www.openstreetmap.org/directions?engine=fossgis_osrm_car'
-      '&route=${rider.lat},${rider.lng};${destination.lat},${destination.lng}',
+      'https://www.google.com/maps/dir/?api=1'
+      '&origin=${rider.lat},${rider.lng}'
+      '&destination=${destination.lat},${destination.lng}'
+      '&travelmode=driving',
     );
     await launchUrl(uri, mode: LaunchMode.externalApplication);
   }
@@ -546,7 +624,14 @@ class _OrderTrackingScreenState extends ConsumerState<OrderTrackingScreen> {
     ].where((part) => part.trim().isNotEmpty).join(', ');
   }
 
-  map.LatLng _toMapPoint(GeoPoint point) => map.LatLng(point.lat, point.lng);
+  LatLng _toMapPoint(GeoPoint point) => LatLng(point.lat, point.lng);
+
+  String _colorToHex(Color color) {
+    final r = (color.r * 255).round().toRadixString(16).padLeft(2, '0');
+    final g = (color.g * 255).round().toRadixString(16).padLeft(2, '0');
+    final b = (color.b * 255).round().toRadixString(16).padLeft(2, '0');
+    return '#$r$g$b';
+  }
 
   Map<String, dynamic> _readMap(Map<String, dynamic> json, String key) {
     final value = json[key];

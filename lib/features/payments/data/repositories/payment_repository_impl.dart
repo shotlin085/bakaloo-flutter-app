@@ -75,6 +75,29 @@ class PaymentRepositoryImpl implements PaymentRepository {
   }
 
   @override
+  Future<Either<Failure, PaymentStatusResult>> getPaymentStatus(
+    String razorpayOrderId,
+  ) async {
+    try {
+      final status = await _remoteDataSource.getPaymentStatus(razorpayOrderId);
+      return Right(
+        PaymentStatusResult(
+          status: status.status,
+          errorCode: status.errorCode,
+          errorDescription: status.errorDescription,
+          errorReason: status.errorReason,
+        ),
+      );
+    } on DioException catch (error) {
+      return Left(handleDioError(error));
+    } catch (_) {
+      return const Left(
+        UnknownFailure(message: 'Unable to check payment status right now.'),
+      );
+    }
+  }
+
+  @override
   Future<Either<Failure, RazorpayOrderEntity>> createWalletTopup(
     WalletTopupParams params,
   ) async {

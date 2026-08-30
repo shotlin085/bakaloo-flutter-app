@@ -40,12 +40,14 @@ class CheckoutScreen extends ConsumerStatefulWidget {
   ConsumerState<CheckoutScreen> createState() => _CheckoutScreenState();
 }
 
-class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
+class _CheckoutScreenState extends ConsumerState<CheckoutScreen>
+    with WidgetsBindingObserver {
   bool _billExpanded = false;
 
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     // Eagerly trigger wallet fetch so balance is ready when the payment
     // section renders. Uses walletProvider (keepAlive WalletNotifier) so
     // the same fetch is shared with the wallet screen — no duplicate requests.
@@ -66,12 +68,26 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     // Refresh cart when leaving checkout (back press, payment cancel, etc.)
     // so that any Redis mutations from validateCart are reflected in the
     // Flutter cart state. This prevents "Item not in cart" on the next
     // cart screen interaction.
     ref.read(cartProvider.notifier).refresh();
     super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      // Returning from a backgrounded UPI/wallet app is exactly when the
+      // Razorpay SDK's own callback is most likely to have been lost (the
+      // OS reclaiming the activity while the UPI app had control) — check
+      // with the backend immediately rather than waiting for the poll's
+      // own next scheduled tick, or leaving the customer stuck if no poll
+      // ever started (e.g. onExternalWallet with the app then killed).
+      ref.read(paymentProvider.notifier).recheckIfPending();
+    }
   }
 
   @override
@@ -86,15 +102,36 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
     final walletLoading = walletAsync.isLoading;
     final summary = ref.read(checkoutProvider.notifier).summary;
     // Backend bill summary is the source of truth for the amount charged.
-    // Use it for every money display + the wallet sufficiency check so the
+    // Use it for every money display + the wallet offset calculation so the
     // checkout total always matches what the backend actually charges.
     final billSummaryAsync = ref.watch(billSummaryProvider);
     final billSummary = billSummaryAsync.asData?.value;
     final billSummaryLoading = billSummaryAsync.isLoading && billSummary == null;
-    final effectiveSummary = billSummary != null
-        ? summary.copyWith(total: billSummary.payable)
-        : summary;
+    final rawPayable = billSummary?.payable ?? summary.total;
+    // Wallet-balance toggle — a pure client-side derivation from two values
+    // already loaded here (walletProvider, billSummaryProvider), never a
+    // second server round-trip. The actual charged amounts are
+    // independently and authoritatively computed server-side at
+    // order-creation time regardless of what this preview shows — the same
+    // relationship that already exists between rawPayable and the real
+    // order total.
+    final walletMethodEnabled =
+        billSummary?.paymentMethods.wallet.enabled ?? false;
+    // Shown even at zero balance (as long as the admin allows wallet at
+    // all) — a customer who's never topped up otherwise never discovers
+    // this option exists. `_WalletToggleRow` swaps the switch for an "Add
+    // Money" button whenever there's nothing to toggle on yet.
+    final showWalletToggle = walletMethodEnabled;
+    final canUseWallet = walletMethodEnabled && (walletBalance ?? 0) > 0;
+    final walletApplied = (checkoutState.useWallet && canUseWallet)
+        ? ((walletBalance ?? 0.0) < rawPayable ? walletBalance! : rawPayable)
+        : 0.0;
+    final remainderPayable = rawPayable - walletApplied < 0
+        ? 0.0
+        : rawPayable - walletApplied;
+    final effectiveSummary = summary.copyWith(total: remainderPayable);
     final isPlacing = checkoutState.isPlacingOrder;
+    final paymentState = ref.watch(paymentProvider);
 
     ref
       // ── Listen for checkout errors ────────────────────────────────────
@@ -117,34 +154,61 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
     return Scaffold(
       backgroundColor: const Color(0xFFF5F7F9),
       appBar: _buildAppBar(checkoutState),
-      body: cartAsync.when(
-        loading: () => const Center(
-          child: CircularProgressIndicator(color: AppColors.primaryGreen),
-        ),
-        error: (error, _) => _EmptyState(
-          message: error.toString().replaceFirst('Bad state: ', ''),
-        ),
-        data: (cart) {
-          if (cart.isEmpty) {
-            return const _EmptyState(message: 'Your cart is empty.');
-          }
-          return _buildBody(
-            checkoutState: checkoutState,
-            summary: effectiveSummary,
-            billSummary: billSummary,
-            billSummaryLoading: billSummaryLoading,
-            walletBalance: walletBalance ?? 0.0,
-            walletLoading: walletLoading,
-            walletError: walletAsync.hasError,
-            itemCount: cart.itemCount,
-            items: cart.items,
-          );
-        },
+      body: Column(
+        children: [
+          if (paymentState.isPendingConfirmation)
+            _PendingConfirmationBanner(message: paymentState.pendingMessage),
+          Expanded(
+            child: cartAsync.when(
+              loading: () => const Center(
+                child: CircularProgressIndicator(color: AppColors.primaryGreen),
+              ),
+              error: (error, _) => _EmptyState(
+                message: error.toString().replaceFirst('Bad state: ', ''),
+              ),
+              data: (cart) {
+                if (cart.isEmpty) {
+                  return const _EmptyState(message: 'Your cart is empty.');
+                }
+                return _buildBody(
+                  checkoutState: checkoutState,
+                  summary: effectiveSummary,
+                  billSummary: billSummary,
+                  billSummaryLoading: billSummaryLoading,
+                  itemCount: cart.itemCount,
+                  items: cart.items,
+                );
+              },
+            ),
+          ),
+        ],
       ),
       bottomNavigationBar: _CheckoutBottomBar(
         summary: effectiveSummary,
-        isLoading: isPlacing,
+        // Also spins/disables the CTA while the real bill is still loading
+        // (see the matching guard in _handlePayment) — shows the customer
+        // why the button is briefly unavailable instead of a dead tap.
+        isLoading:
+            isPlacing || paymentState.isPendingConfirmation || billSummaryLoading,
         onPlaceOrder: () => _handlePayment(checkoutState.paymentMethod),
+        showWalletToggle: showWalletToggle,
+        walletBalance: walletBalance ?? 0.0,
+        walletLoading: walletLoading,
+        useWallet: checkoutState.useWallet,
+        walletApplied: walletApplied,
+        orderTotal: rawPayable,
+        onToggleWallet: (value) =>
+            ref.read(checkoutProvider.notifier).setUseWallet(value),
+        onAddMoney: () => _goToTopup(
+          context,
+          suggestedAmount: rawPayable - (walletBalance ?? 0.0) > 0
+              ? rawPayable - (walletBalance ?? 0.0)
+              : null,
+        ),
+        onPayFullWallet: () => _handlePayFullWallet(
+          context,
+          codEnabled: billSummary?.paymentMethods.cod.enabled ?? true,
+        ),
       ),
     );
   }
@@ -181,14 +245,10 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
     required CheckoutSummaryEntity summary,
     required BillSummaryEntity? billSummary,
     required bool billSummaryLoading,
-    required double walletBalance,
-    required bool walletLoading,
-    required bool walletError,
     required int itemCount,
     required List<CartItemEntity> items,
   }) {
     final address = checkoutState.selectedAddress;
-    final shortfall = summary.total - walletBalance;
     final selectedMethod = checkoutState.paymentMethod;
     final paymentMethods = billSummary?.paymentMethods ?? const PaymentMethodsInfo();
     final cod = paymentMethods.cod;
@@ -257,26 +317,6 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
 
         Gap(12.h),
 
-        // ── Wallet Card — hidden entirely when the admin disables it ──
-        if (paymentMethods.wallet.enabled) ...<Widget>[
-          _WalletPaymentCard(
-            balance: walletBalance,
-            total: summary.total,
-            isLoading: walletLoading,
-            hasError: walletError,
-            shortfall: shortfall > 0 ? shortfall : 0,
-            selected: selectedMethod == PaymentMethod.wallet,
-            onSelect: walletLoading ? null : () => ref
-                .read(checkoutProvider.notifier)
-                .selectPaymentMethod(PaymentMethod.wallet),
-            onPay: () => _handlePayment(PaymentMethod.wallet),
-            onAddMoney: _goToTopup,
-            isPlacingOrder: checkoutState.paymentMethod == PaymentMethod.wallet &&
-                checkoutState.isPlacingOrder,
-          ),
-          Gap(12.h),
-        ],
-
         // ── Razorpay Card — hidden entirely when the admin disables it ─
         if (paymentMethods.razorpay.enabled)
           _RazorpayPaymentCard(
@@ -314,6 +354,30 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
       return;
     }
 
+    // BUG FIX: every payment card (bottom bar, COD card, Razorpay card, and
+    // the wallet "Pay Full" shortcut) funnels into this one method, but none
+    // of their buttons were gated on `billSummaryLoading` — only on
+    // `isPlacingOrder`. Until the real bill summary loads, `summary.total`
+    // (what every card displays) is `checkoutProvider`'s own crude estimate
+    // — subtotal minus discount plus a flat delivery+platform fee only, with
+    // no GST, handling/small-cart/surge fee, or auto-applied first-time-
+    // offer/cart-milestone discount. The backend always computes the actual
+    // charge fresh at order-creation time regardless of what was shown, so
+    // a fast tap here never over/under-charges — but it does let the
+    // customer submit before ever seeing the real number, then get charged
+    // something different from what was on screen a moment earlier: exactly
+    // the "sometimes right, sometimes wrong" total pattern reported. Block
+    // submission until billSummaryProvider has resolved at least once.
+    final billSummaryAsync = ref.read(billSummaryProvider);
+    if (billSummaryAsync.isLoading && !billSummaryAsync.hasValue) {
+      AppToast.show(
+        context,
+        'Calculating your final bill — please wait a moment.',
+        type: ToastType.warning,
+      );
+      return;
+    }
+
     ref.read(checkoutProvider.notifier).selectPaymentMethod(method);
     final result = await ref.read(checkoutProvider.notifier).placeOrder();
 
@@ -330,6 +394,24 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
     if (result.errorMessage != null) {
       AppToast.show(context, result.errorMessage!);
     }
+  }
+
+  /// "Pay via Wallet" — the wallet row's dedicated one-tap action once the
+  /// balance already covers the order in full. Reuses `_handlePayment`
+  /// (useWallet is already true by the time this button is visible); the
+  /// nominal method just needs to be one the admin actually has enabled,
+  /// since the backend's payment-method gate checks that regardless of the
+  /// wallet fully covering the remainder.
+  Future<void> _handlePayFullWallet(
+    BuildContext context, {
+    required bool codEnabled,
+  }) {
+    // The "Pay with Wallet" button is reachable without the switch ever
+    // having been toggled on (it only shows when balance already covers
+    // the order) — set this explicitly rather than assuming it's already
+    // true.
+    ref.read(checkoutProvider.notifier).setUseWallet(true);
+    return _handlePayment(codEnabled ? PaymentMethod.cod : PaymentMethod.online);
   }
 
   // ── Address Change ──────────────────────────────────────────────────
@@ -416,14 +498,16 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
     );
   }
 
-  // ── Topup with refresh ──────────────────────────────────────────────
-  Future<void> _goToTopup() async {
-    await context.push<bool>(RouteNames.topup);
+  /// Opens wallet top-up from the wallet toggle's "Add Money" button —
+  /// pre-filled with the shortfall so the customer doesn't have to work out
+  /// how much more they need — and refreshes the balance on return. The
+  /// customer may have topped up even if they didn't pop with `true`, so
+  /// always refresh rather than trusting the pop result.
+  Future<void> _goToTopup(BuildContext context, {double? suggestedAmount}) async {
+    await context.push<bool>(RouteNames.topup, extra: suggestedAmount);
     if (!mounted) {
       return;
     }
-    // Always refresh — user may have topped up even if they didn't pop with
-    // `true`.
     ref.invalidate(walletProvider);
   }
 }
@@ -1348,168 +1432,6 @@ class _PaymentCardShell extends StatelessWidget {
   }
 }
 
-// ═══════════════════════════════════════════════════════════════════════════
-// Wallet Payment Card  (minimal, selectable)
-// ═══════════════════════════════════════════════════════════════════════════
-
-class _WalletPaymentCard extends StatelessWidget {
-  const _WalletPaymentCard({
-    required this.balance,
-    required this.total,
-    required this.isLoading,
-    required this.hasError,
-    required this.shortfall,
-    required this.selected,
-    required this.onSelect,
-    required this.onPay,
-    required this.onAddMoney,
-    required this.isPlacingOrder,
-  });
-
-  final double balance;
-  final double total;
-  final bool isLoading;
-  final bool hasError;
-  final double shortfall;
-  final bool selected;
-  final VoidCallback? onSelect;
-  final VoidCallback onPay;
-  final VoidCallback onAddMoney;
-  final bool isPlacingOrder;
-
-  bool get _sufficient => shortfall <= 0;
-
-  @override
-  Widget build(BuildContext context) {
-    return _PaymentCardShell(
-      selected: selected,
-      onSelect: onSelect ?? () {},
-      child: Padding(
-        padding: EdgeInsets.all(16.w),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: <Widget>[
-            // Header row: icon + title/balance + radio
-            Row(
-              children: <Widget>[
-                const _PaymentIconTile(
-                  icon: Icons.account_balance_wallet_rounded,
-                ),
-                Gap(12.w),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: <Widget>[
-                      Text(
-                        'Bakaloo Wallet',
-                        style: AppTextStyles.labelLarge.copyWith(
-                          fontWeight: FontWeight.w700,
-                          fontSize: 15.sp,
-                        ),
-                      ),
-                      Gap(2.h),
-                      if (isLoading)
-                        Container(
-                          width: 70.w,
-                          height: 11.h,
-                          decoration: BoxDecoration(
-                            color: AppColors.bgSkeleton,
-                            borderRadius: BorderRadius.circular(6),
-                          ),
-                        )
-                      else if (hasError)
-                        Text(
-                          'Balance unavailable',
-                          style: AppTextStyles.bodySmall.copyWith(
-                            color: AppColors.errorRed,
-                          ),
-                        )
-                      else
-                        Text(
-                          'Balance: ${balance.toInrCurrency}',
-                          style: AppTextStyles.bodySmall.copyWith(
-                            color: AppColors.textSecondary,
-                          ),
-                        ),
-                    ],
-                  ),
-                ),
-                _SelectionRadio(selected: selected),
-              ],
-            ),
-
-            // Insufficient balance notice
-            if (!_sufficient) ...<Widget>[
-              Gap(12.h),
-              Container(
-                padding: EdgeInsets.symmetric(horizontal: 12.w, vertical: 10.h),
-                decoration: BoxDecoration(
-                  color: AppColors.warmOrangeSoft.withValues(alpha: 0.35),
-                  borderRadius: BorderRadius.circular(AppDimensions.radiusMd),
-                ),
-                child: Row(
-                  children: <Widget>[
-                    Icon(
-                      Icons.error_outline_rounded,
-                      color: AppColors.warningOrange,
-                      size: 16.sp,
-                    ),
-                    Gap(8.w),
-                    Expanded(
-                      child: Text(
-                        'Add ${shortfall.toInrCurrency} more to pay with wallet',
-                        style: AppTextStyles.bodySmall.copyWith(
-                          color: AppColors.textPrimary,
-                          fontWeight: FontWeight.w500,
-                        ),
-                      ),
-                    ),
-                    GestureDetector(
-                      onTap: onAddMoney,
-                      behavior: HitTestBehavior.opaque,
-                      child: Text(
-                        'Add Money',
-                        style: AppTextStyles.buttonSmall.copyWith(
-                          color: AppColors.warningOrange,
-                          fontWeight: FontWeight.w700,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-
-            // Action only shows when this method is selected.
-            AnimatedSize(
-              duration: const Duration(milliseconds: 200),
-              curve: Curves.easeOutCubic,
-              alignment: Alignment.topCenter,
-              child: selected
-                  ? Padding(
-                      padding: EdgeInsets.only(top: 14.h),
-                      child: _PaymentActionButton(
-                        label: _sufficient
-                            ? 'Pay ${total.toInrCurrency} from Wallet'
-                            : 'Add Money to Wallet',
-                        icon: _sufficient
-                            ? Icons.lock_rounded
-                            : Icons.add_rounded,
-                        isLoading: isPlacingOrder,
-                        onPressed: (_sufficient && !isPlacingOrder)
-                            ? onPay
-                            : (!_sufficient ? onAddMoney : null),
-                      ),
-                    )
-                  : const SizedBox(width: double.infinity),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
 /// Full-width primary action button shared by both payment cards.
 class _PaymentActionButton extends StatelessWidget {
   const _PaymentActionButton({
@@ -1915,11 +1837,32 @@ class _CheckoutBottomBar extends StatelessWidget {
     required this.summary,
     required this.isLoading,
     required this.onPlaceOrder,
+    required this.showWalletToggle,
+    required this.walletBalance,
+    required this.walletLoading,
+    required this.useWallet,
+    required this.walletApplied,
+    required this.orderTotal,
+    required this.onToggleWallet,
+    this.onAddMoney,
+    this.onPayFullWallet,
   });
 
   final CheckoutSummaryEntity summary;
   final bool isLoading;
   final VoidCallback onPlaceOrder;
+  final bool showWalletToggle;
+  final double walletBalance;
+  final bool walletLoading;
+  final bool useWallet;
+  final double walletApplied;
+  /// The order's real payable total, before any wallet offset — used only
+  /// to decide whether the wallet row's expanded action is "Pay via Wallet"
+  /// or "Add Money". `summary.total` is already the post-wallet remainder.
+  final double orderTotal;
+  final ValueChanged<bool> onToggleWallet;
+  final VoidCallback? onAddMoney;
+  final VoidCallback? onPayFullWallet;
 
   @override
   Widget build(BuildContext context) {
@@ -1931,60 +1874,79 @@ class _CheckoutBottomBar extends StatelessWidget {
           color: Colors.white,
           boxShadow: <BoxShadow>[AppShadows.floatingShadow],
         ),
-        child: Row(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
           children: <Widget>[
-            Expanded(
-              flex: 2,
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: <Widget>[
-                  Text(
-                    'Total payable',
-                    style: AppTextStyles.bodySmall
-                        .copyWith(color: AppColors.textSecondary),
-                  ),
-                  Text(
-                    summary.total.toInrCurrency,
-                    style: AppTextStyles.h2.copyWith(
-                      fontSize: 20.sp,
-                      fontWeight: FontWeight.w800,
-                    ),
-                  ),
-                ],
+            if (showWalletToggle) ...<Widget>[
+              _WalletToggleRow(
+                walletBalance: walletBalance,
+                walletApplied: walletApplied,
+                orderTotal: orderTotal,
+                value: useWallet,
+                enabled: !walletLoading && !isLoading,
+                onChanged: onToggleWallet,
+                onAddMoney: onAddMoney,
+                onPayFullWallet: onPayFullWallet,
               ),
-            ),
-            Gap(12.w),
-            Expanded(
-              flex: 3,
-              child: FilledButton(
-                onPressed: isLoading ? null : onPlaceOrder,
-                style: FilledButton.styleFrom(
-                  backgroundColor: AppColors.primaryGreen,
-                  disabledBackgroundColor: AppColors.borderLight,
-                  padding: EdgeInsets.symmetric(vertical: 14.h),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(AppDimensions.radiusMd),
-                  ),
-                ),
-                child: isLoading
-                    ? const SizedBox(
-                        width: 20,
-                        height: 20,
-                        child: CircularProgressIndicator(
-                          strokeWidth: 2,
-                          valueColor:
-                              AlwaysStoppedAnimation<Color>(Colors.white),
-                        ),
-                      )
-                    : Text(
-                        'Place Order',
-                        style: AppTextStyles.buttonMedium.copyWith(
-                          color: Colors.white,
-                          fontWeight: FontWeight.w700,
+              Gap(10.h),
+            ],
+            Row(
+              children: <Widget>[
+                Expanded(
+                  flex: 2,
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: <Widget>[
+                      Text(
+                        'Total payable',
+                        style: AppTextStyles.bodySmall
+                            .copyWith(color: AppColors.textSecondary),
+                      ),
+                      Text(
+                        summary.total.toInrCurrency,
+                        style: AppTextStyles.h2.copyWith(
+                          fontSize: 20.sp,
+                          fontWeight: FontWeight.w800,
                         ),
                       ),
-              ),
+                    ],
+                  ),
+                ),
+                Gap(12.w),
+                Expanded(
+                  flex: 3,
+                  child: FilledButton(
+                    onPressed: isLoading ? null : onPlaceOrder,
+                    style: FilledButton.styleFrom(
+                      backgroundColor: AppColors.primaryGreen,
+                      disabledBackgroundColor: AppColors.borderLight,
+                      padding: EdgeInsets.symmetric(vertical: 14.h),
+                      shape: RoundedRectangleBorder(
+                        borderRadius:
+                            BorderRadius.circular(AppDimensions.radiusMd),
+                      ),
+                    ),
+                    child: isLoading
+                        ? const SizedBox(
+                            width: 20,
+                            height: 20,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              valueColor:
+                                  AlwaysStoppedAnimation<Color>(Colors.white),
+                            ),
+                          )
+                        : Text(
+                            'Place Order',
+                            style: AppTextStyles.buttonMedium.copyWith(
+                              color: Colors.white,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                  ),
+                ),
+              ],
             ),
           ],
         ),
@@ -1993,9 +1955,378 @@ class _CheckoutBottomBar extends StatelessWidget {
   }
 }
 
+/// Toggle row shown above the total/Place Order row when the customer has
+/// wallet balance available — applies (or reverts) the wallet offset
+/// against whichever payment method is currently selected, rather than
+/// requiring wallet as a separate exclusive payment method.
+/// Wallet card — a self-contained "Bakaloo Wallet" payment card, offsetting
+/// [_CheckoutBottomBar]'s "Total payable" figure regardless of the chosen
+/// payment method. Shown only when the admin allows wallet at all (even at
+/// zero balance).
+///
+/// The switch reveals one panel below it: "You saved ₹X with Bakaloo
+/// Wallet" alongside a contextual action — "Pay via Wallet" (balance fully
+/// covers the order — one tap, nothing else to collect) when there's
+/// enough, or "Add Money" (pre-filled with exactly the shortfall) when
+/// there isn't. A customer who doesn't want either can simply use Place
+/// Order as normal — the switch still applies whatever balance exists as a
+/// partial discount in the background.
+class _WalletToggleRow extends StatelessWidget {
+  const _WalletToggleRow({
+    required this.walletBalance,
+    required this.walletApplied,
+    required this.orderTotal,
+    required this.value,
+    required this.enabled,
+    required this.onChanged,
+    this.onAddMoney,
+    this.onPayFullWallet,
+  });
+
+  final double walletBalance;
+  final double walletApplied;
+  final double orderTotal;
+  final bool value;
+  final bool enabled;
+  final ValueChanged<bool> onChanged;
+  final VoidCallback? onAddMoney;
+  final VoidCallback? onPayFullWallet;
+
+  static const _purple = Color(0xFF7C35F2);
+  static const _purpleBg = Color(0xFFF1E9FF);
+  static const _borderColor = Color(0xFFE7DEFF);
+  static const _titleColor = Color(0xFF171717);
+  static const _mutedGray = Color(0xFF737684);
+
+  bool get _hasBalance => walletBalance > 0;
+  bool get _sufficient => walletBalance >= orderTotal && orderTotal > 0;
+
+  @override
+  Widget build(BuildContext context) {
+    final active = value && _hasBalance && !_sufficient;
+    return Container(
+      padding: EdgeInsets.symmetric(horizontal: 16.w, vertical: 14.h),
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: <Color>[Colors.white, Color(0xFFFAF8FF)],
+        ),
+        borderRadius: BorderRadius.circular(17.r),
+        border: Border.all(color: _borderColor),
+        boxShadow: <BoxShadow>[
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.05),
+            blurRadius: 14,
+            offset: const Offset(0, 3),
+          ),
+        ],
+      ),
+      child: Row(
+        children: <Widget>[
+          Container(
+            width: 40.w,
+            height: 40.w,
+            decoration: BoxDecoration(
+              color: _purpleBg,
+              borderRadius: BorderRadius.circular(12.r),
+            ),
+            child: Icon(
+              Icons.account_balance_wallet_rounded,
+              color: _purple,
+              size: 20.sp,
+            ),
+          ),
+          Gap(12.w),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: <Widget>[
+                Text(
+                  'Bakaloo Wallet',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  softWrap: false,
+                  style: TextStyle(
+                    fontSize: 15.sp,
+                    fontWeight: FontWeight.w800,
+                    color: _titleColor,
+                    fontFamily: 'Inter',
+                  ),
+                ),
+                Gap(3.h),
+                Text.rich(
+                  _sufficient
+                      ? TextSpan(
+                          children: <InlineSpan>[
+                            TextSpan(
+                              text: '${walletBalance.toInrCurrency} ',
+                              style: const TextStyle(
+                                color: _purple,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                            const TextSpan(text: 'available  |  '),
+                            TextSpan(
+                              text: '${orderTotal.toInrCurrency} ',
+                              style: const TextStyle(
+                                color: _purple,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                            const TextSpan(text: 'order total'),
+                          ],
+                        )
+                      : active && walletApplied > 0
+                          ? TextSpan(
+                              children: <InlineSpan>[
+                                TextSpan(
+                                  text: '${walletApplied.toInrCurrency} ',
+                                  style: const TextStyle(
+                                    color: _purple,
+                                    fontWeight: FontWeight.w700,
+                                  ),
+                                ),
+                                const TextSpan(text: 'applied  |  '),
+                                TextSpan(
+                                  text: '${walletBalance.toInrCurrency} ',
+                                  style: const TextStyle(
+                                    color: _purple,
+                                    fontWeight: FontWeight.w700,
+                                  ),
+                                ),
+                                const TextSpan(text: 'available'),
+                              ],
+                            )
+                          : TextSpan(
+                              text: _hasBalance
+                                  ? '${walletBalance.toInrCurrency} available'
+                                  : 'No balance yet',
+                            ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  softWrap: false,
+                  style: TextStyle(
+                    fontSize: 12.sp,
+                    fontWeight: FontWeight.w600,
+                    color: _mutedGray,
+                    fontFamily: 'Inter',
+                  ),
+                ),
+              ],
+            ),
+          ),
+          Gap(8.w),
+          if (_sufficient)
+            _PayWithWalletButton(onPressed: enabled ? onPayFullWallet : null)
+          else ...<Widget>[
+            _AddMoneyButton(onPressed: enabled ? onAddMoney : null),
+            Gap(8.w),
+            _CheckmarkToggle(
+              value: value,
+              enabled: enabled,
+              onChanged: onChanged,
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+/// A compact checkbox-style toggle — a filled purple checkmark (on) or an
+/// outlined circle (off) — used instead of a [Switch] specifically because
+/// Switch's minimum track width (~34dp, ~90px on this density) was, next to
+/// the "Add Money" button, squeezing the wallet card's title/subtitle text
+/// column down to where "Bakaloo Wallet" wrapped onto two lines and the
+/// whole card ballooned past its intended compact height. This toggle is
+/// roughly a third of that width.
+class _CheckmarkToggle extends StatelessWidget {
+  const _CheckmarkToggle({
+    required this.value,
+    required this.enabled,
+    required this.onChanged,
+  });
+
+  final bool value;
+  final bool enabled;
+  final ValueChanged<bool> onChanged;
+
+  static const _purple = Color(0xFF7C35F2);
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      customBorder: const CircleBorder(),
+      onTap: enabled ? () => onChanged(!value) : null,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 150),
+        width: 24.w,
+        height: 24.w,
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          color: value ? _purple : Colors.transparent,
+          border: Border.all(
+            color: value ? _purple : const Color(0xFFC7C7CC),
+            width: 1.6,
+          ),
+        ),
+        child: value
+            ? Icon(Icons.check_rounded, color: Colors.white, size: 15.sp)
+            : null,
+      ),
+    );
+  }
+}
+
+/// The single, primary CTA shown instead of the switch/Add Money pair once
+/// the wallet balance alone covers the order — a filled purple gradient
+/// pill, the strongest visual weight in the row since it's a one-tap
+/// commit, not a navigation.
+class _PayWithWalletButton extends StatelessWidget {
+  const _PayWithWalletButton({required this.onPressed});
+
+  final VoidCallback? onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Colors.transparent,
+      borderRadius: BorderRadius.circular(13.r),
+      child: InkWell(
+        onTap: onPressed,
+        borderRadius: BorderRadius.circular(13.r),
+        child: Container(
+          padding: EdgeInsets.symmetric(horizontal: 14.w, vertical: 11.h),
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              colors: onPressed != null
+                  ? const <Color>[Color(0xFF7C35F2), Color(0xFF6D28F5)]
+                  : <Color>[
+                      const Color(0xFF7C35F2).withValues(alpha: 0.4),
+                      const Color(0xFF6D28F5).withValues(alpha: 0.4),
+                    ],
+            ),
+            borderRadius: BorderRadius.circular(13.r),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: <Widget>[
+              Icon(
+                Icons.account_balance_wallet_rounded,
+                color: Colors.white,
+                size: 16.sp,
+              ),
+              Gap(6.w),
+              Text(
+                'Pay with Wallet',
+                style: TextStyle(
+                  fontSize: 14.sp,
+                  fontWeight: FontWeight.w600,
+                  color: Colors.white,
+                  fontFamily: 'Inter',
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// The compact outlined "Add Money" button shown alongside the switch when
+/// the balance doesn't yet cover the order — navigates to top-up,
+/// pre-filled with the shortfall.
+class _AddMoneyButton extends StatelessWidget {
+  const _AddMoneyButton({required this.onPressed});
+
+  final VoidCallback? onPressed;
+
+  static const _purple = Color(0xFF7C35F2);
+
+  @override
+  Widget build(BuildContext context) {
+    return OutlinedButton(
+      onPressed: onPressed,
+      style: OutlinedButton.styleFrom(
+        foregroundColor: _purple,
+        backgroundColor: Colors.white,
+        side: const BorderSide(color: _purple, width: 1.5),
+        padding: EdgeInsets.symmetric(horizontal: 10.w, vertical: 8.h),
+        minimumSize: Size.zero,
+        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(13.r),
+        ),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: <Widget>[
+          Icon(Icons.add_rounded, size: 14.sp),
+          Gap(3.w),
+          Text(
+            'Add Money',
+            style: TextStyle(
+              fontSize: 12.5.sp,
+              fontWeight: FontWeight.w700,
+              fontFamily: 'Inter',
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 // ═══════════════════════════════════════════════════════════════════════════
 // Empty State
 // ═══════════════════════════════════════════════════════════════════════════
+
+/// Shown in place of an instant failure whenever the checkout SDK reports
+/// an ambiguous result — the bank/UPI side can already have succeeded, so
+/// this deliberately says neither "success" nor "failed" while the backend
+/// is asked to confirm. Non-modal on purpose: the customer can keep
+/// browsing (the poll keeps running regardless), but the submit button is
+/// disabled for the duration to prevent a duplicate payment attempt.
+class _PendingConfirmationBanner extends StatelessWidget {
+  const _PendingConfirmationBanner({this.message});
+
+  final String? message;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: EdgeInsets.symmetric(horizontal: 16.w, vertical: 12.h),
+      color: AppColors.orderStatusAmberBg,
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SizedBox(
+            width: 18.w,
+            height: 18.w,
+            child: const CircularProgressIndicator(
+              strokeWidth: 2,
+              color: AppColors.orderStatusAmber,
+            ),
+          ),
+          Gap(10.w),
+          Expanded(
+            child: Text(
+              message ?? 'Verifying your payment…',
+              style: AppTextStyles.bodySmall.copyWith(
+                color: AppColors.orderStatusAmber,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
 
 class _EmptyState extends StatelessWidget {
   const _EmptyState({required this.message});

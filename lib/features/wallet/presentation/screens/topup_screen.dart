@@ -22,7 +22,12 @@ import 'package:bakaloo_flutter_app/features/wallet/presentation/providers/walle
 import 'package:bakaloo_flutter_app/routing/app_router.dart';
 
 class TopupScreen extends ConsumerStatefulWidget {
-  const TopupScreen({super.key});
+  const TopupScreen({super.key, this.initialAmount});
+
+  /// Pre-fills the amount field — used when a caller (e.g. the checkout/cart
+  /// wallet stripe's "Add Money" button) already knows exactly how much
+  /// more the customer needs to fully cover their order.
+  final double? initialAmount;
 
   @override
   ConsumerState<TopupScreen> createState() => _TopupScreenState();
@@ -42,6 +47,10 @@ class _TopupScreenState extends ConsumerState<TopupScreen> {
     super.initState();
     unawaited(ScreenshotPrevention.enable());
     _attachCallbacks();
+    final initial = widget.initialAmount;
+    if (initial != null && initial > 0) {
+      _amountController.text = initial.ceil().toString();
+    }
   }
 
   @override

@@ -17,7 +17,6 @@ import 'package:bakaloo_flutter_app/core/theme/tab_home_content_model.dart';
 import 'package:bakaloo_flutter_app/core/theme/app_colors.dart';
 import 'package:bakaloo_flutter_app/core/theme/app_text_styles.dart';
 import 'package:bakaloo_flutter_app/features/addresses/presentation/providers/address_provider.dart';
-import 'package:bakaloo_flutter_app/features/addresses/presentation/screens/add_edit_address_screen.dart';
 import 'package:bakaloo_flutter_app/features/auth/presentation/providers/auth_notifier.dart';
 import 'package:bakaloo_flutter_app/features/auth/presentation/providers/auth_state.dart';
 import 'package:bakaloo_flutter_app/shared/utils/address_utils.dart';
@@ -147,12 +146,16 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
   // no address" start, never happening when location was already on.
   bool _locationPromptInFlight = false;
   StreamSubscription<ServiceStatus>? _locationServiceStatusSub;
-  // Guards against the post-frame callback firing more than once per
-  // widget lifetime (e.g. a rapid rebuild) — unlike the location prompt,
-  // this one doesn't need to reset on any external event: the gate is
-  // simply "does the profile have a name" (re-checked fresh from
-  // profileProvider every time), so once it's true there's nothing left
-  // to show for the rest of this session anyway.
+  // Guards against a second _maybeShowNamePrompt call stacking a duplicate
+  // dialog while one check/dialog is already in flight. MUST only be set
+  // to true once we've confirmed there's actually a logged-in user to
+  // check — Home is reachable as a guest before login, and if this were
+  // set unconditionally up front, the guest-mode no-op would permanently
+  // poison it for the rest of this HomeScreen instance's lifetime (which
+  // can span a later login, since Home is the always-mounted root — see
+  // _authStateSub below): the dialog would then never show even after the
+  // user logs in, which is exactly the same class of bug already fixed
+  // for the location prompt (see _locationPromptShownThisSession above).
   bool _namePromptAttemptedThisSession = false;
 
   double get _stickyRevealStartDistance => 48.h;
@@ -195,7 +198,11 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
     // thing... coming."
     _authStateSub = ref.listenManual(authStateProvider, (previous, next) {
       if (next is AuthAuthenticated && previous is! AuthAuthenticated) {
-        unawaited(_maybeShowLocationPrompt());
+        // Same reasoning as the location prompt above: a customer who
+        // logged in from a guest view of Home never got this checked at
+        // cold start (currentUserProvider was still null then), so it has
+        // to be re-run here too, once we actually know who's logged in.
+        unawaited(_maybeShowOnboardingPrompts());
       }
     });
     _deferredSectionStage.addListener(_rebuildStagedSlivers);
@@ -233,13 +240,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
         _updateStickyHeaderTriggerOffset();
         _handleHomeScroll();
         // Initial check — slight delay so home UI settles first
-        Future<void>.delayed(const Duration(milliseconds: 800), () async {
-          if (!mounted) return;
-          await _maybeShowLocationPrompt();
-          // Sequenced after the location prompt (awaited above) so the two
-          // never stack — if location's sheet is showing, this simply waits
-          // for it to close first.
-          if (mounted) unawaited(_maybeShowNamePrompt());
+        Future<void>.delayed(const Duration(milliseconds: 800), () {
+          if (mounted) unawaited(_maybeShowOnboardingPrompts());
         });
       }
     });
@@ -351,21 +353,36 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
   /// (_locationPromptShownThisSession), reset whenever the service comes
   /// back on so a later disable can prompt again.
   ///
-  /// Three outcomes, checked in order:
-  ///   1. Already has a saved address with a house/building number filled
-  ///      — nothing to do, show nothing at all. Toggling location off/on
-  ///      must never bring anything back for this customer; they're done.
-  ///   2. Has a saved address but it's missing that house/building number
-  ///      (only ever true for one reverse-geocoded-and-never-completed
-  ///      the moment it was created) — skip the location-enable sheet
-  ///      entirely (location already works, that's not the gap) and go
-  ///      straight to completing that address on the map screen.
-  ///   3. No saved address at all — the original location-enable/
+  /// Two outcomes, checked in order:
+  ///   1. Already has a saved address, complete or not — nothing to do.
+  ///      Completing House No./Building for an address that was only ever
+  ///      reverse-geocoded (never has that filled in) is no longer forced
+  ///      here at every app open; that used to block onboarding on a full
+  ///      screen with no way out. It's handled instead at checkout — see
+  ///      CartBottomBar's address-completeness gate in cart_bottom_bar.dart
+  ///      — the one moment it actually blocks something (placing an
+  ///      order), rather than blocking browsing the app.
+  ///   2. No saved address at all — the original location-enable/
   ///      auto-detect sheet, mandatory (they can't order without an
-  ///      address). When permission is already granted and service is
-  ///      already on, it's told to auto-trigger detection the moment it
+  ///      address at all). When permission is already granted and service
+  ///      is already on, it's told to auto-trigger detection the moment it
   ///      opens instead of waiting for an "Enable" tap — the customer
   ///      still sees the sheet and its spinner/status text either way.
+  ///      Pressing Enable saves the address and closes the sheet straight
+  ///      into the app — no follow-up completion screen — the customer
+  ///      only ever sees that at checkout if they still haven't filled in
+  ///      House No./Building by then.
+  /// Runs the location and name onboarding checks in sequence — never
+  /// concurrently, so their dialogs/sheets can't stack on top of each
+  /// other. Every re-entry point (cold start, login while already on
+  /// Home, app resume) should call this instead of the two check
+  /// functions directly, so location always gets first look and name is
+  /// only checked once it's done with whatever it needed to show.
+  Future<void> _maybeShowOnboardingPrompts() async {
+    await _maybeShowLocationPrompt();
+    if (mounted) unawaited(_maybeShowNamePrompt());
+  }
+
   Future<void> _maybeShowLocationPrompt() async {
     if (!mounted || _locationPromptShownThisSession || _locationPromptInFlight) {
       return;
@@ -398,38 +415,10 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
     try {
       final addresses = await ref.read(addressProvider.future);
 
+      // Any address at all — even one still missing House No./Building —
+      // is enough to let the customer keep browsing. Completing it is
+      // handled at checkout now, not here.
       if (addresses.isNotEmpty) {
-        final defaultAddress = addresses.firstWhere(
-          (a) => a.isDefault,
-          orElse: () => addresses.first,
-        );
-        // Reverse geocoding only ever knows the street/area, never a house
-        // or building number — that's the one thing worth still nudging
-        // for. A manually completed address always has this filled (the
-        // add/edit form requires House No. before Save enables), so an
-        // empty addressLine2 only ever means "never finished."
-        if ((defaultAddress.addressLine2 ?? '').trim().isEmpty) {
-          if (!mounted) return;
-          // rootNavigator: true — this screen lives inside AppShell's Home
-          // tab, itself its own nested (branch) Navigator per go_router's
-          // StatefulNavigationShell. A plain Navigator.of(context) push
-          // targets that branch navigator, so AppShell's persistent bottom
-          // tab bar (rendered above/outside it) stays fully visible and
-          // tappable over what's supposed to be a "complete this first"
-          // forced screen — the customer can just tap "Orders" or
-          // "Profile" and walk straight past forceCompletion's back-button
-          // block. showLocationPromptSheet already avoids this exact trap
-          // for its own sheet via useRootNavigator: true; this needs the
-          // same escape.
-          await Navigator.of(context, rootNavigator: true).push<void>(
-            MaterialPageRoute<void>(
-              builder: (_) => AddEditAddressScreen(
-                initialAddress: defaultAddress,
-                forceCompletion: true,
-              ),
-            ),
-          );
-        }
         return;
       }
 
@@ -444,34 +433,14 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
           permissionGranted && await Geolocator.isLocationServiceEnabled();
       if (!mounted) return;
 
-      final autoDetectedAddress = await showLocationPromptSheet(
+      // Result intentionally unused — Enable saves the address and closes
+      // the sheet straight back into the app now; completing House
+      // No./Building for it happens at checkout instead (see the doc
+      // comment above), not with a follow-up forced screen here.
+      await showLocationPromptSheet(
         context,
         autoTrigger: permissionGranted && serviceEnabled,
         mandatory: true,
-      );
-      if (!mounted || autoDetectedAddress == null) return;
-
-      // showModalBottomSheet's Future completes the instant the sheet calls
-      // Navigator.pop() — NOT once its slide-down close animation has
-      // actually finished playing. Pushing the next full-screen route
-      // immediately (as this used to) meant that animation was still
-      // visibly running underneath/behind the new page for a beat,
-      // reading as "a second pop-up thing sliding away" right after the
-      // Add Address page had already appeared. Reported bug: "already
-      // detect[ed]... swipe down then that is [bad] user experience."
-      // 300ms comfortably covers Material's default bottom-sheet exit
-      // transition (~250ms) before the next route starts entering.
-      await Future<void>.delayed(const Duration(milliseconds: 300));
-      if (!mounted) return;
-
-      // Same rootNavigator escape as above — see that call's comment.
-      await Navigator.of(context, rootNavigator: true).push<void>(
-        MaterialPageRoute<void>(
-          builder: (_) => AddEditAddressScreen(
-            initialAddress: autoDetectedAddress,
-            forceCompletion: true,
-          ),
-        ),
       );
     } catch (_) {
       // Non-critical — silently ignore
@@ -498,13 +467,17 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
   /// truth for this field.
   Future<void> _maybeShowNamePrompt() async {
     if (!mounted || _namePromptAttemptedThisSession) return;
-    _namePromptAttemptedThisSession = true;
     try {
       // Home is reachable while browsing as a guest (no auth redirect for
       // this route) — skip entirely rather than fetching a profile that
-      // doesn't exist for an anonymous session.
+      // doesn't exist for an anonymous session. Deliberately NOT setting
+      // _namePromptAttemptedThisSession before this check: a guest-mode
+      // call here must stay a true no-op so a later login (caught by
+      // _authStateSub / didChangeAppLifecycleState below) still gets to
+      // run this check for real instead of finding it already "attempted".
       if (ref.read(currentUserProvider) == null) return;
 
+      _namePromptAttemptedThisSession = true;
       final profileData = await ref.read(profileProvider.future);
       if (!mounted) return;
       final hasName = (profileData.user.name ?? '').trim().isNotEmpty;
@@ -563,7 +536,13 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.resumed) {
       unawaited(_refreshThemeDrivenLayout());
-      unawaited(_maybeShowLocationPrompt());
+      // Covers the case where the app was only backgrounded (not actually
+      // process-killed) while the mandatory name dialog was open or before
+      // it ever got a chance to check — resuming without this never
+      // re-runs _maybeShowNamePrompt, so a user who backgrounded out of
+      // the name step effectively never gets asked again for the rest of
+      // that process's life. Reported as: name step "stuck"/skippable.
+      unawaited(_maybeShowOnboardingPrompts());
       // The live socket listener (app_bottom_nav.dart) only updates unread
       // state while connected — a notification that arrived while the app
       // was backgrounded (socket disconnected, or delivered as a plain
@@ -1014,7 +993,6 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
                               },
                             ),
                           ),
-                          const SliverToBoxAdapter(child: StoreClosedBanner()),
                           SliverToBoxAdapter(
                             child: ValueListenableBuilder<bool>(
                               valueListenable: _isTopChromeMotionEnabled,
@@ -1088,6 +1066,15 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
                               },
                             ),
                           ),
+                          // Moved below the search bar/category tabs (was
+                          // directly under the header) so the closed banner
+                          // no longer sits in front of core navigation —
+                          // search and category browsing stay immediately
+                          // reachable, and the banner reads as one section
+                          // among others instead of blocking the top of the
+                          // page. Reported: banner pushed search "too far
+                          // down" / wanted it moved further down the page.
+                          const SliverToBoxAdapter(child: StoreClosedBanner()),
                           // PHASE 1 FIX: Never render old summer/campaign
                           // hardcoded widgets as a loading fallback.
                           // Show skeleton while manifest loads; show

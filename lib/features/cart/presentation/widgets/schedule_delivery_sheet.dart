@@ -77,6 +77,32 @@ class _ScheduleDeliverySheetState
     // Fail-open while loading (StoreStatusEntity.open() default) — never
     // block ASAP just because this specific fetch hasn't resolved yet.
     final storeOpen = ref.watch(storeStatusProvider).asData?.value.isOpen ?? true;
+
+    // A day with zero bookable slots (store force-closed all day, or the
+    // day is simply over) reads as broken sitting in the picker as a
+    // selectable pill that immediately dead-ends into "No slots available"
+    // — so it's dropped from what's actually offered, same as it never
+    // existed. Both the slot grid and the confirm button below must use
+    // this exact same list (not re-derive their own), or "Today" being
+    // dropped here while something else still indexes the raw provider by
+    // position would silently pick the wrong day. Falls back to the raw
+    // list if filtering would leave nothing at all, so the picker never
+    // renders fully empty.
+    final rawDays = slotsAsync.value;
+    final effectiveDays = rawDays
+        ?.where((d) => d.slots.any((s) => s.available))
+        .toList();
+    final displayDays =
+        (effectiveDays == null || effectiveDays.isEmpty) ? rawDays : effectiveDays;
+    // _selectedDayIndex can point past the end once a day with nothing
+    // bookable (e.g. Today, force-closed) drops out of the list above.
+    final safeDayIndex = (displayDays == null || displayDays.isEmpty)
+        ? 0
+        : _selectedDayIndex.clamp(0, displayDays.length - 1);
+    final selectedDayLabel =
+        (_isScheduled && displayDays != null && displayDays.isNotEmpty)
+            ? displayDays[safeDayIndex].label
+            : '';
     if (!storeOpen && !_isScheduled) {
       // Steer into Schedule mode the moment we learn the store is closed —
       // covers both "just opened the sheet" and "store closed while the
@@ -255,7 +281,8 @@ class _ScheduleDeliverySheetState
                             ],
                           ),
                         ),
-                        data: (days) {
+                        data: (_) {
+                          final days = displayDays ?? const [];
                           if (days.isEmpty) {
                             return Center(
                               child: Text(
@@ -270,7 +297,7 @@ class _ScheduleDeliverySheetState
                           }
                           return _SlotPickerContent(
                             days: days,
-                            selectedDayIndex: _selectedDayIndex,
+                            selectedDayIndex: safeDayIndex,
                             selectedSlot: _selectedSlot,
                             scrollController: scrollController,
                             onDaySelected: (i) =>
@@ -299,26 +326,7 @@ class _ScheduleDeliverySheetState
                     isScheduled: _isScheduled,
                     selectedSlot: _selectedSlot,
                     etaMinutes: displayEtaMinutes,
-                    selectedDayLabel: (_isScheduled &&
-                            ref
-                                    .read(deliverySlotsProvider)
-                                    .asData
-                                    ?.value !=
-                                null)
-                        ? (ref
-                                    .read(deliverySlotsProvider)
-                                    .asData
-                                    ?.value
-                                    .length ??
-                                0) >
-                                _selectedDayIndex
-                            ? ref
-                                .read(deliverySlotsProvider)
-                                .asData!
-                                .value[_selectedDayIndex]
-                                .label
-                            : ''
-                        : '',
+                    selectedDayLabel: selectedDayLabel,
                     onConfirm: (slot) {
                       final checkoutNotifier =
                           ref.read(checkoutProvider.notifier);
@@ -329,18 +337,10 @@ class _ScheduleDeliverySheetState
                           ),
                         );
                       } else if (slot != null) {
-                        final days = ref
-                            .read(deliverySlotsProvider)
-                            .asData
-                            ?.value;
-                        final dayLabel = (days != null &&
-                                days.length > _selectedDayIndex)
-                            ? days[_selectedDayIndex].label
-                            : '';
                         checkoutNotifier.selectDeliverySlot(
                           SelectedDeliverySlot.scheduled(
                             slot: slot,
-                            dayLabel: dayLabel,
+                            dayLabel: selectedDayLabel,
                           ),
                         );
                       }

@@ -22,10 +22,26 @@ import 'package:bakaloo_flutter_app/features/orders/domain/entities/order_timeli
 import 'package:bakaloo_flutter_app/features/orders/presentation/providers/active_order_provider.dart';
 import 'package:bakaloo_flutter_app/features/orders/presentation/providers/order_detail_provider.dart';
 import 'package:bakaloo_flutter_app/features/orders/presentation/providers/order_list_provider.dart';
+import 'package:bakaloo_flutter_app/features/refund_requests/domain/entities/refund_request_status_entity.dart';
+import 'package:bakaloo_flutter_app/features/refund_requests/presentation/providers/refund_request_provider.dart';
+import 'package:bakaloo_flutter_app/features/refund_requests/presentation/screens/refund_request_screen.dart';
 import 'package:bakaloo_flutter_app/features/reviews/presentation/screens/order_review_screen.dart';
 import 'package:bakaloo_flutter_app/routing/route_names.dart';
-import 'package:bakaloo_flutter_app/shared/widgets/confirmation_dialog.dart';
+import 'package:bakaloo_flutter_app/shared/widgets/cancel_order_sheet.dart';
 import 'package:bakaloo_flutter_app/shared/widgets/safe_product_image.dart';
+
+/// Title-cases a snake/enum-ish string, e.g. 'CASH_ON_DELIVERY' -> 'Cash On
+/// Delivery'. `_PaymentInfo` below has its own identically-named instance
+/// method for its own use; this top-level one is for `_PriceBreakdown`'s
+/// "Balance due (Method)" label, which isn't part of that class.
+String _prettyText(String value) {
+  return value.trim().toLowerCase().split('_').map((part) {
+    if (part.isEmpty) {
+      return '';
+    }
+    return '${part[0].toUpperCase()}${part.substring(1)}';
+  }).join(' ');
+}
 
 class OrderDetailScreen extends ConsumerStatefulWidget {
   const OrderDetailScreen({
@@ -49,13 +65,11 @@ class _OrderDetailScreenState extends ConsumerState<OrderDetailScreen> {
       return;
     }
 
-    final confirmed = await ConfirmationDialog.show(
+    final reason = await CancelOrderSheet.show(
       context,
-      title: 'Cancel Order?',
-      message: 'Do you want to cancel ${order.orderNumber}?',
-      confirmLabel: 'Cancel Order',
+      orderNumber: order.orderNumber,
     );
-    if (confirmed != true || !mounted) {
+    if (reason == null || !mounted) {
       return;
     }
 
@@ -63,8 +77,9 @@ class _OrderDetailScreenState extends ConsumerState<OrderDetailScreen> {
       _isCancelling = true;
     });
 
-    final result =
-        await ref.read(orderListControllerProvider).cancelOrder(order.id);
+    final result = await ref
+        .read(orderListControllerProvider)
+        .cancelOrder(order.id, reason: reason);
     if (!mounted) {
       return;
     }
@@ -118,6 +133,45 @@ class _OrderDetailScreenState extends ConsumerState<OrderDetailScreen> {
         context.push(RouteNames.cart);
       },
     );
+  }
+
+  Future<void> _cancelRefundRequest(OrderEntity order, String requestId) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Cancel refund request?'),
+        content: const Text(
+          "This withdraws your request — no money moves. You'll be able to raise a new one for this order afterwards.",
+        ),
+        actions: <Widget>[
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('Keep Request'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            child: const Text('Yes, Cancel'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) {
+      return;
+    }
+
+    final result = await ref
+        .read(refundRequestProvider.notifier)
+        .cancelRequest(requestId);
+    if (!mounted) {
+      return;
+    }
+
+    if (!result.isSuccess) {
+      AppToast.show(context, result.failure!.message);
+      return;
+    }
+    ref.invalidate(refundRequestByOrderProvider(order.id));
+    AppToast.show(context, 'Refund request cancelled', type: ToastType.success);
   }
 
   Future<void> _downloadInvoice(OrderEntity order) async {
@@ -195,6 +249,10 @@ class _OrderDetailScreenState extends ConsumerState<OrderDetailScreen> {
           onRetry: () => ref.invalidate(orderDetailProvider(widget.id)),
         ),
         data: (order) {
+          final refundRequestAsync =
+              ref.watch(refundRequestByOrderProvider(order.id));
+          final refundRequest = refundRequestAsync.asData?.value;
+
           return ListView(
             padding: EdgeInsets.fromLTRB(16.w, 12.h, 16.w, 24.h),
             children: <Widget>[
@@ -236,18 +294,34 @@ class _OrderDetailScreenState extends ConsumerState<OrderDetailScreen> {
                 title: 'Payment',
                 child: _PaymentInfo(order: order),
               ),
+              if (refundRequest != null) ...<Widget>[
+                Gap(16.h),
+                _SectionCard(
+                  title: 'Refund Request',
+                  child: _RefundRequestStatusCard(
+                    request: refundRequest,
+                    onCancel: () => _cancelRefundRequest(order, refundRequest.id),
+                  ),
+                ),
+              ],
               Gap(16.h),
               _OrderActions(
                 order: order,
                 isCancelling: _isCancelling,
                 isReordering: _isReordering,
                 isDownloadingInvoice: _isDownloadingInvoice,
+                canRequestRefund: refundRequest?.blocksNewRequest != true,
                 onCancel: () => _cancelOrder(order),
                 onReorder: () => _reorder(order),
                 onDownloadInvoice: () => _downloadInvoice(order),
                 onWriteReview: () => Navigator.of(context).push(
                   MaterialPageRoute<bool>(
                     builder: (_) => OrderReviewScreen(order: order),
+                  ),
+                ),
+                onRequestRefund: () => Navigator.of(context).push(
+                  MaterialPageRoute<bool>(
+                    builder: (_) => RefundRequestScreen(order: order),
                   ),
                 ),
               ),
@@ -788,6 +862,23 @@ class _PriceBreakdown extends StatelessWidget {
           value: order.total,
           style: AppTextStyles.h3,
         ),
+        if (order.walletAmountUsed > 0) ...<Widget>[
+          Gap(8.h),
+          _PriceRow(
+            label: 'Paid via Wallet',
+            value: order.walletAmountUsed,
+            prefix: '-',
+            valueColor: AppColors.orderViolet,
+          ),
+          if (order.total - order.walletAmountUsed > 0)
+            _PriceRow(
+              label: 'Balance due (${_prettyText(order.paymentMethod)})',
+              value: order.total - order.walletAmountUsed,
+              style: AppTextStyles.labelLarge.copyWith(
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+        ],
       ],
     );
   }
@@ -846,6 +937,12 @@ class _PaymentInfo extends StatelessWidget {
       children: <Widget>[
         _InfoRow(label: 'Method', value: _prettyText(order.paymentMethod)),
         _InfoRow(label: 'Status', value: _prettyText(order.paymentStatus)),
+        if (order.walletAmountUsed > 0)
+          _InfoRow(
+            label: 'Wallet used',
+            value: order.walletAmountUsed.toInrCurrency,
+            valueColor: AppColors.orderViolet,
+          ),
         if (order.razorpayPaymentId != null)
           _InfoRow(
             label: 'Razorpay ID',
@@ -930,10 +1027,12 @@ class _InfoRow extends StatelessWidget {
   const _InfoRow({
     required this.label,
     required this.value,
+    this.valueColor,
   });
 
   final String label;
   final String value;
+  final Color? valueColor;
 
   @override
   Widget build(BuildContext context) {
@@ -948,10 +1047,120 @@ class _InfoRow extends StatelessWidget {
             child: Text(
               value,
               textAlign: TextAlign.end,
-              style: AppTextStyles.labelLarge
-                  .copyWith(fontWeight: FontWeight.w600),
+              style: AppTextStyles.labelLarge.copyWith(
+                fontWeight: FontWeight.w600,
+                color: valueColor,
+              ),
             ),
           ),
+        ],
+      ),
+    );
+  }
+}
+
+class _RefundRequestStatusCard extends StatelessWidget {
+  const _RefundRequestStatusCard({
+    required this.request,
+    required this.onCancel,
+  });
+
+  final RefundRequestStatusEntity request;
+  final VoidCallback onCancel;
+
+  @override
+  Widget build(BuildContext context) {
+    final (Color accent, Color surface, IconData icon, String title, String subtitle) =
+        switch (request.status) {
+      'PENDING' => (
+          AppColors.orderViolet,
+          AppColors.orderVioletSurface,
+          PhosphorIcons.clockCountdown,
+          'Refund request pending',
+          "We've received your request — our team will review it and connect with you within 24 hours.",
+        ),
+      'APPROVED' => (
+          AppColors.primaryGreen,
+          AppColors.primaryGreenLight,
+          PhosphorIcons.checkCircleFill,
+          'Refund approved',
+          request.refundAmount != null
+              ? '${request.refundAmount!.toInrCurrency} credited to your ${request.refundTo == 'original' ? 'original payment method' : 'wallet'}.'
+              : 'Your refund has been processed.',
+        ),
+      'REJECTED' => (
+          AppColors.errorRed,
+          const Color(0xFFFEF2F2),
+          PhosphorIcons.xCircleFill,
+          'Refund request rejected',
+          (request.adminNote ?? '').trim().isNotEmpty
+              ? request.adminNote!.trim()
+              : 'Our team reviewed this request and it was not approved.',
+        ),
+      _ => (
+          AppColors.textSecondary,
+          AppColors.bgSection,
+          PhosphorIcons.prohibit,
+          'Refund request cancelled',
+          "You cancelled this request. You're free to raise a new one if the issue is still unresolved.",
+        ),
+    };
+
+    return Container(
+      padding: EdgeInsets.all(12.w),
+      decoration: BoxDecoration(
+        color: surface,
+        borderRadius: BorderRadius.circular(AppDimensions.radiusLg),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: <Widget>[
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: <Widget>[
+              PhosphorIcon(icon, size: 20.sp, color: accent),
+              Gap(10.w),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: <Widget>[
+                    Text(
+                      title,
+                      style: AppTextStyles.labelLarge.copyWith(
+                        fontWeight: FontWeight.w700,
+                        color: accent,
+                      ),
+                    ),
+                    Gap(4.h),
+                    Text(
+                      subtitle,
+                      style: AppTextStyles.bodySmall.copyWith(color: AppColors.textSecondary),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          if ((request.description).trim().isNotEmpty) ...<Widget>[
+            Gap(8.h),
+            Text(
+              '"${request.description.trim()}"',
+              style: AppTextStyles.bodySmall.copyWith(
+                color: AppColors.textSecondary,
+                fontStyle: FontStyle.italic,
+              ),
+            ),
+          ],
+          if (request.isPending) ...<Widget>[
+            Gap(10.h),
+            SizedBox(
+              width: double.infinity,
+              child: OutlinedButton(
+                onPressed: onCancel,
+                child: const Text('Cancel Request'),
+              ),
+            ),
+          ],
         ],
       ),
     );
@@ -968,6 +1177,8 @@ class _OrderActions extends StatelessWidget {
     required this.onReorder,
     required this.onDownloadInvoice,
     required this.onWriteReview,
+    required this.onRequestRefund,
+    this.canRequestRefund = true,
   });
 
   final OrderEntity order;
@@ -978,6 +1189,12 @@ class _OrderActions extends StatelessWidget {
   final VoidCallback onReorder;
   final VoidCallback onDownloadInvoice;
   final VoidCallback onWriteReview;
+  final VoidCallback onRequestRefund;
+
+  /// False while a non-cancelled refund request already exists for this
+  /// order — the status card above is the single place to act on it then,
+  /// so this button steps aside rather than offering a duplicate path in.
+  final bool canRequestRefund;
 
   @override
   Widget build(BuildContext context) {
@@ -1048,6 +1265,17 @@ class _OrderActions extends StatelessWidget {
                 ),
               ],
             ),
+            if (canRequestRefund) ...<Widget>[
+              Gap(8.h),
+              SizedBox(
+                width: double.infinity,
+                child: OutlinedButton.icon(
+                  onPressed: onRequestRefund,
+                  icon: PhosphorIcon(PhosphorIcons.receipt, size: 16.sp),
+                  label: const Text('Request Refund'),
+                ),
+              ),
+            ],
           ],
         );
       case OrderStatus.CANCELLED:

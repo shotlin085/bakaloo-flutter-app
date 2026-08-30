@@ -25,7 +25,13 @@ class HiveService {
 
     productsBox = await Hive.openBox<dynamic>(StorageKeys.productsBox);
     categoriesBox = await Hive.openBox<dynamic>(StorageKeys.categoriesBox);
-    ordersBox = await Hive.openBox<dynamic>(StorageKeys.ordersBox);
+    // Encrypted like userBox/settingsBox — this box holds full order
+    // payloads (amounts, delivery addresses, payment status), unlike the
+    // public catalog/category caches above, so it doesn't belong in a
+    // plaintext box readable straight off disk on a rooted device.
+    // _openSensitiveBox() transparently migrates any existing plaintext
+    // ordersBox from a previous app version into the encrypted one.
+    ordersBox = await _openSensitiveBox(StorageKeys.ordersBox, cipher);
     searchHistoryBox =
         await Hive.openBox<dynamic>(StorageKeys.searchHistoryBox);
     recentlyViewedBox =

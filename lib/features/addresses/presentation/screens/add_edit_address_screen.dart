@@ -1,17 +1,16 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
-import 'package:flutter_map/flutter_map.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:gap/gap.dart';
-import 'package:geocoding/geocoding.dart';
 import 'package:geolocator/geolocator.dart';
-import 'package:latlong2/latlong.dart' as map;
+import 'package:maplibre_gl/maplibre_gl.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:phosphoricons_flutter/phosphoricons_flutter.dart';
 
 import 'package:bakaloo_flutter_app/core/maps/geo_point.dart';
+import 'package:bakaloo_flutter_app/core/maps/ola/ola_maps_service.dart';
 import 'package:bakaloo_flutter_app/core/theme/app_colors.dart';
 import 'package:bakaloo_flutter_app/core/theme/app_dimensions.dart';
 import 'package:bakaloo_flutter_app/core/theme/app_shadows.dart';
@@ -143,6 +142,55 @@ class _AddEditAddressScreenState extends ConsumerState<AddEditAddressScreen> {
         }
       });
     }
+
+    // The completion screen's pin is already dropped (from the silent
+    // auto-detect that got the customer here), so this doesn't need the map
+    // picker at all — just one more Ola reverse-geocode call for Landmark,
+    // the one field that flow never persists (see _seedFromInitialAddress
+    // above). Also backfills Address if it's still blank — covers an
+    // address record saved before this fix existed, when the old OS-geocoder
+    // path could leave addressLine1 empty too.
+    if (widget.forceCompletion && _hasPinnedLocation) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) {
+          unawaited(_refreshDetailsForCompletion());
+        }
+      });
+    }
+  }
+
+  Future<void> _refreshDetailsForCompletion() async {
+    final reverse = await ref.read(olaMapsServiceProvider).reverseGeocode(
+          GeoPoint(lat: _latitude!, lng: _longitude!),
+        );
+    if (!mounted) {
+      return;
+    }
+
+    final landmark = reverse?.landmark?.trim() ?? '';
+    // Prefer a proper road/street name; a bare city name is not a usable
+    // address (Ola simply had no road for this pin) — the full formatted
+    // address is still specific to this exact point, just without a named
+    // road, so it's the better fallback of the two.
+    final address = _firstNonEmpty(<String?>[
+      reverse?.addressLine1,
+      reverse?.displayName,
+    ]) ??
+        '';
+
+    // Runs once, right as the screen opens, before the customer has had a
+    // chance to type anything — so it's safe to unconditionally replace
+    // whatever was seeded from the persisted address record, including a
+    // stale/bad value from before this fix existed (e.g. a bare city name
+    // that got saved as the address itself).
+    setState(() {
+      if (landmark.isNotEmpty) {
+        _landmarkController.text = landmark;
+      }
+      if (address.isNotEmpty) {
+        _addressController.text = address;
+      }
+    });
   }
 
   @override
@@ -187,15 +235,20 @@ class _AddEditAddressScreenState extends ConsumerState<AddEditAddressScreen> {
     };
 
     _selectedLabel = _normalizeLabel(address.label);
-    // Auto-detected (reverse-geocoded) address: only city/state/pincode/
-    // coordinates are trustworthy enough to pre-fill — reverse geocoding
-    // never reliably captures a house/building number, and guessing at
-    // addressLine1 from it produces a plausible-looking but often wrong
-    // street line. House No., Building, Address and Landmark are left
-    // blank so the customer fills in the real ones themselves; editing an
-    // already-saved address (forceCompletion == false) still pre-fills
-    // everything as before.
-    if (!widget.forceCompletion) {
+    if (widget.forceCompletion) {
+      // Auto-detected via the "Use my current location" flow (see
+      // location_prompt_provider.dart), which now reverse-geocodes through
+      // Ola Maps: Address is trustworthy enough to pre-fill here too.
+      // addressLine2 is deliberately never persisted for this kind of
+      // address (see location_prompt_provider.dart's _geocodeAndSave) — a
+      // non-empty addressLine2 is how the rest of the app knows House No.
+      // was actually filled in — so Landmark is fetched live instead, see
+      // _fetchLandmarkForCompletion below. House No. and Building are the
+      // only things genuinely unknown at this point — no reverse geocode
+      // ever names those — so they stay blank; that's exactly what makes
+      // this screen mandatory.
+      _addressController.text = address.addressLine1;
+    } else {
       final secondaryParts = _splitSecondaryAddress(address.addressLine2);
       _addressController.text = address.addressLine1;
       _houseNoController.text = secondaryParts.$1;
@@ -345,87 +398,42 @@ class _AddEditAddressScreenState extends ConsumerState<AddEditAddressScreen> {
   }
 
   Future<void> _applyMapResult(AddressMapPickerResult result) async {
-    _ResolvedLocationData? fallback;
-    if (_needsFallbackReverseGeocode(result)) {
-      fallback = await _reverseGeocodePoint(result.point);
-    }
-
     if (!mounted) {
       return;
     }
 
-    final resolvedState = _firstNonEmpty(<String?>[
-      result.state,
-      fallback?.state,
-      _state,
+    final resolvedAddress = _firstNonEmpty(<String?>[
+      result.addressLine1,
+      result.displayName,
     ]);
-    final resolvedPincode = _firstNonEmpty(<String?>[
-      result.pincode,
-      fallback?.pincode,
-      _pincode,
-    ]);
+    final resolvedCity = _firstNonEmpty(<String?>[result.city, _city]);
+    final resolvedState = _firstNonEmpty(<String?>[result.state, _state]);
+    final resolvedPincode = _firstNonEmpty(<String?>[result.pincode, _pincode]);
 
     setState(() {
       _latitude = result.point.lat;
       _longitude = result.point.lng;
+      _city = resolvedCity;
       _state = resolvedState;
       _pincode = resolvedPincode;
-      // Reverse-geocoded Address/Landmark/City guesses were landing wrong
-      // often enough (wrong locality, wrong pincode) that only the two most
-      // reliable fields — State and PIN Code — are auto-filled from the map
-      // pin. Address, House No., Building, Landmark and City are always
-      // left for the user to type themselves.
+      // Address, City and State/PIN Code all come straight from Ola Maps'
+      // reverse-geocode result on every pin drop now — House No., Building
+      // and Landmark are the details Ola can never know, so those stay
+      // manual (Landmark is only pre-filled below when Ola actually names a
+      // nearby place, and only if the customer hasn't typed one already).
+      if ((resolvedAddress ?? '').isNotEmpty) {
+        _addressController.text = resolvedAddress!;
+      }
+      _cityController.text = resolvedCity ?? '';
       _stateController.text = resolvedState ?? '';
       _pincodeController.text = resolvedPincode ?? '';
+      final landmark = result.landmark?.trim() ?? '';
+      if (landmark.isNotEmpty && _landmarkController.text.trim().isEmpty) {
+        _landmarkController.text = landmark;
+      }
     });
 
     _schedulePincodeValidation(resolvedPincode);
-  }
-
-  bool _needsFallbackReverseGeocode(AddressMapPickerResult result) {
-    return <String?>[
-      result.displayName,
-      result.addressLine1,
-      result.addressLine2,
-      result.city,
-      result.state,
-      result.pincode,
-    ].every((value) => (value ?? '').trim().isEmpty);
-  }
-
-  Future<_ResolvedLocationData?> _reverseGeocodePoint(GeoPoint point) async {
-    try {
-      final placemarks = await placemarkFromCoordinates(point.lat, point.lng);
-      if (placemarks.isEmpty) {
-        return null;
-      }
-      final place = placemarks.first;
-      return _ResolvedLocationData(
-        displayName: <String>[
-          if ((place.subLocality ?? '').trim().isNotEmpty)
-            place.subLocality!.trim(),
-          if ((place.locality ?? '').trim().isNotEmpty) place.locality!.trim(),
-          if ((place.administrativeArea ?? '').trim().isNotEmpty)
-            place.administrativeArea!.trim(),
-        ].join(', '),
-        addressLine1: _firstNonEmpty(<String?>[
-          place.name,
-          place.street,
-        ]),
-        addressLine2: _firstNonEmpty(<String?>[
-          place.subLocality,
-          place.thoroughfare,
-        ]),
-        city: _firstNonEmpty(<String?>[
-          place.locality,
-          place.subAdministrativeArea,
-        ]),
-        state: place.administrativeArea?.trim(),
-        pincode: place.postalCode?.trim(),
-      );
-    } catch (_) {
-      return null;
-    }
   }
 
   void _schedulePincodeValidation(String? pincode) {
@@ -692,7 +700,15 @@ class _AddEditAddressScreenState extends ConsumerState<AddEditAddressScreen> {
           child: SafeArea(
           top: false,
           child: SingleChildScrollView(
-            padding: EdgeInsets.only(bottom: 120.h),
+            // resizeToAvoidBottomInset is off (see comment above), so this
+            // scroll view's viewport never actually shrinks when the
+            // keyboard opens — without the extra bottomInset here, there is
+            // no genuine scrollable room below a lower field for
+            // Scrollable.ensureVisible (in _FormField) to scroll into, and
+            // it silently does nothing. Reported: focusing Receiver's Phone
+            // Number left it hidden behind the keyboard with only the
+            // floating SAVE ADDRESS button visible above it.
+            padding: EdgeInsets.only(bottom: 120.h + bottomInset),
             child: Form(
               key: _formKey,
               child: Column(
@@ -925,7 +941,7 @@ class _AddEditAddressScreenState extends ConsumerState<AddEditAddressScreen> {
   }
 }
 
-class _CompactMapPreview extends StatelessWidget {
+class _CompactMapPreview extends ConsumerWidget {
   const _CompactMapPreview({
     required this.point,
     required this.hasPinnedLocation,
@@ -939,7 +955,9 @@ class _CompactMapPreview extends StatelessWidget {
   final VoidCallback onCurrentLocationTap;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final styleAsync = ref.watch(olaMapsStyleProvider);
+
     return SizedBox(
       height: 180.h,
       child: Stack(
@@ -948,42 +966,38 @@ class _CompactMapPreview extends StatelessWidget {
             borderRadius: BorderRadius.vertical(
               bottom: Radius.circular(AppDimensions.radiusXl.r),
             ),
-            child: FlutterMap(
-              key: ValueKey<String>('map-${point.lat}-${point.lng}'),
-              options: MapOptions(
-                initialCenter: map.LatLng(point.lat, point.lng),
-                initialZoom: hasPinnedLocation ? 16 : 13.6,
-                interactionOptions: const InteractionOptions(
-                  flags: InteractiveFlag.none,
-                ),
-              ),
-              children: <Widget>[
-                TileLayer(
-                  urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
-                  userAgentPackageName: 'com.bakaloo.india',
-                  maxNativeZoom: 19,
-                  maxZoom: 19,
-                ),
-                MarkerLayer(
-                  markers: <Marker>[
-                    Marker(
-                      point: map.LatLng(point.lat, point.lng),
-                      width: 42.w,
-                      height: 42.w,
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: <Widget>[
-                          PhosphorIcon(
-                            PhosphorIcons.mapPinFill,
-                            size: 32.sp,
-                            color: AppColors.cartPink,
-                          ),
-                        ],
+            child: styleAsync.maybeWhen(
+              data: (style) => style.configured && style.styleUrl != null
+                  ? MapLibreMap(
+                      key: ValueKey<String>('map-${point.lat}-${point.lng}'),
+                      styleString: style.styleUrl!,
+                      initialCameraPosition: CameraPosition(
+                        target: LatLng(point.lat, point.lng),
+                        zoom: hasPinnedLocation ? 16 : 13.6,
                       ),
-                    ),
-                  ],
-                ),
-              ],
+                      compassEnabled: false,
+                      rotateGesturesEnabled: false,
+                      scrollGesturesEnabled: false,
+                      tiltGesturesEnabled: false,
+                      zoomGesturesEnabled: false,
+                      doubleClickZoomEnabled: false,
+                      dragEnabled: false,
+                    )
+                  : Container(color: AppColors.bgInput),
+              orElse: () => Container(color: AppColors.bgInput),
+            ),
+          ),
+          // The map above is always centered on `point` and fully
+          // non-interactive (all gestures off), so a plain centered icon
+          // lands in exactly the same spot a MapLibre marker-at-point
+          // would — no need for MapLibre's native symbol layer here.
+          IgnorePointer(
+            child: Center(
+              child: PhosphorIcon(
+                PhosphorIcons.mapPinFill,
+                size: 32.sp,
+                color: AppColors.cartPink,
+              ),
             ),
           ),
           Positioned(
@@ -1103,7 +1117,7 @@ class _AddressHeader extends StatelessWidget {
   }
 }
 
-class _FormField extends StatelessWidget {
+class _FormField extends StatefulWidget {
   const _FormField({
     required this.controller,
     required this.label,
@@ -1124,38 +1138,78 @@ class _FormField extends StatelessWidget {
   final Widget? prefix;
   final Widget? suffixIcon;
 
+  @override
+  State<_FormField> createState() => _FormFieldState();
+}
+
+class _FormFieldState extends State<_FormField> {
   // Light-purple highlight for an empty box — a quiet nudge toward the
   // fields the customer still needs to fill in (most useful right after
   // auto-detect, which only ever seeds City/State/PIN Code, leaving House
   // No., Building, Address and Landmark blank on purpose). Listens to the
-  // controller directly rather than needing a StatefulWidget/setState up
-  // the tree — the highlight clears itself the moment the customer types.
+  // controller directly rather than needing extra setState calls — the
+  // highlight clears itself the moment the customer types.
   static const Color _emptyHighlightFill = Color(0xFFF3E8FD);
   static const Color _emptyHighlightBorder = Color(0xFFC9A6F0);
+
+  final FocusNode _focusNode = FocusNode();
+
+  @override
+  void initState() {
+    super.initState();
+    _focusNode.addListener(_handleFocusChange);
+  }
+
+  void _handleFocusChange() {
+    if (!_focusNode.hasFocus) return;
+    // The keyboard is still animating open (and MediaQuery.viewInsets.bottom
+    // hasn't settled to its final height) the instant a field gains focus —
+    // ensureVisible right away would scroll against a stale/zero keyboard
+    // height and land short. Waiting for the keyboard's own slide-up
+    // animation (~250ms on both platforms) to finish first fixes that.
+    Future.delayed(const Duration(milliseconds: 300), () {
+      if (!mounted || !_focusNode.hasFocus) return;
+      Scrollable.ensureVisible(
+        context,
+        duration: const Duration(milliseconds: 250),
+        curve: Curves.easeOut,
+        alignment: 0.5,
+      );
+    });
+  }
+
+  @override
+  void dispose() {
+    _focusNode
+      ..removeListener(_handleFocusChange)
+      ..dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
     return ValueListenableBuilder<TextEditingValue>(
-      valueListenable: controller,
+      valueListenable: widget.controller,
       builder: (context, value, _) {
         final isEmpty = value.text.trim().isEmpty;
         return TextFormField(
-          controller: controller,
-          validator: validator,
-          keyboardType: keyboardType,
-          textInputAction: textInputAction,
-          maxLength: maxLength,
+          controller: widget.controller,
+          focusNode: _focusNode,
+          validator: widget.validator,
+          keyboardType: widget.keyboardType,
+          textInputAction: widget.textInputAction,
+          maxLength: widget.maxLength,
           style: AppTextStyles.bodyLarge.copyWith(
             color: AppColors.textPrimary,
           ),
           decoration: InputDecoration(
-            labelText: label,
+            labelText: widget.label,
             floatingLabelBehavior: FloatingLabelBehavior.auto,
             counterText: '',
             filled: true,
             fillColor: isEmpty ? _emptyHighlightFill : const Color(0xFFF0F4F8),
-            prefixIcon: prefix,
-            suffixIcon: suffixIcon,
+            prefixIcon: widget.prefix,
+            suffixIcon: widget.suffixIcon,
             contentPadding:
                 EdgeInsets.symmetric(horizontal: 16.w, vertical: 16.h),
             labelStyle: AppTextStyles.bodyMedium.copyWith(
@@ -1322,24 +1376,6 @@ enum _PincodeValidationStatus {
   loading,
   valid,
   invalid,
-}
-
-class _ResolvedLocationData {
-  const _ResolvedLocationData({
-    this.displayName,
-    this.addressLine1,
-    this.addressLine2,
-    this.city,
-    this.state,
-    this.pincode,
-  });
-
-  final String? displayName;
-  final String? addressLine1;
-  final String? addressLine2;
-  final String? city;
-  final String? state;
-  final String? pincode;
 }
 
 // addressLine2 is saved as "houseNo, building, landmark" going forward, so

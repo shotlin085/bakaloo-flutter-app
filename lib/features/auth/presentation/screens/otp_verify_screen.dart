@@ -618,6 +618,19 @@ class _OtpVerifyScreenState extends ConsumerState<OtpVerifyScreen>
   }
 
   void _submitOtp(String value) {
+    // Pinput can invoke onCompleted more than once for a single paste (the
+    // paste delivers the 6 digits as more than one text-change event, and
+    // each one that lands on a full value re-fires onCompleted). Without
+    // this guard that fires two concurrent verifyOtp() calls for the same
+    // code: whichever HTTP response resolves last wins the final auth
+    // state, so a request that actually succeeded can be clobbered by a
+    // second, redundant request failing (the OTP/session having already
+    // been consumed by the first) — showing the user an error on a code
+    // that was genuinely correct, forcing them to paste again.
+    if (ref.read(authNotifierProvider) is AuthLoading) {
+      return;
+    }
+
     final error = Validators.validateOtp(value);
     if (error != null) {
       unawaited(_handleOtpError(error));

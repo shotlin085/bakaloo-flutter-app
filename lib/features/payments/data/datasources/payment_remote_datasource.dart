@@ -82,6 +82,29 @@ class PaymentRemoteDataSource {
     return _parseWalletBalance(response.data, ApiConstants.walletTopupVerify);
   }
 
+  /// Current authoritative status of a Razorpay order — polled after the
+  /// checkout SDK reports an ambiguous result (any error that isn't a
+  /// genuine user cancellation) instead of assuming failure and cancelling
+  /// blind. Never throws on a 404 (payment record not found yet) — that's
+  /// treated as "still pending" by the caller's poll loop, same as a
+  /// network hiccup, since retrying is always safe here.
+  Future<
+      ({
+        String status,
+        String? errorCode,
+        String? errorDescription,
+        String? errorReason,
+      })> getPaymentStatus(String razorpayOrderId) async {
+    final response = await _apiClient.getPaymentStatus(razorpayOrderId);
+    final data = _parseDataMap(response.data, 'payments/status');
+    return (
+      status: _readString(data, <String>['status']),
+      errorCode: _readNullableString(data, 'errorCode'),
+      errorDescription: _readNullableString(data, 'errorDescription'),
+      errorReason: _readNullableString(data, 'errorReason'),
+    );
+  }
+
   Future<double> getWalletBalance() async {
     final response = await _apiClient.getWallet();
     return _parseWalletBalance(response.data, ApiConstants.wallet);
@@ -157,5 +180,10 @@ class PaymentRemoteDataSource {
       }
     }
     return '';
+  }
+
+  String? _readNullableString(Map<String, dynamic> json, String key) {
+    final value = json[key];
+    return value is String && value.trim().isNotEmpty ? value.trim() : null;
   }
 }

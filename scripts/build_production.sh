@@ -51,10 +51,22 @@ else
   echo "⚠️  CocoaPods not found — skipping iOS pod install"
 fi
 
+# ── Debug symbols (Dart obfuscation) ───────────────────────────
+# --obfuscate strips/renames Dart-level symbols (class/method names,
+# including payment logic) from the shipped binary so it isn't readable
+# straight out of a decompiled APK. --split-debug-info writes the mapping
+# needed to decode a future stack trace back to real symbols — WITHOUT
+# this saved, an obfuscated build's crash reports are permanently
+# unreadable gibberish. Keep this whole directory (back it up outside the
+# repo) for as long as this build's version code might still be installed
+# on a user's device.
+SYMBOLS_DIR="$BUILD_DIR/debug-symbols-$VERSION-$TIMESTAMP"
+mkdir -p "$SYMBOLS_DIR/android-apk" "$SYMBOLS_DIR/android-aab" "$SYMBOLS_DIR/ios"
+
 # ── Build Android APK ─────────────────────────────────────────
 echo ""
-echo "🤖 Building Android APK (release)..."
-flutter build apk --release
+echo "🤖 Building Android APK (release, obfuscated)..."
+flutter build apk --release --obfuscate --split-debug-info="$SYMBOLS_DIR/android-apk"
 APK_SRC="$ROOT/build/app/outputs/flutter-apk/app-release.apk"
 APK_DST="$BUILD_DIR/bakaloo-$VERSION-$TIMESTAMP.apk"
 cp "$APK_SRC" "$APK_DST"
@@ -62,8 +74,8 @@ echo "   ✅ APK: $APK_DST"
 
 # ── Build Android App Bundle ──────────────────────────────────
 echo ""
-echo "🤖 Building Android App Bundle (release)..."
-flutter build appbundle --release
+echo "🤖 Building Android App Bundle (release, obfuscated)..."
+flutter build appbundle --release --obfuscate --split-debug-info="$SYMBOLS_DIR/android-aab"
 AAB_SRC="$ROOT/build/app/outputs/bundle/release/app-release.aab"
 AAB_DST="$BUILD_DIR/bakaloo-$VERSION-$TIMESTAMP.aab"
 cp "$AAB_SRC" "$AAB_DST"
@@ -71,9 +83,9 @@ echo "   ✅ AAB: $AAB_DST"
 
 # ── Build iOS ─────────────────────────────────────────────────
 echo ""
-echo "🍎 Building iOS (release, no codesign)..."
+echo "🍎 Building iOS (release, no codesign, obfuscated)..."
 if xcode-select -p &>/dev/null && [ -d /Applications/Xcode.app ]; then
-  flutter build ios --release --no-codesign
+  flutter build ios --release --no-codesign --obfuscate --split-debug-info="$SYMBOLS_DIR/ios"
   IOS_BUILD="$ROOT/build/ios/iphoneos/Runner.app"
   if [ -d "$IOS_BUILD" ]; then
     IOS_DST="$BUILD_DIR/bakaloo-$VERSION-$TIMESTAMP-ios.app"

@@ -6,6 +6,7 @@ import 'package:bakaloo_flutter_app/core/constants/storage_keys.dart';
 import 'package:bakaloo_flutter_app/core/storage/hive_service.dart';
 import 'package:bakaloo_flutter_app/features/addresses/presentation/screens/add_edit_address_screen.dart';
 import 'package:bakaloo_flutter_app/features/addresses/presentation/screens/address_list_screen.dart';
+import 'package:bakaloo_flutter_app/features/addresses/presentation/screens/ola_map_test_screen.dart';
 import 'package:bakaloo_flutter_app/features/auth/presentation/screens/otp_verify_screen.dart';
 import 'package:bakaloo_flutter_app/features/auth/presentation/screens/phone_entry_screen.dart';
 import 'package:bakaloo_flutter_app/features/cart/presentation/screens/cart_screen.dart';
@@ -329,8 +330,28 @@ GoRouter appRouter(Ref ref) {
                     routes: <RouteBase>[
                       GoRoute(
                         path: 'topup',
+                        // Now also pushed from Cart and Checkout (the
+                        // wallet stripe's "Add Money" button), outside the
+                        // shell — same fix as 'edit' and 'addresses' above:
+                        // pin to the root navigator so it always renders as
+                        // a plain full-screen page instead of go_router
+                        // trying to switch the StatefulShellRoute to the
+                        // profile branch mid-push, which produced a blank
+                        // white screen. Reported: tapping "Add Money" from
+                        // checkout/cart redirected to a blank page instead
+                        // of the top-up screen.
+                        parentNavigatorKey: _rootNavigatorKey,
                         builder: (BuildContext context, GoRouterState state) {
-                          return const TopupScreen();
+                          // Callers with a known shortfall (e.g. the
+                          // checkout/cart wallet stripe's "Add Money"
+                          // button) pass it as `extra` so the amount field
+                          // arrives pre-filled with exactly what's needed
+                          // to cover the order, rather than a blank field.
+                          final suggested = state.extra;
+                          return TopupScreen(
+                            initialAmount:
+                                suggested is double ? suggested : null,
+                          );
                         },
                       ),
                       GoRoute(
@@ -370,6 +391,13 @@ GoRouter appRouter(Ref ref) {
                           return AddEditAddressScreen(
                             initialAddress: state.extra as AddressEntity?,
                           );
+                        },
+                      ),
+                      GoRoute(
+                        path: 'ola-map-test',
+                        parentNavigatorKey: _rootNavigatorKey,
+                        builder: (BuildContext context, GoRouterState state) {
+                          return const OlaMapTestScreen();
                         },
                       ),
                     ],

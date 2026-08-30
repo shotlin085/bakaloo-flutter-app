@@ -23,6 +23,11 @@ abstract class OrderEntity with _$OrderEntity {
     required String paymentMethod,
     required String paymentStatus,
     required DateTime createdAt,
+    // Wallet-balance toggle checkout feature — the portion of `total`
+    // covered by wallet, on top of paymentMethod, regardless of whether
+    // that's COD or ONLINE. 0 for orders placed before this feature, or
+    // where the customer never used the toggle.
+    @Default(0) double walletAmountUsed,
     String? razorpayPaymentId,
     String? couponCode,
     DateTime? deliveredAt,

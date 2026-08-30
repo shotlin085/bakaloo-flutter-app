@@ -15,6 +15,7 @@ class OrderModel {
     required this.createdAt,
     this.couponCode,
     this.estimatedDelivery,
+    this.walletAmountUsed = 0,
   });
 
   final String id;
@@ -30,6 +31,7 @@ class OrderModel {
   final DateTime createdAt;
   final String? couponCode;
   final DateTime? estimatedDelivery;
+  final double walletAmountUsed;
 
   factory OrderModel.fromJson(Map<String, dynamic> json) {
     return OrderModel(
@@ -60,6 +62,11 @@ class OrderModel {
         json,
         'totalAmount',
         fallbackKey: 'total_amount',
+      ),
+      walletAmountUsed: _readDouble(
+        json,
+        'walletAmountUsed',
+        fallbackKey: 'wallet_amount_used',
       ),
       paymentMethod: _readString(
         json,
@@ -106,6 +113,7 @@ class OrderModel {
       couponCode: couponCode,
       estimatedDelivery: estimatedDelivery,
       createdAt: createdAt,
+      walletAmountUsed: walletAmountUsed,
     );
   }
 

@@ -164,18 +164,21 @@ class _LocationPromptSheetState extends ConsumerState<_LocationPromptSheet> {
         });
 
       case LocationAutoDetectResult.notServiceable:
-        // Swaps the whole sheet body over to the "we don't deliver here"
-        // content below instead of just setting a status message — this is
-        // the one outcome where the customer needs a way out that isn't
-        // "try again" (trying again just detects the same unserviceable
-        // location), so it also flips PopScope's canPop (see build()) to
-        // let a swipe-down actually dismiss the sheet.
-        setState(() => _state = _SheetState.notServiceable);
+        // No address gets saved for a non-serviceable location — the
+        // backend hard-blocks it (ADDRESS_NOT_SERVICEABLE) — and
+        // detectAndSaveCurrentLocation already recorded that the customer
+        // was detected here via nonServiceableLocationProvider, for the
+        // cart to surface later (CartBottomBar's "Your area is not
+        // serviceable" state). Nothing to interrupt onboarding with here:
+        // close the sheet exactly like a successful detection would,
+        // straight into the app — the customer only ever learns their area
+        // isn't served yet if and when they try to actually order.
+        Navigator.of(context).pop();
     }
   }
 
   void _onSwipeDismiss(DragEndDetails details) {
-    final canDismiss = !widget.mandatory || _state == _SheetState.notServiceable;
+    final canDismiss = !widget.mandatory;
     if (canDismiss && (details.primaryVelocity ?? 0) > 200) {
       Navigator.of(context).pop();
     }
@@ -203,23 +206,13 @@ class _LocationPromptSheetState extends ConsumerState<_LocationPromptSheet> {
       orElse: () => null,
     );
 
-    // Not-serviceable is the one state a "mandatory" sheet still lets the
-    // customer walk away from — there's nothing to retry, so trapping them
-    // here would block onboarding entirely instead of falling through to
-    // the name prompt.
-    final bool canDismiss =
-        !widget.mandatory || _state == _SheetState.notServiceable;
+    final bool canDismiss = !widget.mandatory;
 
     return PopScope(
       // Blocks the Android back gesture/button too — isDismissible/enableDrag
       // passed to showModalBottomSheet only cover tap-outside and the
       // framework's own built-in swipe-down, so without this a "mandatory"
-      // sheet would still have a dismiss path left open. enableDrag is
-      // fixed false for mandatory sheets at the showModalBottomSheet call
-      // site (see showLocationPromptSheet above) since it can't be changed
-      // per-state after the sheet is already showing, so the not-serviceable
-      // swipe-down instead goes through the manual GestureDetector below,
-      // gated by this same canDismiss.
+      // sheet would still have a dismiss path left open.
       canPop: canDismiss,
       child: GestureDetector(
         onVerticalDragEnd: _onSwipeDismiss,
@@ -272,11 +265,6 @@ class _LocationPromptSheetState extends ConsumerState<_LocationPromptSheet> {
                 ),
               ),
 
-              if (_state == _SheetState.notServiceable)
-                _NotServiceableContent(
-                  onAddManually: _onAddManually,
-                )
-              else
               Padding(
                 padding: EdgeInsets.fromLTRB(24.w, 16.h, 24.w, 36.h),
                 child: Column(
@@ -583,100 +571,4 @@ class _PillButton extends StatelessWidget {
   }
 }
 
-enum _SheetState { idle, loading, success, notServiceable }
-
-/// Replaces the sheet's whole body when the detected location isn't
-/// serviceable — no shop covers it, so "Enable" again would just detect the
-/// same unserviceable spot. Swiping down (see _onSwipeDismiss) or the close
-/// button (now shown for this state even on an otherwise-mandatory sheet)
-/// are the only ways forward; whichever the customer uses, HomeScreen's
-/// _maybeShowLocationPrompt sees a null result and falls through to
-/// _maybeShowNamePrompt so onboarding still completes without an address.
-class _NotServiceableContent extends StatelessWidget {
-  const _NotServiceableContent({required this.onAddManually});
-
-  final VoidCallback onAddManually;
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: EdgeInsets.fromLTRB(24.w, 16.h, 24.w, 36.h),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        mainAxisSize: MainAxisSize.min,
-        children: <Widget>[
-          Row(
-            children: <Widget>[
-              Container(
-                width: 52.w,
-                height: 52.w,
-                decoration: const BoxDecoration(
-                  color: Color(0xFFFFF3CD),
-                  shape: BoxShape.circle,
-                ),
-                child: Center(
-                  child: PhosphorIcon(
-                    PhosphorIcons.gpsSlashBold,
-                    size: 26.sp,
-                    color: const Color(0xFF856404),
-                  ),
-                ),
-              ),
-              Gap(14.w),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: <Widget>[
-                    Text(
-                      "We don't deliver here yet",
-                      style: AppTextStyles.h2.copyWith(
-                        fontSize: 18.sp,
-                        fontWeight: FontWeight.w800,
-                        height: 1.2,
-                      ),
-                    ),
-                    Gap(3.h),
-                    Text(
-                      "Bakaloo isn't available at this location yet.",
-                      style: AppTextStyles.bodyMedium.copyWith(
-                        fontSize: 12.5.sp,
-                        color: AppColors.textSecondary,
-                        height: 1.3,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-          Gap(20.h),
-          _ActionRow(
-            onTap: onAddManually,
-            leading: PhosphorIcon(
-              PhosphorIcons.plusCircleFill,
-              size: 20.sp,
-              color: AppColors.textSecondary,
-            ),
-            title: 'Try a different address',
-            subtitle: 'Check availability at another location',
-            trailing: Icon(
-              Icons.chevron_right_rounded,
-              size: 20.sp,
-              color: AppColors.textTertiary,
-            ),
-          ),
-          Gap(18.h),
-          Center(
-            child: Text(
-              'Swipe down to continue without an address',
-              style: AppTextStyles.bodyMedium.copyWith(
-                fontSize: 12.sp,
-                color: AppColors.textTertiary,
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
+enum _SheetState { idle, loading, success }

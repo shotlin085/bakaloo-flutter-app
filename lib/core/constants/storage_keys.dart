@@ -22,6 +22,8 @@ class StorageKeys {
   static const lastFcmToken = 'last_fcm_token';
   static const themeMode = 'theme_mode';
   static const hideSensitiveItems = 'hide_sensitive_items';
+  static const nonServiceableLocationDetected =
+      'non_serviceable_location_detected';
 
   static const cacheCategories = 'cache_categories';
   static const cacheFeatured = 'cache_featured';

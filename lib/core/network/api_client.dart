@@ -58,6 +58,28 @@ abstract class ApiClient {
   @GET(ApiConstants.meStats)
   Future<HttpResponse<dynamic>> getMeStats();
 
+  @GET(ApiConstants.olaMapsStyleUrl)
+  Future<HttpResponse<dynamic>> getOlaMapsStyleUrl();
+
+  @GET(ApiConstants.olaMapsGeocode)
+  Future<HttpResponse<dynamic>> getOlaMapsGeocode(
+    @Query('address') String address,
+  );
+
+  @GET(ApiConstants.olaMapsReverseGeocode)
+  Future<HttpResponse<dynamic>> getOlaMapsReverseGeocode(
+    @Query('lat') double lat,
+    @Query('lng') double lng,
+  );
+
+  @GET(ApiConstants.olaMapsDirections)
+  Future<HttpResponse<dynamic>> getOlaMapsDirections(
+    @Query('originLat') double originLat,
+    @Query('originLng') double originLng,
+    @Query('destLat') double destLat,
+    @Query('destLng') double destLng,
+  );
+
   @GET(ApiConstants.banners)
   Future<ApiResponse<List<dynamic>>> getBanners();
 
@@ -95,6 +117,7 @@ abstract class ApiClient {
   @GET(ApiConstants.cartSummary)
   Future<ApiResponse<BillSummaryEntity>> getCartSummary({
     @Query('quickDeliverySelected') bool quickDeliverySelected = false,
+    @Query('addressId') String? addressId,
   });
 
   @GET(ApiConstants.cartQuickAdd)
@@ -204,6 +227,11 @@ abstract class ApiClient {
   Future<HttpResponse<dynamic>> getPaymentHistory(
     @Query('page') int page,
     @Query('limit') int limit,
+  );
+
+  @GET('/payments/status/{razorpayOrderId}')
+  Future<HttpResponse<dynamic>> getPaymentStatus(
+    @Path('razorpayOrderId') String razorpayOrderId,
   );
 
   @GET(ApiConstants.wallet)
@@ -321,6 +349,21 @@ abstract class ApiClient {
   Future<HttpResponse<dynamic>> getMyReviews(
     @Query('page') int page,
     @Query('limit') int limit,
+  );
+
+  @POST(ApiConstants.refundRequests)
+  Future<HttpResponse<dynamic>> createRefundRequest(
+    @Body() Map<String, dynamic> body,
+  );
+
+  @GET('/refund-requests/order/{orderId}')
+  Future<HttpResponse<dynamic>> getRefundRequestByOrder(
+    @Path('orderId') String orderId,
+  );
+
+  @POST('/refund-requests/{id}/cancel')
+  Future<HttpResponse<dynamic>> cancelRefundRequest(
+    @Path('id') String id,
   );
 
   @GET(ApiConstants.productsFeatured)
