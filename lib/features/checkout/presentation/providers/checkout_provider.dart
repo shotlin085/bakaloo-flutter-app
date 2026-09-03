@@ -24,6 +24,7 @@ import 'package:bakaloo_flutter_app/features/checkout/domain/usecases/place_orde
 import 'package:bakaloo_flutter_app/features/checkout/presentation/providers/coupon_provider.dart';
 import 'package:bakaloo_flutter_app/features/checkout/presentation/providers/store_status_provider.dart';
 import 'package:bakaloo_flutter_app/features/payments/presentation/providers/payment_provider.dart';
+import 'package:bakaloo_flutter_app/features/wallet/presentation/providers/wallet_provider.dart';
 import 'package:bakaloo_flutter_app/routing/app_router.dart';
 
 part 'checkout_provider.freezed.dart';
@@ -464,6 +465,15 @@ class CheckoutNotifier extends _$CheckoutNotifier {
       // and navigate to the order success screen ourselves, mirroring what
       // payment_provider does for online once its gateway confirms success.
       ref.invalidate(cartProvider);
+      // Wallet balance is deducted server-side the instant the order is
+      // placed (whenever useWallet was on, whether it covered the whole
+      // total or just a slice of it) — without this, every wallet UI spot
+      // (home pill, wallet screen, checkout toggle) kept showing the
+      // pre-order balance until something unrelated (a topup, a manual
+      // wallet-screen visit) happened to invalidate it.
+      if (state.useWallet) {
+        ref.invalidate(walletProvider);
+      }
       resetForNewOrder();
       ref.read(appRouterProvider).go('/orders/success/${order.id}');
     }
@@ -520,6 +530,9 @@ class CheckoutNotifier extends _$CheckoutNotifier {
 
   void _onPaymentConfirmedDuringCancel(String orderId) {
     ref.invalidate(cartProvider);
+    if (state.useWallet) {
+      ref.invalidate(walletProvider);
+    }
     resetForNewOrder();
     ref.read(appRouterProvider).go('/orders/success/$orderId');
   }

@@ -288,7 +288,12 @@ class _WalletPill extends ConsumerWidget {
     // FIX: Use walletProvider (WalletNotifier, keepAlive) so the pill shows
     // the same balance already loaded by the wallet screen/profile — no
     // separate fetch, no independent error state.
-    final balance = ref.watch(walletProvider).asData?.value.balance;
+    // `.value` (not `.asData?.value`) so the pill keeps showing the last
+    // known balance while a refetch is in flight (e.g. right after a
+    // wallet-funded order invalidates this provider) instead of vanishing —
+    // `.asData` is strictly null during AsyncLoading even when the loading
+    // state is carrying forward a previous value.
+    final balance = ref.watch(walletProvider).value?.balance;
     if (balance == null || balance <= 0) return const SizedBox.shrink();
 
     return Container(

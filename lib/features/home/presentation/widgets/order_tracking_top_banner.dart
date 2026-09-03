@@ -9,7 +9,7 @@ import 'package:bakaloo_flutter_app/features/notifications/presentation/provider
 import 'package:bakaloo_flutter_app/features/orders/domain/entities/order_timeline_entity.dart';
 import 'package:bakaloo_flutter_app/features/orders/presentation/providers/active_order_provider.dart';
 
-const Color kOrderBannerPurple = Color(0xFF6C4DFF);
+const Color kOrderBannerBackground = Color(0xFFFFFFFF);
 
 /// The order-notification-settings timeline-type key each status maps to,
 /// for looking it up in [orderNotificationFlagsProvider]'s flag map — kept
@@ -145,7 +145,7 @@ final orderTrackingBannerProvider =
   OrderTrackingBannerController.new,
 );
 
-/// A structural — not floating — purple strip shown at the very top of the
+/// A structural — not floating — strip shown at the very top of the
 /// Home screen, directly above `HomeHeader`. It occupies real layout space
 /// (pushing the header down) instead of overlaying it, and collapses back
 /// to zero height a few seconds after each new status update — the header
@@ -173,7 +173,15 @@ class _OrderTrackingTopBannerState
     ref.listenManual(
       _rawOrderStatusProvider,
       (previous, next) {
-        ref.read(orderTrackingBannerProvider.notifier).sync(next.message, next.key);
+        // Deferred: `fireImmediately` invokes this synchronously from
+        // initState, and mutating a provider mid-build throws "Tried to
+        // modify a provider while the widget tree was building." A
+        // microtask runs right after the current build finishes, which is
+        // early enough that the banner still appears with no visible delay.
+        Future.microtask(() {
+          if (!mounted) return;
+          ref.read(orderTrackingBannerProvider.notifier).sync(next.message, next.key);
+        });
       },
       fireImmediately: true,
     );
@@ -216,8 +224,8 @@ class _BannerBody extends StatelessWidget {
         clipper: const _ScallopedWaveClipper(),
         child: Container(
           width: double.infinity,
-          padding: EdgeInsets.fromLTRB(20.w, topInset + 12.h, 20.w, 26.h),
-          color: kOrderBannerPurple,
+          padding: EdgeInsets.fromLTRB(20.w, topInset + 12.h, 20.w, 20.h),
+          color: kOrderBannerBackground,
           alignment: Alignment.center,
           child: Text(
             message,
@@ -228,7 +236,7 @@ class _BannerBody extends StatelessWidget {
               fontFamily: 'Poppins',
               fontWeight: FontWeight.w700,
               fontSize: 15.5.sp,
-              color: Colors.white,
+              color: Colors.black,
               height: 1.25,
             ),
           ),
@@ -241,7 +249,7 @@ class _BannerBody extends StatelessWidget {
 /// Repeating scalloped bottom edge — several soft bumps across the width,
 /// matching the reference design's wavy bottom border.
 class _ScallopedWaveClipper extends CustomClipper<Path> {
-  const _ScallopedWaveClipper({this.waveCount = 5, this.waveHeight = 12});
+  const _ScallopedWaveClipper({this.waveCount = 7, this.waveHeight = 8});
 
   final int waveCount;
   final double waveHeight;

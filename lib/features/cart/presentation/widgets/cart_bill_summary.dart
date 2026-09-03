@@ -20,6 +20,7 @@ class CartBillSummary extends StatelessWidget {
   static const Color _ink = Color(0xFF222222);
   static const Color _muted = Color(0xFF888888);
   static const Color _green = Color(0xFF0AC26B);
+  static const Color _neonRed = Color(0xFFFF1E1E);
   static const Color _divider = Color(0xFFF0F0F0);
 
   /// Fee codes already rendered via dedicated typed fields above — anything
@@ -240,7 +241,7 @@ class CartBillSummary extends StatelessWidget {
                   icon: PhosphorIcons.info,
                   text: summary.smallCartFee.description ??
                       'Applied to smaller orders. Add a few more items to avoid this fee.',
-                  color: _muted,
+                  color: _neonRed,
                 ),
                 Gap(14.h),
               ],

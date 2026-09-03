@@ -27,6 +27,8 @@ abstract class NotificationRepository {
 
   Future<Either<Failure, Unit>> markAllRead();
 
+  Future<Either<Failure, Unit>> markCampaignOpened(String campaignId);
+
   Future<Either<Failure, Unit>> deleteNotification(String notificationId);
 
   Future<Either<Failure, NotificationPreferenceEntity>> getPreferences();

@@ -48,12 +48,16 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen>
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
-    // Eagerly trigger wallet fetch so balance is ready when the payment
-    // section renders. Uses walletProvider (keepAlive WalletNotifier) so
-    // the same fetch is shared with the wallet screen — no duplicate requests.
+    // Refresh wallet balance every time checkout opens — this is the
+    // screen that decides how much wallet gets applied to the order, so it
+    // must never show a value stale enough to promise more than the
+    // customer actually has. A plain `.future` read only warms the
+    // keepAlive provider the first time; it wouldn't refetch a balance that
+    // changed server-side (admin credit, refund, cashback) since it was
+    // last built this session.
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) {
-        ref.read(walletProvider.future).ignore();
+        unawaited(ref.read(walletProvider.notifier).refreshWallet());
       }
     });
     // Refresh the address list every time checkout opens. addressProvider
@@ -87,6 +91,9 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen>
       // own next scheduled tick, or leaving the customer stuck if no poll
       // ever started (e.g. onExternalWallet with the app then killed).
       ref.read(paymentProvider.notifier).recheckIfPending();
+      // The wallet balance itself can also have changed while backgrounded
+      // (a topup approved, a refund landed) — refresh it too.
+      unawaited(ref.read(walletProvider.notifier).refreshWallet());
     }
   }
 
@@ -98,7 +105,10 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen>
     // separate walletBalanceProvider so balance is always available from the
     // already-loaded WalletEntity — prevents "Balance unavailable" error state.
     final walletAsync = ref.watch(walletProvider);
-    final walletBalance = walletAsync.asData?.value.balance;
+    // `.value`, not `.asData?.value` — keeps showing the last known balance
+    // while a refetch is in flight instead of flashing to ₹0 (`.asData` is
+    // null during AsyncLoading even when it's carrying a previous value).
+    final walletBalance = walletAsync.value?.balance;
     final walletLoading = walletAsync.isLoading;
     final summary = ref.read(checkoutProvider.notifier).summary;
     // Backend bill summary is the source of truth for the amount charged.

@@ -6,18 +6,18 @@ import 'package:bakaloo_flutter_app/core/constants/api_constants.dart';
 import 'package:bakaloo_flutter_app/features/checkout/presentation/providers/store_status_provider.dart';
 import 'package:bakaloo_flutter_app/shared/widgets/app_image.dart';
 
-/// "We are closed" banner — shown at the top of the home screen, right below
-/// the header and above the search bar, whenever the store is
-/// closed, driven entirely by the admin-uploaded image on the Store Hours
-/// settings page (bakaloo-backend migration 075). Renders nothing when the
-/// store is open or no image has ever been uploaded, so it never appears
+/// "We are closed" banner — shown on the home screen directly below the
+/// search bar (and above the category tabs) whenever the store is closed,
+/// driven entirely by the admin-uploaded image on the Store Hours settings
+/// page (bakaloo-backend migration 075). Renders nothing when the store is
+/// open or no image has ever been uploaded, so it never appears
 /// unexpectedly on stores that haven't configured one.
 ///
 /// The vertical breathing room below is only ever applied here, inside the
 /// "actually showing a banner" branch — a wrapping Padding at the call site
 /// in home_screen.dart would reserve that space even while this renders
 /// SizedBox.shrink() (store open / no banner configured), leaving a blank
-/// gap sitting between the header and search bar for no reason.
+/// gap sitting between the search bar and category tabs for no reason.
 class StoreClosedBanner extends ConsumerWidget {
   const StoreClosedBanner({super.key});
 

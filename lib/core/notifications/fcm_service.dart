@@ -14,6 +14,7 @@ import 'package:bakaloo_flutter_app/core/session/session_ready_gate.dart';
 import 'package:bakaloo_flutter_app/features/auth/presentation/providers/auth_notifier.dart';
 import 'package:bakaloo_flutter_app/features/auth/presentation/providers/auth_state.dart';
 import 'package:bakaloo_flutter_app/features/notifications/presentation/providers/notification_provider.dart';
+import 'package:bakaloo_flutter_app/features/wallet/presentation/providers/wallet_provider.dart';
 import 'package:bakaloo_flutter_app/routing/app_router.dart';
 
 part 'fcm_service.g.dart';
@@ -86,6 +87,39 @@ Future<void> initializeFcm(Ref ref) async {
 
   ref.watch(fcmServiceProvider).setTokenRefreshCallback(registerToken);
 
+  // Reports a tapped/opened campaign push to the backend so the admin
+  // dashboard's "Opened" column reflects real taps instead of always
+  // showing 0. Fire-and-forget: a failure here (offline, session expired
+  // between receiving and tapping the push) must never block navigation.
+  Future<void> reportCampaignOpened(String campaignId) async {
+    try {
+      await ref.read(markCampaignOpenedUseCaseProvider).call(campaignId);
+    } catch (err, stack) {
+      unawaited(
+        FirebaseCrashlytics.instance.recordError(
+          err,
+          stack,
+          reason: 'markCampaignOpened failed',
+          fatal: false,
+        ),
+      );
+    }
+  }
+
+  ref.watch(fcmServiceProvider).setCampaignOpenedCallback(
+        (campaignId) => unawaited(reportCampaignOpened(campaignId)),
+      );
+
+  // Admin credit, refund, cashback, topup-approved all arrive as a PAYMENT/
+  // WALLET push (same types NotificationRouter.getPath already routes to
+  // the wallet screen) — but a push alone never refetches the keepAlive
+  // walletProvider, so the balance stayed stale until something else
+  // happened to refresh it. Covers both the foreground (onMessage) and
+  // tap/cold-start (_handleNotificationTap) delivery paths.
+  ref.watch(fcmServiceProvider).setWalletRelatedMessageCallback(
+        () => ref.invalidate(walletProvider),
+      );
+
   ref.listen<AuthState>(
     authNotifierProvider,
     (previous, next) {
@@ -150,6 +184,7 @@ class FCMService {
       ..add(
         FirebaseMessaging.onMessage.listen((message) {
           unawaited(_localNotifications.show(message));
+          _notifyIfWalletRelated(message.data);
         }),
       )
       ..add(
@@ -192,6 +227,12 @@ class FCMService {
   }
 
   void _handleNotificationTap(Map<String, dynamic> data) {
+    final campaignId = data['campaignId'];
+    if (campaignId is String && campaignId.isNotEmpty) {
+      _campaignOpenedCallback?.call(campaignId);
+    }
+    _notifyIfWalletRelated(data);
+
     final path = NotificationRouter.getPath(data);
     if (path == null || path.isEmpty) {
       return;
@@ -226,6 +267,34 @@ class FCMService {
     if (_pendingRefreshToken != null) {
       callback(_pendingRefreshToken!);
       _pendingRefreshToken = null;
+    }
+  }
+
+  void Function(String campaignId)? _campaignOpenedCallback;
+
+  /// Called whenever a push notification carrying a `campaignId` is
+  /// tapped (foreground, background, or cold start).
+  void setCampaignOpenedCallback(void Function(String campaignId) callback) {
+    _campaignOpenedCallback = callback;
+  }
+
+  static const _walletMessageTypes = <String>{'PAYMENT', 'WALLET'};
+
+  void Function()? _walletRelatedMessageCallback;
+
+  /// Called whenever a PAYMENT/WALLET push arrives — foreground
+  /// ([FirebaseMessaging.onMessage]) or tapped ([_handleNotificationTap]) —
+  /// so the caller can refetch wallet balance.
+  void setWalletRelatedMessageCallback(void Function() callback) {
+    _walletRelatedMessageCallback = callback;
+  }
+
+  void _notifyIfWalletRelated(Map<String, dynamic> data) {
+    final type = (data['type'] ?? data['notificationType'] ?? '')
+        .toString()
+        .toUpperCase();
+    if (_walletMessageTypes.contains(type)) {
+      _walletRelatedMessageCallback?.call();
     }
   }
 }

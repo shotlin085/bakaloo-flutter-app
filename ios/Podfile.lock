@@ -174,6 +174,12 @@ PODS:
   - local_auth_darwin (0.0.1):
     - Flutter
     - FlutterMacOS
+  - location (0.0.1):
+    - Flutter
+  - MapLibre (6.28.0)
+  - maplibre_gl (0.27.0):
+    - Flutter
+    - MapLibre (= 6.28.0)
   - nanopb (3.30910.0):
     - nanopb/decode (= 3.30910.0)
     - nanopb/encode (= 3.30910.0)
@@ -182,8 +188,6 @@ PODS:
   - open_file_ios (1.0.3):
     - Flutter
   - package_info_plus (0.4.5):
-    - Flutter
-  - permission_handler_apple (9.3.0):
     - Flutter
   - PromisesObjC (2.4.1)
   - PromisesSwift (2.4.1):
@@ -230,9 +234,10 @@ DEPENDENCIES:
   - http_certificate_pinning (from `.symlinks/plugins/http_certificate_pinning/ios`)
   - in_app_review (from `.symlinks/plugins/in_app_review/ios`)
   - local_auth_darwin (from `.symlinks/plugins/local_auth_darwin/darwin`)
+  - location (from `.symlinks/plugins/location/ios`)
+  - maplibre_gl (from `.symlinks/plugins/maplibre_gl/ios`)
   - open_file_ios (from `.symlinks/plugins/open_file_ios/ios`)
   - package_info_plus (from `.symlinks/plugins/package_info_plus/ios`)
-  - permission_handler_apple (from `.symlinks/plugins/permission_handler_apple/ios`)
   - razorpay_flutter (from `.symlinks/plugins/razorpay_flutter/ios`)
   - share_plus (from `.symlinks/plugins/share_plus/ios`)
   - shared_preferences_foundation (from `.symlinks/plugins/shared_preferences_foundation/darwin`)
@@ -263,6 +268,7 @@ SPEC REPOS:
     - GoogleDataTransport
     - GoogleUtilities
     - IOSSecuritySuite
+    - MapLibre
     - nanopb
     - PromisesObjC
     - PromisesSwift
@@ -300,12 +306,14 @@ EXTERNAL SOURCES:
     :path: ".symlinks/plugins/in_app_review/ios"
   local_auth_darwin:
     :path: ".symlinks/plugins/local_auth_darwin/darwin"
+  location:
+    :path: ".symlinks/plugins/location/ios"
+  maplibre_gl:
+    :path: ".symlinks/plugins/maplibre_gl/ios"
   open_file_ios:
     :path: ".symlinks/plugins/open_file_ios/ios"
   package_info_plus:
     :path: ".symlinks/plugins/package_info_plus/ios"
-  permission_handler_apple:
-    :path: ".symlinks/plugins/permission_handler_apple/ios"
   razorpay_flutter:
     :path: ".symlinks/plugins/razorpay_flutter/ios"
   share_plus:
@@ -358,10 +366,12 @@ SPEC CHECKSUMS:
   in_app_review: 7dd1ea365263f834b8464673f9df72c80c17c937
   IOSSecuritySuite: ba76f34cb367b9230934ac37904e26a40d033e3d
   local_auth_darwin: c3ee6cce0a8d56be34c8ccb66ba31f7f180aaebb
+  location: 155caecf9da4f280ab5fe4a55f94ceccfab838f8
+  MapLibre: 502506f9abd57330f11c19328217be3b121c3f13
+  maplibre_gl: ad68f3f1213b4dd48a9961adc6607681eea7c456
   nanopb: fad817b59e0457d11a5dfbde799381cd727c1275
   open_file_ios: 46184d802ee7959203f6392abcfa0dd49fdb5be0
   package_info_plus: af8e2ca6888548050f16fa2f1938db7b5a5df499
-  permission_handler_apple: 4ed2196e43d0651e8ff7ca3483a069d469701f2d
   PromisesObjC: 752c3227f599e3467650e47ea36f433eeb10c273
   PromisesSwift: 217dea0fd5d2ad65222a109c48698add13cc1c5b
   razorpay-core-pod: c7f3ac3d214c1a7fac4e9a59c1de7eac02130573

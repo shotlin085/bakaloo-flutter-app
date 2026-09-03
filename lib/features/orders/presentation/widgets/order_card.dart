@@ -174,7 +174,10 @@ class _OrderMeta extends StatelessWidget {
               ),
             ),
             SizedBox(width: 8.w),
-            OrderStatusPill(status: order.status),
+            OrderStatusPill(
+              status: order.status,
+              isPaymentFailed: order.isPaymentFailed,
+            ),
           ],
         ),
         SizedBox(height: 6.h),

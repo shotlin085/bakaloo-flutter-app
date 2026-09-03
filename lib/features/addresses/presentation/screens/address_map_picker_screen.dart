@@ -15,7 +15,9 @@ import 'package:bakaloo_flutter_app/core/theme/app_dimensions.dart';
 import 'package:bakaloo_flutter_app/core/theme/app_shadows.dart';
 import 'package:bakaloo_flutter_app/core/theme/app_text_styles.dart';
 import 'package:bakaloo_flutter_app/core/utils/debouncer.dart';
+import 'package:bakaloo_flutter_app/core/utils/location_service_resolver.dart';
 import 'package:bakaloo_flutter_app/core/utils/resilient_location.dart';
+import 'package:bakaloo_flutter_app/features/location/presentation/widgets/location_permission_denied_dialog.dart';
 
 class AddressMapPickerScreen extends ConsumerStatefulWidget {
   const AddressMapPickerScreen({
@@ -421,18 +423,45 @@ class _AddressMapPickerScreenState extends ConsumerState<AddressMapPickerScreen>
     });
 
     try {
-      final serviceEnabled = await Geolocator.isLocationServiceEnabled();
+      var serviceEnabled = await Geolocator.isLocationServiceEnabled();
       if (!serviceEnabled) {
-        throw Exception('Location services are turned off.');
+        // Same native "Turn on Location Accuracy" in-app resolution dialog
+        // used by location_prompt_sheet.dart (and now the address form's
+        // own "use current location" button) — rather than a dead-end
+        // "location services are off" snackbar with nothing to do about it.
+        serviceEnabled = await requestEnableLocationService();
+        if (!mounted) {
+          return;
+        }
+        if (!serviceEnabled) {
+          throw Exception('Location services are turned off.');
+        }
       }
 
-      var permission = await Geolocator.checkPermission();
+      if (!mounted) {
+        return;
+      }
+
+      // resolveLocationPermission also handles the deniedForever case —
+      // iOS makes a single denial permanent, so its system prompt will
+      // never appear again for this install — by offering a Settings
+      // dialog and, if taken, waiting for the customer to actually come
+      // back before re-checking, so granting it there is picked up right
+      // away instead of requiring a second tap of this crosshair button.
+      final permission = await resolveLocationPermission(context);
+      if (!mounted) {
+        return;
+      }
+
+      if (permission == LocationPermission.deniedForever) {
+        // Customer either dismissed the Settings dialog or came back still
+        // denied — resolveLocationPermission already gave them the one
+        // chance to fix it; nothing left to do without looping a second
+        // dialog on them right away.
+        return;
+      }
+
       if (permission == LocationPermission.denied) {
-        permission = await Geolocator.requestPermission();
-      }
-
-      if (permission == LocationPermission.denied ||
-          permission == LocationPermission.deniedForever) {
         throw Exception('Location permission is required.');
       }
 

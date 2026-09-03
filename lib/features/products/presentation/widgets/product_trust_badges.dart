@@ -29,15 +29,7 @@ class ProductTrustBadges extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: <Widget>[
-          if (product.hasNoReturn)
-            TrustBadgeCard(
-              icon: _IconBadge(
-                icon: PhosphorIcons.package,
-              ),
-              title: 'No Exchange or Return',
-              subtitle:
-                  'This item is not eligible for exchange or return after delivery.',
-            ),
+          _returnPolicyBadge(product.returnPolicy),
           if (product.isAuthentic)
             TrustBadgeCard(
               icon: _IconBadge(
@@ -57,6 +49,34 @@ class ProductTrustBadges extends StatelessWidget {
         ],
       ),
     );
+  }
+}
+
+/// Maps the dashboard's return-policy dropdown ('instant', '7_day',
+/// 'no_return' — see bakaloo-backend's products.schema.js) to its own
+/// badge, so every policy is represented instead of only 'no_return'.
+Widget _returnPolicyBadge(String returnPolicy) {
+  switch (returnPolicy) {
+    case 'instant':
+      return TrustBadgeCard(
+        icon: _IconBadge(icon: PhosphorIcons.lightning),
+        title: 'Instant Return',
+        subtitle: 'Not satisfied? Get an instant return at your doorstep.',
+      );
+    case '7_day':
+      return TrustBadgeCard(
+        icon: _IconBadge(icon: PhosphorIcons.calendarCheck),
+        title: '7-Day Return',
+        subtitle: 'Eligible for return within 7 days of delivery.',
+      );
+    case 'no_return':
+    default:
+      return TrustBadgeCard(
+        icon: _IconBadge(icon: PhosphorIcons.package),
+        title: 'No Exchange or Return',
+        subtitle:
+            'This item is not eligible for exchange or return after delivery.',
+      );
   }
 }
 

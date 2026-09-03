@@ -6,7 +6,6 @@ import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:gap/gap.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:maplibre_gl/maplibre_gl.dart';
-import 'package:permission_handler/permission_handler.dart';
 import 'package:phosphoricons_flutter/phosphoricons_flutter.dart';
 
 import 'package:bakaloo_flutter_app/core/maps/geo_point.dart';
@@ -17,6 +16,7 @@ import 'package:bakaloo_flutter_app/core/theme/app_shadows.dart';
 import 'package:bakaloo_flutter_app/core/theme/app_text_styles.dart';
 import 'package:bakaloo_flutter_app/core/utils/app_toast.dart';
 import 'package:bakaloo_flutter_app/core/utils/debouncer.dart';
+import 'package:bakaloo_flutter_app/core/utils/location_service_resolver.dart';
 import 'package:bakaloo_flutter_app/core/utils/resilient_location.dart';
 import 'package:bakaloo_flutter_app/core/utils/validators.dart';
 import 'package:bakaloo_flutter_app/features/addresses/domain/entities/address_entity.dart';
@@ -25,6 +25,7 @@ import 'package:bakaloo_flutter_app/features/addresses/presentation/providers/ad
 import 'package:bakaloo_flutter_app/features/addresses/presentation/screens/address_map_picker_screen.dart';
 import 'package:bakaloo_flutter_app/features/auth/presentation/providers/auth_notifier.dart';
 import 'package:bakaloo_flutter_app/features/auth/presentation/providers/auth_state.dart';
+import 'package:bakaloo_flutter_app/features/location/presentation/widgets/location_permission_denied_dialog.dart';
 import 'package:bakaloo_flutter_app/features/products/presentation/widgets/show_product_options.dart';
 
 class AddEditAddressScreen extends ConsumerStatefulWidget {
@@ -131,8 +132,8 @@ class _AddEditAddressScreenState extends ConsumerState<AddEditAddressScreen> {
     // A brand-new address has no pin yet — most first-time customers don't
     // know they need to tap the crosshair button on the map, so auto-fire
     // the exact same current-location flow that button triggers as soon as
-    // this screen opens. Permission_handler only shows the system prompt
-    // when permission is still undetermined; if it's already granted this
+    // this screen opens. Geolocator only shows the system prompt when
+    // permission is still undetermined; if it's already granted this
     // resolves silently with no dialog. The user still lands on the map
     // picker to confirm/adjust the pin before anything is saved.
     if (!_isEditing && !_hasPinnedLocation) {
@@ -344,26 +345,69 @@ class _AddEditAddressScreenState extends ConsumerState<AddEditAddressScreen> {
     });
 
     try {
-      final permission = await Permission.locationWhenInUse.request();
+      // Deliberately geolocator end-to-end, matching every other location
+      // call-site in this app (address_map_picker_screen.dart,
+      // location_prompt_provider.dart, etc). This used to go through
+      // permission_handler instead — the only call to it anywhere in
+      // lib/ — and mixing it with geolocator was the root cause of a real
+      // iOS-only bug: permission_handler and geolocator each stand up their
+      // own separate native CLLocationManager/delegate, and two of those
+      // racing for the same one-shot iOS authorization prompt could leave
+      // the request never resolving and the system dialog never appearing
+      // at all — while Android has no equivalent failure mode, since
+      // permission results there broadcast through
+      // Activity.onRequestPermissionsResult, which multiple plugins can
+      // listen to independently. Reported: "iOS not working... Android
+      // perfectly working."
+      //
+      // resolveLocationPermission also handles the deniedForever case —
+      // iOS makes a single denial permanent, so its system prompt above
+      // will never appear again for this install — by offering a Settings
+      // dialog and, if taken, waiting for the customer to actually come
+      // back before re-checking, so granting it there is picked up
+      // immediately instead of requiring a second tap of this same
+      // button. Reported: "next time not... coming... enable automatic...
+      // location pop-up... that also pop-up not coming."
+      final permission = await resolveLocationPermission(context);
       if (!mounted) {
         return;
       }
 
-      if (!permission.isGranted) {
+      if (permission == LocationPermission.deniedForever) {
+        // Customer either dismissed the Settings dialog or came back still
+        // denied — resolveLocationPermission already gave them the one
+        // chance to fix it; nothing left to do without looping a second
+        // dialog on them right away.
+        return;
+      }
+
+      if (permission == LocationPermission.denied) {
         AppToast.show(context,
             '📍 Location permission is required to detect your location.',
             type: ToastType.warning);
         return;
       }
 
-      final serviceEnabled = await Geolocator.isLocationServiceEnabled();
+      var serviceEnabled = await Geolocator.isLocationServiceEnabled();
       if (!mounted) {
         return;
       }
       if (!serviceEnabled) {
-        AppToast.show(context, '📍 Turn on location services and try again.',
-            type: ToastType.warning);
-        return;
+        // Show the native "Turn on Location Accuracy" resolution dialog
+        // in-app (Android) instead of just telling the customer to go turn
+        // it on themselves — same Blinkit/Zomato-style fix already applied
+        // to location_prompt_sheet.dart, which this "use current location"
+        // button on the address form never got.
+        serviceEnabled = await requestEnableLocationService();
+        if (!mounted) {
+          return;
+        }
+        if (!serviceEnabled) {
+          AppToast.show(
+              context, '📍 Turn on location services and try again.',
+              type: ToastType.warning);
+          return;
+        }
       }
 
       final position = await getResilientCurrentPosition();

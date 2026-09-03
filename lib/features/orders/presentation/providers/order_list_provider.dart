@@ -21,6 +21,7 @@ enum OrderFilter {
   active,
   delivered,
   cancelled,
+  failed,
 }
 
 extension OrderFilterX on OrderFilter {
@@ -29,13 +30,19 @@ extension OrderFilterX on OrderFilter {
         OrderFilter.active => 'Active',
         OrderFilter.delivered => 'Delivered',
         OrderFilter.cancelled => 'Cancelled',
+        OrderFilter.failed => 'Failed',
       };
 
   String? get statusParam => switch (this) {
-        OrderFilter.all || OrderFilter.active => null,
+        OrderFilter.all || OrderFilter.active || OrderFilter.failed => null,
         OrderFilter.delivered => 'DELIVERED',
         OrderFilter.cancelled => 'CANCELLED',
       };
+
+  // Isolates expired/failed-payment cancellations into their own tab,
+  // removed from All/Cancelled (see orders.repository.js#findByUser on the
+  // backend) — never mixed in with a plain user/admin cancellation.
+  bool get isPaymentFailedOnly => this == OrderFilter.failed;
 }
 
 final orderRemoteDataSourceProvider =
@@ -133,6 +140,7 @@ class OrderListController {
           page: page,
           limit: limit,
           status: filter.statusParam,
+          paymentFailed: filter.isPaymentFailedOnly,
         );
 
     if (filter != OrderFilter.all || page != 1) {

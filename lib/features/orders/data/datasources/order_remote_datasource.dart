@@ -15,13 +15,18 @@ class OrderRemoteDataSource {
     required int page,
     required int limit,
     String? status,
+    bool paymentFailed = false,
   }) async {
     final response = await _dio.get<dynamic>(
       ApiConstants.orders,
       queryParameters: <String, dynamic>{
         'page': page,
         'limit': limit,
+        // paymentFailed overrides status server-side (see
+        // orders.repository.js#findByUser) — send status too, harmlessly
+        // ignored, so callers don't need to remember to omit it.
         if (status != null && status.trim().isNotEmpty) 'status': status,
+        if (paymentFailed) 'paymentFailed': true,
       },
     );
     final payload = _parsePayload(response.data, ApiConstants.orders);

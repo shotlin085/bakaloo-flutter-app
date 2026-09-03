@@ -55,6 +55,10 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       unawaited(ref.read(profileProvider.notifier).fetchProfile());
       ref.invalidate(userStatsProvider);
+      // Wallet balance can change server-side (admin credit, refund,
+      // cashback) without this app ever knowing — refetch every time the
+      // profile screen (which shows the wallet balance) opens.
+      unawaited(ref.read(walletProvider.notifier).refreshWallet());
     });
   }
 
@@ -184,14 +188,6 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                               builder: (_) => const CouponsScreen(),
                             ),
                           );
-                        },
-                      ),
-                      _divider(),
-                      MenuTile(
-                        icon: PhosphorIcons.creditCardLight,
-                        label: 'Payment settings',
-                        onTap: () {
-                          AppToast.show(context, '🚀 Coming soon!', type: ToastType.info);
                         },
                       ),
                     ],
@@ -529,22 +525,24 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
 
   // FIX: Now receives AsyncValue<WalletEntity> from walletProvider instead of
   // AsyncValue<double> from the auto-dispose walletBalanceProvider.
+  //
+  // Reads `.value` (not `.when`'s `loading:`/`data:` branches) so a reload —
+  // e.g. the invalidate this screen's own initState triggers, or one fired
+  // after a wallet-funded order — keeps showing the last known balance
+  // instead of flashing back to '...' (`.when`'s `loading:` branch fires on
+  // every AsyncLoading state regardless of whether it's carrying a previous
+  // value forward).
   String _walletLabel(AsyncValue<dynamic> walletAsync) {
-    return walletAsync.when(
-      data: (wallet) {
-        // walletProvider returns WalletEntity with .balance field.
-        if (wallet is WalletEntity) {
-          return wallet.balance.toInrCurrency;
-        }
-        // Fallback: if somehow a double slips through.
-        if (wallet is double) {
-          return wallet.toInrCurrency;
-        }
-        return '...';
-      },
-      error: (_, __) => '--',
-      loading: () => '...',
-    );
+    final wallet = walletAsync.value;
+    // walletProvider returns WalletEntity with .balance field.
+    if (wallet is WalletEntity) {
+      return wallet.balance.toInrCurrency;
+    }
+    // Fallback: if somehow a double slips through.
+    if (wallet is double) {
+      return wallet.toInrCurrency;
+    }
+    return walletAsync.hasError ? '--' : '...';
   }
 
   Future<void> _loadAppVersion() async {

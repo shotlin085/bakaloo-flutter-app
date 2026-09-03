@@ -121,7 +121,7 @@ class _ProfileHeaderState extends ConsumerState<ProfileHeader> {
   String get _displayName {
     final trimmed = widget.name?.trim();
     if (trimmed == null || trimmed.isEmpty) {
-      return 'there';
+      return 'Bakaloo Customer';
     }
     return trimmed;
   }

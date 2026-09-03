@@ -19,7 +19,6 @@ class RouteNames {
   static const wishlist = '/profile/wishlist';
   static const addresses = '/profile/addresses';
   static const addAddress = '/profile/addresses/add';
-  static const olaMapTest = '/profile/addresses/ola-map-test';
   static const notifications = '/profile/notifications';
   static const productDetail = '/product/:productId';
   static const search = '/search';

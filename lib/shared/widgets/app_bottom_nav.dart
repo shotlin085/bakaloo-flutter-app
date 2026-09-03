@@ -20,6 +20,7 @@ import 'package:bakaloo_flutter_app/features/notifications/presentation/provider
 import 'package:bakaloo_flutter_app/features/notifications/presentation/providers/unread_count_provider.dart';
 import 'package:bakaloo_flutter_app/features/orders/presentation/providers/order_live_sync_provider.dart';
 import 'package:bakaloo_flutter_app/features/tracking/presentation/providers/order_status_stream_provider.dart';
+import 'package:bakaloo_flutter_app/features/wallet/presentation/providers/wallet_provider.dart';
 import 'package:bakaloo_flutter_app/routing/route_access.dart';
 import 'package:bakaloo_flutter_app/routing/route_names.dart';
 import 'package:bakaloo_flutter_app/features/products/presentation/widgets/show_product_options.dart';
@@ -134,6 +135,17 @@ class _AppShellState extends ConsumerState<AppShell>
         next.whenData((event) {
           ref.read(notificationProvider.notifier).addSocketNotification(event);
           ref.invalidate(unreadCountProvider);
+          // Admin credit, refund, cashback, topup-approved — all arrive as
+          // this same generic push with type PAYMENT/WALLET (see
+          // NotificationRouter.getPath's routing for those types to the
+          // wallet screen). Nothing else invalidates the keepAlive
+          // walletProvider in response to a backend-initiated balance
+          // change, so without this the balance only catches up the next
+          // time some other screen happens to refetch it.
+          const walletNotificationTypes = <String>{'PAYMENT', 'WALLET'};
+          if (walletNotificationTypes.contains(event.type.toUpperCase())) {
+            ref.invalidate(walletProvider);
+          }
           // Order/rider status pushes are already surfaced by the purple
           // OrderTrackingTopBanner on the Home screen (driven by the same
           // underlying order-status change) — showing this generic banner
@@ -544,7 +556,7 @@ class _SmartBottomBar extends StatelessWidget {
   final _SmartBarState state;
   final VoidCallback onTap;
 
-  static const Color _barColor = Color(0xFF6C4DFF);
+  static const Color _barColor = Color(0xFF6F37B3);
   static const Color _successColor = Color(0xFF12B76A);
 
   @override

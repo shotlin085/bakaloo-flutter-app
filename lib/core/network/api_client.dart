@@ -426,6 +426,12 @@ abstract class ApiClient {
     @Body() Map<String, dynamic> body = const <String, dynamic>{},
   ]);
 
+  @PATCH('/notifications/campaigns/{campaignId}/opened')
+  Future<HttpResponse<dynamic>> markCampaignOpened(
+    @Path('campaignId') String campaignId, [
+    @Body() Map<String, dynamic> body = const <String, dynamic>{},
+  ]);
+
   @DELETE('/notifications/{id}')
   Future<HttpResponse<dynamic>> deleteNotification(
     @Path('id') String id,

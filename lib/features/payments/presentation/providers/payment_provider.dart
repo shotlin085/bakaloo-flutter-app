@@ -10,6 +10,7 @@ import 'package:bakaloo_flutter_app/core/analytics/analytics_service.dart';
 import 'package:bakaloo_flutter_app/core/constants/api_constants.dart';
 import 'package:bakaloo_flutter_app/core/di/providers.dart';
 import 'package:bakaloo_flutter_app/features/auth/domain/entities/user_entity.dart';
+import 'package:bakaloo_flutter_app/features/cart/presentation/providers/cart_enhancement_providers.dart';
 import 'package:bakaloo_flutter_app/features/cart/presentation/providers/cart_provider.dart';
 import 'package:bakaloo_flutter_app/features/checkout/domain/repositories/checkout_repository.dart';
 import 'package:bakaloo_flutter_app/features/checkout/presentation/providers/checkout_provider.dart';
@@ -22,6 +23,7 @@ import 'package:bakaloo_flutter_app/features/payments/domain/usecases/create_pay
 import 'package:bakaloo_flutter_app/features/payments/domain/usecases/get_history.dart';
 import 'package:bakaloo_flutter_app/features/payments/domain/usecases/verify_payment.dart';
 import 'package:bakaloo_flutter_app/features/payments/presentation/service/razorpay_service.dart';
+import 'package:bakaloo_flutter_app/features/wallet/presentation/providers/wallet_provider.dart';
 import 'package:bakaloo_flutter_app/routing/app_router.dart';
 
 part 'payment_provider.freezed.dart';
@@ -334,6 +336,12 @@ class PaymentNotifier extends _$PaymentNotifier {
       },
       (payment) {
         ref.invalidate(cartProvider); // Clear cart ONLY after confirmed payment
+        // A partial wallet + online order deducted the wallet slice the
+        // instant the order was placed, before Razorpay ever opened — read
+        // useWallet before resetForNewOrder() clears it below.
+        if (ref.read(checkoutProvider).useWallet) {
+          ref.invalidate(walletProvider);
+        }
         ref.read(checkoutProvider.notifier).resetForNewOrder();
         state = PaymentState.idle().copyWith(lastPayment: payment);
         unawaited(
@@ -401,14 +409,7 @@ class PaymentNotifier extends _$PaymentNotifier {
     final razorpayOrderId = state.activeRazorpayOrderId;
 
     if (response.code == Razorpay.PAYMENT_CANCELLED) {
-      if (orderId != null) {
-        unawaited(
-          _cancelPendingOrder(orderId, reason: 'Payment cancelled by user'),
-        );
-      }
-      state = PaymentState.idle().copyWith(
-        errorMessage: 'Payment cancelled. You can try again.',
-      );
+      unawaited(_finishCancelledPayment(orderId));
       return;
     }
 
@@ -423,6 +424,42 @@ class PaymentNotifier extends _$PaymentNotifier {
     }
 
     _beginPendingConfirmation(orderId: orderId, razorpayOrderId: razorpayOrderId);
+  }
+
+  /// Keeps the checkout/cart screen locked — reusing the same "pending
+  /// confirmation" banner/spinner as an ambiguous payment result — until
+  /// the order is genuinely confirmed cancelled server-side, instead of
+  /// unlocking immediately and racing that confirmation.
+  ///
+  /// BUG FIX: this used to fire the cancel unawaited and flip straight to
+  /// PaymentState.idle() — the instant Razorpay reported the cancellation,
+  /// before the backend had actually cancelled anything. orders.service.js
+  /// #cancel() genuinely can't skip verifying with Razorpay first (a
+  /// deliberate safety check — see its own doc comment — that stops a
+  /// payment Razorpay actually captured from being silently orphaned), so
+  /// that confirmation takes a real, if usually brief, network round trip.
+  /// Unlocking before it finished meant leaving this screen in that window
+  /// (checkout_screen.dart's dispose() refreshes cartProvider, which
+  /// billSummaryProvider watches) read the order while it was still
+  /// PENDING server-side — full, undiscounted total for a moment, then a
+  /// second, correct refresh once _cancelPendingOrder's own invalidate
+  /// finally landed. Reported as: cancelling a first-time-offer order's
+  /// payment briefly "fluctuates" to the full price before resetting.
+  /// Nothing here unlocks until that's already settled, so there's no
+  /// window left for anything to read the stale value.
+  Future<void> _finishCancelledPayment(String? orderId) async {
+    if (orderId != null) {
+      state = state.copyWith(
+        isLoading: false,
+        isPendingConfirmation: true,
+        pendingMessage: 'Cancelling your order…',
+        errorMessage: null,
+      );
+      await _cancelPendingOrder(orderId, reason: 'Payment cancelled by user');
+    }
+    state = PaymentState.idle().copyWith(
+      errorMessage: 'Payment cancelled. You can try again.',
+    );
   }
 
   void _beginPendingConfirmation({
@@ -480,7 +517,7 @@ class PaymentNotifier extends _$PaymentNotifier {
         return;
       }
       if (status.isFailed) {
-        _onPaymentDefinitivelyFailed(
+        await _onPaymentDefinitivelyFailed(
           orderId: orderId,
           reason: status.displayReason,
         );
@@ -516,20 +553,28 @@ class PaymentNotifier extends _$PaymentNotifier {
 
   Future<void> _onPaymentConfirmed({required String orderId}) async {
     ref.invalidate(cartProvider); // Clear cart ONLY after confirmed payment
+    // Same reasoning as _verifyPayment above — read useWallet before
+    // resetForNewOrder() clears it.
+    if (ref.read(checkoutProvider).useWallet) {
+      ref.invalidate(walletProvider);
+    }
     ref.read(checkoutProvider.notifier).resetForNewOrder();
     state = PaymentState.idle();
     ref.read(appRouterProvider).go('/orders/success/$orderId');
   }
 
-  void _onPaymentDefinitivelyFailed({
+  /// Same reasoning as _finishCancelledPayment above — stays locked (already
+  /// isPendingConfirmation from _beginPendingConfirmation, just refreshing
+  /// the message) until the order is actually cancelled server-side,
+  /// instead of unlocking and racing that confirmation.
+  Future<void> _onPaymentDefinitivelyFailed({
     required String orderId,
     String? reason,
-  }) {
-    unawaited(
-      _cancelPendingOrder(
-        orderId,
-        reason: reason == null ? 'Payment failed' : 'Payment failed: $reason',
-      ),
+  }) async {
+    state = state.copyWith(pendingMessage: 'Cancelling your order…');
+    await _cancelPendingOrder(
+      orderId,
+      reason: reason == null ? 'Payment failed' : 'Payment failed: $reason',
     );
     state = PaymentState.idle().copyWith(
       errorMessage: reason ?? 'Payment failed. Please try again.',
@@ -571,6 +616,26 @@ class PaymentNotifier extends _$PaymentNotifier {
       // getting stuck on a blank flow.
     } catch (_) {
       // Non-Dio failure — same best-effort reasoning as above.
+    } finally {
+      // BUG FIX: a cancelled-before-payment order (Razorpay dismissed/
+      // cancelled, or _onPaymentDefinitivelyFailed) is exactly the case
+      // FirstTimeOffersRepository#hasPriorOrder excludes (it only counts
+      // orders with status != 'CANCELLED') — so once this order is
+      // actually cancelled on the backend, a first-time customer's offer
+      // becomes available again. But nothing here ever told
+      // billSummaryProvider to re-fetch, so the checkout/cart screen kept
+      // showing whatever total it had cached from BEFORE this cancel call
+      // even completed — which, if the customer glanced back at the price
+      // while this request was still in flight, could be the full
+      // undiscounted total (order still PENDING at that instant), and
+      // then never correct itself since nothing re-triggered a fetch
+      // afterward either. Reported as: cancel a first Razorpay payment,
+      // price permanently shows the normal (non-first-time-offer) total.
+      // Invalidating here — regardless of outcome above — means the very
+      // next time the cart/checkout screen is looked at, it reflects
+      // whatever the backend now actually has, not a stale pre-cancel
+      // snapshot.
+      ref.invalidate(billSummaryProvider);
     }
   }
 

@@ -12,6 +12,7 @@ import 'package:bakaloo_flutter_app/core/utils/location_service_resolver.dart';
 import 'package:bakaloo_flutter_app/features/addresses/domain/entities/address_entity.dart';
 import 'package:bakaloo_flutter_app/features/addresses/presentation/providers/address_provider.dart';
 import 'package:bakaloo_flutter_app/features/location/presentation/providers/location_prompt_provider.dart';
+import 'package:bakaloo_flutter_app/features/location/presentation/widgets/location_permission_denied_dialog.dart';
 import 'package:bakaloo_flutter_app/routing/route_names.dart';
 
 /// Shows the location permission bottom sheet.
@@ -144,11 +145,37 @@ class _LocationPromptSheetState extends ConsumerState<_LocationPromptSheet> {
         });
 
       case LocationAutoDetectResult.permissionPermanentlyDenied:
+        // Once permission is permanently denied, the OS will never show its
+        // own system prompt again for this install — re-tapping "Enable"
+        // here can only ever come back with this same result, which reads
+        // as "the pop-up isn't coming anymore" even though that's the OS
+        // working as designed. A status message alone was a dead end with
+        // no way to actually recover, so this also offers the one path that
+        // still works: the app's own Settings page — and, mirroring the
+        // locationServiceDisabled case below, retries detection immediately
+        // if the customer actually comes back from it instead of leaving
+        // them to notice nothing happened and tap Enable a second time.
+        // Reported: "he press that enable automatic... pop-up... that also
+        // pop-up not coming."
         setState(() {
           _state = _SheetState.idle;
           _statusMessage =
               'Location permission is blocked. Enable it in Settings.';
         });
+        final openedSettings =
+            await LocationPermissionDeniedDialog.show(context);
+        if (!mounted) return;
+        if (!openedSettings) return;
+
+        setState(() {
+          _state = _SheetState.loading;
+          _statusMessage = 'Turn on location, then come back here…';
+        });
+        await waitForAppResume();
+        if (!mounted) return;
+
+        setState(() => _statusMessage = 'Detecting your location…');
+        await _detectAndHandleResult();
 
       case LocationAutoDetectResult.locationServiceDisabled:
         // Show the native "Turn on Location Accuracy" resolution dialog

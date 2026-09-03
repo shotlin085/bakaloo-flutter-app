@@ -6,13 +6,24 @@ import 'package:bakaloo_flutter_app/features/orders/domain/entities/order_timeli
 
 /// Small pill with a leading dot showing the order status (e.g. "Confirmed").
 class OrderStatusPill extends StatelessWidget {
-  const OrderStatusPill({required this.status, super.key});
+  const OrderStatusPill({
+    required this.status,
+    this.isPaymentFailed = false,
+    super.key,
+  });
 
   final OrderStatus status;
+
+  // Set from OrderEntity.isPaymentFailed — a CANCELLED order whose payment
+  // actually expired/failed shows "Failed" instead of "Cancelled" (same red
+  // palette; the label is what disambiguates), so it doesn't read as a
+  // deliberate cancellation.
+  final bool isPaymentFailed;
 
   @override
   Widget build(BuildContext context) {
     final palette = _paletteFor(status);
+    final label = isPaymentFailed ? 'Failed' : status.label;
 
     return Container(
       padding: EdgeInsets.symmetric(horizontal: 10.w, vertical: 5.h),
@@ -33,7 +44,7 @@ class OrderStatusPill extends StatelessWidget {
           ),
           SizedBox(width: 6.w),
           Text(
-            status.label,
+            label,
             style: TextStyle(
               fontFamily: 'Inter',
               fontSize: 12.sp,

@@ -6,7 +6,6 @@ import 'package:bakaloo_flutter_app/core/constants/storage_keys.dart';
 import 'package:bakaloo_flutter_app/core/storage/hive_service.dart';
 import 'package:bakaloo_flutter_app/features/addresses/presentation/screens/add_edit_address_screen.dart';
 import 'package:bakaloo_flutter_app/features/addresses/presentation/screens/address_list_screen.dart';
-import 'package:bakaloo_flutter_app/features/addresses/presentation/screens/ola_map_test_screen.dart';
 import 'package:bakaloo_flutter_app/features/auth/presentation/screens/otp_verify_screen.dart';
 import 'package:bakaloo_flutter_app/features/auth/presentation/screens/phone_entry_screen.dart';
 import 'package:bakaloo_flutter_app/features/cart/presentation/screens/cart_screen.dart';
@@ -391,13 +390,6 @@ GoRouter appRouter(Ref ref) {
                           return AddEditAddressScreen(
                             initialAddress: state.extra as AddressEntity?,
                           );
-                        },
-                      ),
-                      GoRoute(
-                        path: 'ola-map-test',
-                        parentNavigatorKey: _rootNavigatorKey,
-                        builder: (BuildContext context, GoRouterState state) {
-                          return const OlaMapTestScreen();
                         },
                       ),
                     ],

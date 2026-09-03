@@ -41,6 +41,7 @@ abstract class OrderRepository {
     int page = 1,
     int limit = 10,
     String? status,
+    bool paymentFailed = false,
   });
 
   Future<Either<Failure, OrderEntity?>> getActiveOrder();

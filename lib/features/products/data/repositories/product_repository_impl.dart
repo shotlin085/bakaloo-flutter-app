@@ -112,20 +112,16 @@ class ProductRepositoryImpl implements ProductRepository {
   Future<Either<Failure, ProductEntity>> getProductDetail(
     String productId,
   ) async {
-    final cacheKey = _localDataSource.detailCacheKey(productId);
+    // Network-first: admin-controlled fields (return policy, price, stock)
+    // need to show what's live right now, not what was cached on a
+    // previous visit. The cache is a fallback for offline/error only —
+    // serving it whenever it happened to still be "fresh" meant every
+    // check right after a dashboard edit showed the pre-edit value, one
+    // visit behind, since the fix only landed in the cache for next time.
     final cachedJson = _localDataSource.getCachedProduct(productId);
     final cachedEntity = cachedJson == null
         ? null
         : ProductModel.fromJson(cachedJson).toEntity();
-    final isFresh = _localDataSource.isFresh(
-      cacheKey,
-      CacheStrategy.productDetail(productId).ttl!,
-    );
-
-    if (cachedEntity != null && isFresh) {
-      unawaited(_refreshProductDetail(productId));
-      return Right(cachedEntity);
-    }
 
     try {
       final remoteProduct = await _remoteDataSource.getProductDetail(productId);
@@ -249,16 +245,6 @@ class ProductRepositoryImpl implements ProductRepository {
         items:
             remotePage.items.map((ProductModel item) => item.toJson()).toList(),
         pagination: remotePage.pagination,
-      );
-    } catch (_) {}
-  }
-
-  Future<void> _refreshProductDetail(String productId) async {
-    try {
-      final remoteProduct = await _remoteDataSource.getProductDetail(productId);
-      await _localDataSource.cacheProduct(
-        productId: productId,
-        product: remoteProduct.toJson(),
       );
     } catch (_) {}
   }

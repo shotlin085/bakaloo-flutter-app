@@ -40,7 +40,7 @@ class StatsRow extends StatelessWidget {
             child: _StatCell(
               icon: PhosphorIcons.bag,
               value: '${stats.totalOrders}',
-              label: 'Orders',
+              label: 'Delivered',
             ),
           ),
           _divider(),

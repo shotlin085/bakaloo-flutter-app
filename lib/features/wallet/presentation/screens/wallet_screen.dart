@@ -48,6 +48,11 @@ class _WalletScreenState extends ConsumerState<WalletScreen> {
       firstPageKey: 1,
     )..addPageRequestListener(_fetchPage);
     unawaited(_authenticateForBalance());
+    // Balance changes made outside this app (admin credit, refund, cashback
+    // payout, a topup approved late) never invalidate the keepAlive
+    // walletProvider on their own — refetch every time this screen opens
+    // rather than trusting whatever was cached from earlier in the session.
+    unawaited(ref.read(walletProvider.notifier).refreshWallet());
   }
 
   @override
@@ -186,7 +191,11 @@ class _WalletScreenState extends ConsumerState<WalletScreen> {
   @override
   Widget build(BuildContext context) {
     final walletAsync = ref.watch(walletProvider);
-    final wallet = walletAsync.asData?.value;
+    // `.value`, not `.asData?.value` — keeps the last known wallet visible
+    // through a reload instead of dropping back to the full-screen spinner
+    // (`.asData` is null during AsyncLoading even when it's carrying a
+    // previous value forward).
+    final wallet = walletAsync.value;
 
     return Scaffold(
       backgroundColor: AppColors.bgPrimary,

@@ -104,10 +104,6 @@ class AddressListScreen extends ConsumerWidget {
                 _AddNewAddressCard(
                   onTap: () => _openAddAddress(context, ref),
                 ),
-                Gap(12.h),
-                _OlaMapsTestBanner(
-                  onTap: () => context.push(RouteNames.olaMapTest),
-                ),
                 Gap(20.h),
                 Padding(
                   padding: EdgeInsets.only(left: 2.w, bottom: 10.h),
@@ -288,60 +284,6 @@ class _AddNewAddressCard extends StatelessWidget {
               PhosphorIcon(
                 PhosphorIcons.caretRightBold,
                 size: 18.sp,
-                color: AppColors.textTertiary,
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-/// Entry point into [OlaMapTestScreen] — a standalone map, kept separate
-/// from the OSM-based [AddressMapPickerScreen] used for the actual address
-/// pin, so accuracy can be compared here before deciding whether to
-/// switch. Deliberately styled apart from the address cards above so it
-/// doesn't read as a core feature.
-class _OlaMapsTestBanner extends StatelessWidget {
-  const _OlaMapsTestBanner({required this.onTap});
-
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(14.r),
-        child: Ink(
-          decoration: BoxDecoration(
-            color: AppColors.bgInput,
-            borderRadius: BorderRadius.circular(14.r),
-            border: Border.all(color: AppColors.divider),
-          ),
-          padding: EdgeInsets.symmetric(horizontal: 14.w, vertical: 12.h),
-          child: Row(
-            children: <Widget>[
-              PhosphorIcon(
-                PhosphorIcons.mapTrifoldLight,
-                size: 18.sp,
-                color: AppColors.textSecondary,
-              ),
-              Gap(10.w),
-              Expanded(
-                child: Text(
-                  'Ola Maps test (Beta) — check accuracy',
-                  style: AppTextStyles.bodySmall.copyWith(
-                    color: AppColors.textSecondary,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-              ),
-              PhosphorIcon(
-                PhosphorIcons.caretRightBold,
-                size: 14.sp,
                 color: AppColors.textTertiary,
               ),
             ],

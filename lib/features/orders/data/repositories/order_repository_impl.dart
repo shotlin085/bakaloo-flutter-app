@@ -29,9 +29,14 @@ class OrderRepositoryImpl implements OrderRepository {
     int page = 1,
     int limit = 10,
     String? status,
+    bool paymentFailed = false,
   }) async {
+    // 'failed' must be its own cache bucket — it shares status == null with
+    // the 'all' filter, and without this they'd read/write the same cache
+    // entry (the Failed tab briefly showing "All"'s cached orders, or
+    // vice versa).
     final cacheKey = _localDataSource.listCacheKey(
-      filterKey: (status ?? 'all').toLowerCase(),
+      filterKey: paymentFailed ? 'failed' : (status ?? 'all').toLowerCase(),
       page: page,
       limit: limit,
     );
@@ -47,6 +52,7 @@ class OrderRepositoryImpl implements OrderRepository {
           page: page,
           limit: limit,
           status: status,
+          paymentFailed: paymentFailed,
         ),
       );
       return Right(cached);
@@ -57,6 +63,7 @@ class OrderRepositoryImpl implements OrderRepository {
         page: page,
         limit: limit,
         status: status,
+        paymentFailed: paymentFailed,
       );
       final result = OrderPageResult(
         orders: remote.orders
@@ -299,12 +306,14 @@ class OrderRepositoryImpl implements OrderRepository {
     required int page,
     required int limit,
     required String? status,
+    bool paymentFailed = false,
   }) async {
     try {
       final remote = await _remoteDataSource.getOrders(
         page: page,
         limit: limit,
         status: status,
+        paymentFailed: paymentFailed,
       );
       await _localDataSource.cacheOrderList(
         key: cacheKey,

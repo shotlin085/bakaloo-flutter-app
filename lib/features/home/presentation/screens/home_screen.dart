@@ -30,6 +30,7 @@ import 'package:bakaloo_flutter_app/features/home/presentation/widgets/dynamic_h
 import 'package:bakaloo_flutter_app/features/home/presentation/widgets/order_tracking_top_banner.dart';
 import 'package:bakaloo_flutter_app/features/products/domain/entities/product_entity.dart';
 import 'package:bakaloo_flutter_app/features/purchase_limits/presentation/providers/purchase_limits_provider.dart';
+import 'package:bakaloo_flutter_app/features/wallet/presentation/providers/wallet_provider.dart';
 import 'package:bakaloo_flutter_app/routing/app_router.dart';
 import 'package:bakaloo_flutter_app/routing/route_names.dart';
 import 'package:bakaloo_flutter_app/core/providers/store_provider.dart';
@@ -554,6 +555,23 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
       // re-runs _maybeShowNamePrompt, so a user who backgrounded out of
       // the name step effectively never gets asked again for the rest of
       // that process's life. Reported as: name step "stuck"/skippable.
+      //
+      // BUG FIX: calling _maybeShowOnboardingPrompts() alone did NOT
+      // actually fix that — _maybeShowNamePrompt's own one-shot guard
+      // (_namePromptAttemptedThisSession) was never cleared, so this call
+      // hit its very first line and returned immediately every time,
+      // silently no-op'ing forever after the first attempt. Any interruption
+      // during that first attempt (backgrounding mid-fetch, a task-switcher
+      // swipe-away that Android happens to resume rather than recreate, a
+      // pull-to-refresh) permanently burned the one-shot flag without the
+      // dialog ever actually being shown/completed — the strict "must
+      // provide a name" rule this dialog exists to enforce silently stopped
+      // being enforced for the rest of that app session. Resetting it here
+      // makes every resume genuinely re-derive from the profile fresh, per
+      // this class's own documented intent (see _maybeShowNamePrompt's doc
+      // comment) — a no-op the moment a name is actually on file, so this
+      // never re-prompts anyone who's already provided one.
+      _namePromptAttemptedThisSession = false;
       unawaited(_maybeShowOnboardingPrompts());
       // The live socket listener (app_bottom_nav.dart) only updates unread
       // state while connected — a notification that arrived while the app
@@ -562,6 +580,10 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
       // the header bell badge stayed stale until the customer either
       // opened the Notifications tab directly or force-restarted the app.
       ref.invalidate(notificationProvider);
+      // Same reasoning for the wallet balance shown in the header pill —
+      // an admin credit, refund or cashback landed server-side while
+      // backgrounded never reaches the keepAlive walletProvider on its own.
+      ref.invalidate(walletProvider);
     }
   }
 
@@ -1048,6 +1070,12 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
                                           ),
                                         ),
                                       ),
+                                      // Store-closed banner — sits directly
+                                      // under the search bar (above category
+                                      // tabs) so it reads as a status line
+                                      // right below the primary nav action,
+                                      // not buried after tab browsing.
+                                      const StoreClosedBanner(),
                                       // Category tabs — independent backgroundColor
                                       // (falls back to searchZone color for legacy themes)
                                       if (showCategoryTabs) ...<Widget>[
@@ -1078,15 +1106,6 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
                               },
                             ),
                           ),
-                          // Moved below the search bar/category tabs (was
-                          // directly under the header) so the closed banner
-                          // no longer sits in front of core navigation —
-                          // search and category browsing stay immediately
-                          // reachable, and the banner reads as one section
-                          // among others instead of blocking the top of the
-                          // page. Reported: banner pushed search "too far
-                          // down" / wanted it moved further down the page.
-                          const SliverToBoxAdapter(child: StoreClosedBanner()),
                           // PHASE 1 FIX: Never render old summer/campaign
                           // hardcoded widgets as a loading fallback.
                           // Show skeleton while manifest loads; show

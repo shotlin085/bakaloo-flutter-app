@@ -44,6 +44,7 @@ class OrderFilterTabs extends StatelessWidget {
       OrderFilter.active => PhosphorIcons.clock,
       OrderFilter.delivered => PhosphorIcons.checkCircle,
       OrderFilter.cancelled => PhosphorIcons.xCircle,
+      OrderFilter.failed => PhosphorIcons.warningCircle,
     };
   }
 }

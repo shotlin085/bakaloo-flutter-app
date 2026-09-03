@@ -371,7 +371,7 @@ class _StatusHero extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: <Widget>[
                 Text(
-                  order.status.label,
+                  order.isPaymentFailed ? 'Failed' : order.status.label,
                   style: AppTextStyles.h2.copyWith(
                     color: AppColors.textOnGreen,
                     fontSize: 20.sp,
@@ -379,7 +379,9 @@ class _StatusHero extends StatelessWidget {
                 ),
                 Gap(6.h),
                 Text(
-                  _statusMessage(order.status),
+                  order.isPaymentFailed
+                      ? "Your payment didn't go through — this order was not placed."
+                      : _statusMessage(order.status),
                   style: AppTextStyles.bodyMedium.copyWith(
                     color: Colors.white.withValues(alpha: 0.95),
                   ),

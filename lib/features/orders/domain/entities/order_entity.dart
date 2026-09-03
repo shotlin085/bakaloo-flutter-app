@@ -50,4 +50,14 @@ abstract class OrderEntity with _$OrderEntity {
   int get itemCount => items.fold<int>(0, (sum, item) => sum + item.quantity);
 
   bool get isActive => status.isActive;
+
+  // A Razorpay-expired or verify-failed payment writes exactly
+  // status=CANCELLED, paymentStatus IN (FAILED, EXPIRED) — indistinguishable
+  // from a plain user/admin cancellation unless this is checked. Derived
+  // client-side rather than a new backend OrderStatus value (see
+  // order_list_provider.dart's OrderFilter.failed for the matching list
+  // filter).
+  bool get isPaymentFailed =>
+      status == OrderStatus.CANCELLED &&
+      const <String>{'FAILED', 'EXPIRED'}.contains(paymentStatus.toUpperCase());
 }

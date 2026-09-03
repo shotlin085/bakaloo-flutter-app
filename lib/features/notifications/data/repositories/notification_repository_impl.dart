@@ -72,6 +72,20 @@ class NotificationRepositoryImpl implements NotificationRepository {
   }
 
   @override
+  Future<Either<Failure, Unit>> markCampaignOpened(String campaignId) async {
+    try {
+      await _remoteDataSource.markCampaignOpened(campaignId);
+      return const Right(unit);
+    } on DioException catch (error) {
+      return Left(handleDioError(error));
+    } catch (_) {
+      return const Left(
+        UnknownFailure(message: 'Unable to record notification open.'),
+      );
+    }
+  }
+
+  @override
   Future<Either<Failure, Unit>> deleteNotification(
     String notificationId,
   ) async {

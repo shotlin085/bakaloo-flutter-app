@@ -17,6 +17,7 @@ import 'package:bakaloo_flutter_app/features/notifications/domain/usecases/delet
 import 'package:bakaloo_flutter_app/features/notifications/domain/usecases/get_notifications_usecase.dart';
 import 'package:bakaloo_flutter_app/features/notifications/domain/usecases/get_preferences_usecase.dart';
 import 'package:bakaloo_flutter_app/features/notifications/domain/usecases/mark_all_read_usecase.dart';
+import 'package:bakaloo_flutter_app/features/notifications/domain/usecases/mark_campaign_opened_usecase.dart';
 import 'package:bakaloo_flutter_app/features/notifications/domain/usecases/mark_read_usecase.dart';
 import 'package:bakaloo_flutter_app/features/notifications/domain/usecases/register_fcm_token_usecase.dart';
 import 'package:bakaloo_flutter_app/features/notifications/domain/usecases/update_preferences_usecase.dart';
@@ -108,6 +109,11 @@ final getPreferencesUseCaseProvider = Provider<GetPreferencesUseCase>((
   Ref ref,
 ) {
   return GetPreferencesUseCase(ref.watch(notificationRepositoryProvider));
+});
+
+final markCampaignOpenedUseCaseProvider =
+    Provider<MarkCampaignOpenedUseCase>((Ref ref) {
+  return MarkCampaignOpenedUseCase(ref.watch(notificationRepositoryProvider));
 });
 
 final registerFcmTokenUseCaseProvider = Provider<RegisterFcmTokenUseCase>((

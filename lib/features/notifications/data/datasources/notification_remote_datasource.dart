@@ -52,6 +52,10 @@ class NotificationRemoteDataSource {
     await _apiClient.deleteNotification(notificationId);
   }
 
+  Future<void> markCampaignOpened(String campaignId) async {
+    await _apiClient.markCampaignOpened(campaignId);
+  }
+
   Future<void> registerFcmToken({
     required String token,
     required String platform,

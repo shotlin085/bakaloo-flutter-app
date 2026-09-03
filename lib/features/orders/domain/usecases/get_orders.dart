@@ -12,11 +12,13 @@ class GetOrdersUseCase {
     int page = 1,
     int limit = 10,
     String? status,
+    bool paymentFailed = false,
   }) {
     return _repository.getOrders(
       page: page,
       limit: limit,
       status: status,
+      paymentFailed: paymentFailed,
     );
   }
 }

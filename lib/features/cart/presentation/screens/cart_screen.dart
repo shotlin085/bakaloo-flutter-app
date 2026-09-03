@@ -66,6 +66,11 @@ class _CartScreenState extends ConsumerState<CartScreen> {
       // look at their cart — refresh on every visit so that shows up
       // promptly instead of only being discovered at a failed checkout.
       ref.read(cartProvider.notifier).refresh();
+      // Same reasoning for wallet: a balance change made outside this app
+      // (admin credit, refund, cashback) never invalidates the keepAlive
+      // walletProvider on its own — refetch on every visit to this screen,
+      // which shows (and can spend against) the wallet balance.
+      unawaited(ref.read(walletProvider.notifier).refreshWallet());
     });
   }
 
@@ -129,7 +134,10 @@ class _CartScreenState extends ConsumerState<CartScreen> {
     // server-side at order-creation time regardless of what this preview
     // shows.
     final walletAsync = ref.watch(walletProvider);
-    final walletBalance = walletAsync.asData?.value.balance ?? 0.0;
+    // `.value`, not `.asData?.value` — keeps showing the last known balance
+    // while a refetch is in flight instead of flashing to ₹0 (`.asData` is
+    // null during AsyncLoading even when it's carrying a previous value).
+    final walletBalance = walletAsync.value?.balance ?? 0.0;
     final walletMethodEnabled =
         lastKnownSummary?.paymentMethods.wallet.enabled ??
             displayBillSummary.paymentMethods.wallet.enabled;
