@@ -114,6 +114,10 @@ class ApiConstants {
   static const couponsAvailable = '/coupons/available';
   static const couponsValidate = '/coupons/validate';
 
+  static const spinWheelConfig = '/spin-wheel/config';
+  static const spinWheelEligibility = '/spin-wheel/eligibility';
+  static const spinWheelSpin = '/spin-wheel/spin';
+
   static const orders = '/orders';
   static const ordersActive = '/orders/active';
   static String orderById(String id) => '/orders/$id';
@@ -156,6 +160,10 @@ class ApiConstants {
   static String reviewById(String id) => '/reviews/$id';
 
   static const refundRequests = '/refund-requests';
+
+  static const businessAccountMe = '/business-accounts/me';
+  static const businessAccountApply = '/business-accounts/apply';
+  static const businessAccountToggle = '/business-accounts/me/toggle';
 
   static const notifications = '/notifications';
   static const notificationTokens = '/notifications/tokens';

@@ -11,6 +11,7 @@ import 'package:bakaloo_flutter_app/core/network/connectivity_interceptor.dart';
 import 'package:bakaloo_flutter_app/core/network/loading_activity_interceptor.dart';
 import 'package:bakaloo_flutter_app/core/network/logger_interceptor.dart';
 import 'package:bakaloo_flutter_app/core/network/network_monitor.dart';
+import 'package:bakaloo_flutter_app/core/network/price_mode_interceptor.dart';
 import 'package:bakaloo_flutter_app/core/network/refresh_interceptor.dart';
 import 'package:bakaloo_flutter_app/core/network/network_activity_provider.dart';
 import 'package:bakaloo_flutter_app/core/security/certificate_pinning.dart';
@@ -45,6 +46,7 @@ class DioClient {
       ),
       if (CertificatePinning.createInterceptor() case final pinning?) pinning,
       ApiInterceptor(secureStorageService),
+      PriceModeInterceptor(),
       RefreshInterceptor(
         dio: dio,
         secureStorageService: secureStorageService,

@@ -208,6 +208,17 @@ abstract class ApiClient {
     @Body() Map<String, dynamic> body,
   );
 
+  @GET(ApiConstants.spinWheelConfig)
+  Future<HttpResponse<dynamic>> getSpinWheelConfig();
+
+  @GET(ApiConstants.spinWheelEligibility)
+  Future<HttpResponse<dynamic>> getSpinWheelEligibility();
+
+  @POST(ApiConstants.spinWheelSpin)
+  Future<HttpResponse<dynamic>> spinWheel([
+    @Body() Map<String, dynamic> body = const <String, dynamic>{},
+  ]);
+
   @POST(ApiConstants.orders)
   Future<HttpResponse<dynamic>> placeOrder(
     @Body() Map<String, dynamic> body,
@@ -364,6 +375,19 @@ abstract class ApiClient {
   @POST('/refund-requests/{id}/cancel')
   Future<HttpResponse<dynamic>> cancelRefundRequest(
     @Path('id') String id,
+  );
+
+  @GET(ApiConstants.businessAccountMe)
+  Future<HttpResponse<dynamic>> getMyBusinessAccount();
+
+  @POST(ApiConstants.businessAccountApply)
+  Future<HttpResponse<dynamic>> applyBusinessAccount(
+    @Body() Map<String, dynamic> body,
+  );
+
+  @PATCH(ApiConstants.businessAccountToggle)
+  Future<HttpResponse<dynamic>> toggleBusinessAccount(
+    @Body() Map<String, dynamic> body,
   );
 
   @GET(ApiConstants.productsFeatured)

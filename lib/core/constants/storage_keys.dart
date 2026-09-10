@@ -31,6 +31,12 @@ class StorageKeys {
   static const cacheOrders = 'cache_orders';
   static const cacheUserProfile = 'cache_user_profile';
   static const cacheAddresses = 'cache_addresses';
+  /// Fast-launch cache of the active price mode ('wholesale'/'retail') —
+  /// read synchronously by PriceModeInterceptor on every request and by
+  /// PriceModeNotifier.build() at startup. Server-authoritative: always
+  /// re-derived from the user's live b2bStatus/b2bEnabled on login/refresh,
+  /// this is only a same-session fast path, never the source of truth.
+  static const cachePriceMode = 'cache_price_mode';
   static const cacheRemoteTheme = 'cache_remote_theme';
   static String cacheProduct(String productId) => 'cache_product_$productId';
   static String cacheRemoteThemeForStore(String storeKey) =>

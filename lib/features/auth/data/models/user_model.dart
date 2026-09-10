@@ -18,6 +18,8 @@ abstract class UserModel with _$UserModel {
     @JsonKey(name: 'avatar_url') String? avatarUrl,
     @JsonKey(name: 'loyalty_points') int? loyaltyPoints,
     @JsonKey(name: 'referral_code') String? referralCode,
+    @JsonKey(name: 'b2b_status') String? b2bStatus,
+    @JsonKey(name: 'b2b_enabled') bool? b2bEnabled,
   }) = _UserModel;
 
   factory UserModel.fromJson(Map<String, dynamic> json) =>
@@ -33,6 +35,8 @@ abstract class UserModel with _$UserModel {
       role: role,
       loyaltyPoints: loyaltyPoints,
       referralCode: referralCode,
+      b2bStatus: b2bStatus,
+      b2bEnabled: b2bEnabled,
     );
   }
 }

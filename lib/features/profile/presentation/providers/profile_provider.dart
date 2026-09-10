@@ -283,6 +283,8 @@ Map<String, dynamic> _profileToJson(ProfileData profile) => <String, dynamic>{
       'avatarUrl': profile.user.avatarUrl,
       'loyaltyPoints': profile.user.loyaltyPoints,
       'referralCode': profile.user.referralCode,
+      'b2bStatus': profile.user.b2bStatus,
+      'b2bEnabled': profile.user.b2bEnabled,
       'birthday': profile.birthday?.toIso8601String(),
     };
 
@@ -298,6 +300,8 @@ ProfileData _profileFromJson(Map<String, dynamic> json) {
       avatarUrl: json['avatarUrl'] as String?,
       loyaltyPoints: (json['loyaltyPoints'] as num?)?.toInt(),
       referralCode: json['referralCode'] as String?,
+      b2bStatus: json['b2bStatus'] as String?,
+      b2bEnabled: json['b2bEnabled'] as bool?,
     ),
     birthday: birthdayRaw == null ? null : DateTime.tryParse(birthdayRaw),
   );

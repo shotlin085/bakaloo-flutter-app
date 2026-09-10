@@ -47,6 +47,9 @@ import 'package:bakaloo_flutter_app/features/notifications/presentation/provider
 import 'package:bakaloo_flutter_app/features/location/presentation/widgets/location_prompt_sheet.dart';
 import 'package:bakaloo_flutter_app/features/profile/presentation/providers/profile_provider.dart';
 import 'package:bakaloo_flutter_app/features/profile/presentation/widgets/name_prompt_dialog.dart';
+import 'package:bakaloo_flutter_app/features/spin_wheel/domain/entities/spin_eligibility.dart';
+import 'package:bakaloo_flutter_app/features/spin_wheel/presentation/providers/spin_wheel_provider.dart';
+import 'package:bakaloo_flutter_app/features/spin_wheel/presentation/widgets/spin_win_dialog.dart';
 import 'package:bakaloo_flutter_app/shared/widgets/address_bottom_sheet.dart';
 
 double _horizontalRailExtent(
@@ -161,6 +164,15 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
   // user logs in, which is exactly the same class of bug already fixed
   // for the location prompt (see _locationPromptShownThisSession above).
   bool _namePromptAttemptedThisSession = false;
+
+  // Same one-shot-per-session guard pattern as the two flags above — see
+  // _maybeShowSpinWheelPrompt, which gates the actual popup on a fresh
+  // GET /spin-wheel/eligibility check (real spins-available count from the
+  // backend, not a local guess). Reset on every app resume, same as
+  // _namePromptAttemptedThisSession below (see didChangeAppLifecycleState)
+  // — without that reset a customer who backgrounds the app mid-session
+  // would never get re-checked even after a new spin lands for them.
+  bool _spinWheelPromptShownThisSession = false;
 
   double get _stickyRevealStartDistance => 48.h;
   double get _stickyRevealEndDistance => 24.h;
@@ -393,6 +405,44 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
   Future<void> _maybeShowOnboardingPrompts() async {
     await _maybeShowLocationPrompt();
     if (mounted) unawaited(_maybeShowNamePrompt());
+    if (mounted) unawaited(_maybeShowSpinWheelPrompt());
+  }
+
+  /// Auto-opens the Spin & Win popup once per session for a logged-in
+  /// customer, same trigger point as the location/name prompts above. Also
+  /// reachable any time from Profile ("Spin & Win" menu tile,
+  /// profile_screen.dart) — that entry point is deliberately independent of
+  /// this one-shot flag so testing/re-spinning never requires restarting
+  /// the app.
+  Future<void> _maybeShowSpinWheelPrompt() async {
+    if (!mounted || _spinWheelPromptShownThisSession) return;
+    if (ref.read(authStateProvider) is! AuthAuthenticated) return;
+    // Set before the await below — same reasoning as
+    // _locationPromptShownThisSession above: prevents the initState call
+    // and a near-simultaneous re-run (e.g. auth state settling mid-flight)
+    // from both passing this guard and opening two popups.
+    _spinWheelPromptShownThisSession = true;
+    try {
+      final eligibility = await ref.read(spinEligibilityProvider.future);
+      if (!mounted) return;
+      // Never auto-pop a wheel the customer can't actually spin — a
+      // 0-spins popup only teaches people to ignore it. ALWAYS_ON_LOGIN and
+      // MILESTONE_ONLY are therefore identical on this axis now; the
+      // distinction that's left between them is a dashboard-admin one
+      // (whether the setting is meant to signal "show on every login" vs
+      // "reserved for milestone-driven grants"), not a client-side gate.
+      final shouldShow = switch (eligibility.triggerMode) {
+        SpinTriggerMode.alwaysOnLogin => eligibility.hasSpinsAvailable,
+        SpinTriggerMode.milestoneOnly => eligibility.hasSpinsAvailable,
+        SpinTriggerMode.manualOnly => false,
+      };
+      if (!shouldShow) return;
+      await showSpinWinDialog(context);
+    } catch (_) {
+      // Non-critical — a network hiccup here shouldn't block the rest of
+      // the onboarding chain; Profile → "Spin & Win" is always available
+      // as a manual fallback regardless of trigger mode.
+    }
   }
 
   Future<void> _maybeShowLocationPrompt() async {
@@ -572,6 +622,18 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
       // comment) — a no-op the moment a name is actually on file, so this
       // never re-prompts anyone who's already provided one.
       _namePromptAttemptedThisSession = false;
+      // Same fix, same reasoning, for the spin-wheel prompt: without
+      // resetting this too, a customer who backgrounds the app (not a full
+      // kill — the same State instance survives) permanently burns this
+      // one-shot flag the first time it runs. Concretely: they spin their
+      // last chance, background the app, wait for a new daily/milestone
+      // spin to land server-side, then resume — without this reset the
+      // popup would never check again for the rest of that process's life,
+      // even though they now have a spin available. Resetting here makes
+      // every resume genuinely re-derive eligibility fresh from the
+      // server, matching _maybeShowSpinWheelPrompt's own now-strict
+      // "only show when spinsAvailable > 0" gate above.
+      _spinWheelPromptShownThisSession = false;
       unawaited(_maybeShowOnboardingPrompts());
       // The live socket listener (app_bottom_nav.dart) only updates unread
       // state while connected — a notification that arrived while the app

@@ -26,6 +26,8 @@ import 'package:bakaloo_flutter_app/features/auth/domain/usecases/refresh_token_
 import 'package:bakaloo_flutter_app/features/auth/domain/usecases/send_otp_usecase.dart';
 import 'package:bakaloo_flutter_app/features/auth/domain/usecases/verify_otp_usecase.dart';
 import 'package:bakaloo_flutter_app/features/auth/presentation/providers/auth_state.dart';
+import 'package:bakaloo_flutter_app/features/business_account/presentation/providers/business_account_provider.dart';
+import 'package:bakaloo_flutter_app/features/business_account/presentation/providers/price_mode_provider.dart';
 import 'package:bakaloo_flutter_app/features/cart/presentation/providers/cart_provider.dart';
 import 'package:bakaloo_flutter_app/features/wallet/presentation/providers/wallet_provider.dart';
 
@@ -200,6 +202,8 @@ class AuthNotifier extends _$AuthNotifier {
         avatarUrl: updated.avatarUrl,
         loyaltyPoints: updated.loyaltyPoints,
         referralCode: updated.referralCode,
+        b2bStatus: updated.b2bStatus,
+        b2bEnabled: updated.b2bEnabled,
       ).toJson(),
     );
   }
@@ -221,6 +225,12 @@ class AuthNotifier extends _$AuthNotifier {
     // PHASE 6 FIX: Clear the current user's scoped caches on logout so the
     // next user (or the same user re-logging in) never sees stale cart/wallet.
     await AppCacheManager.reconcileUser('');
+    // B2B FIX: logout() never invalidated the keepAlive providers holding
+    // per-user state — only verifyOtp() (login) did. A user logging out and
+    // a different account logging in on the same session would otherwise
+    // still see the previous user's in-memory cart/wallet/business-account/
+    // price-mode state until something else happened to invalidate it.
+    _invalidateUserScopedProviders();
     ref.read(socketServiceProvider).disconnect();
     state = const AuthUnauthenticated();
   }
@@ -228,7 +238,9 @@ class AuthNotifier extends _$AuthNotifier {
   /// PHASE 6 FIX: Invalidate user-scoped Riverpod providers so they refetch
   /// fresh data for the newly authenticated user instead of serving the
   /// previous session's in-memory state. Best-effort — wrapped so a missing
-  /// provider never blocks login.
+  /// provider never blocks login. Called from both verifyOtp() (login) and
+  /// logout() — see the B2B FIX note on logout() above for why it was
+  /// previously missing from the logout path.
   void _invalidateUserScopedProviders() {
     // Imported lazily by name to avoid circular imports; these are the
     // keepAlive providers that hold per-user state.
@@ -237,6 +249,15 @@ class AuthNotifier extends _$AuthNotifier {
     } catch (_) {}
     try {
       ref.invalidate(walletProvider);
+    } catch (_) {}
+    try {
+      ref.invalidate(myBusinessAccountProvider);
+    } catch (_) {}
+    try {
+      ref.invalidate(businessAccountProvider);
+    } catch (_) {}
+    try {
+      ref.invalidate(priceModeProvider);
     } catch (_) {}
   }
 
@@ -266,6 +287,8 @@ class AuthNotifier extends _$AuthNotifier {
           _intValue(claims, <String>['loyaltyPoints', 'loyalty_points']),
       referralCode:
           _nullableValue(claims, <String>['referralCode', 'referral_code']),
+      b2bStatus: _nullableValue(claims, <String>['b2bStatus', 'b2b_status']),
+      b2bEnabled: _boolValue(claims, <String>['b2bEnabled', 'b2b_enabled']),
     );
   }
 
@@ -301,6 +324,16 @@ class AuthNotifier extends _$AuthNotifier {
       }
       if (value is num) {
         return value.toInt();
+      }
+    }
+    return null;
+  }
+
+  bool? _boolValue(Map<String, dynamic> source, List<String> keys) {
+    for (final key in keys) {
+      final value = source[key];
+      if (value is bool) {
+        return value;
       }
     }
     return null;

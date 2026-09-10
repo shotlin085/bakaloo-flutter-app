@@ -30,6 +30,7 @@ import 'package:bakaloo_flutter_app/features/profile/presentation/widgets/menu_s
 import 'package:bakaloo_flutter_app/features/profile/presentation/widgets/menu_tile.dart';
 import 'package:bakaloo_flutter_app/features/profile/presentation/widgets/profile_header.dart';
 import 'package:bakaloo_flutter_app/features/profile/presentation/widgets/stats_row.dart';
+import 'package:bakaloo_flutter_app/features/spin_wheel/presentation/widgets/spin_win_dialog.dart';
 import 'package:bakaloo_flutter_app/features/tutorials/presentation/screens/tutorial_list_screen.dart';
 import 'package:bakaloo_flutter_app/features/wallet/presentation/providers/wallet_provider.dart';
 import 'package:bakaloo_flutter_app/features/wallet/domain/entities/wallet_entity.dart';
@@ -190,12 +191,24 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                           );
                         },
                       ),
+                      _divider(),
+                      MenuTile(
+                        icon: PhosphorIcons.giftLight,
+                        label: 'Spin & Win',
+                        onTap: () => showSpinWinDialog(context),
+                      ),
                     ],
                   ),
                   Gap(14.h),
                   MenuSection(
                     title: 'ACCOUNT SETTINGS',
                     children: <Widget>[
+                      MenuTile(
+                        icon: PhosphorIcons.briefcaseLight,
+                        label: 'Business account',
+                        onTap: () => context.push(RouteNames.businessAccount),
+                      ),
+                      _divider(),
                       MenuTile(
                         icon: PhosphorIcons.bellRingingLight,
                         label: 'Notification preferences',

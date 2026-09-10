@@ -26,6 +26,7 @@ import 'package:bakaloo_flutter_app/features/reviews/presentation/screens/review
 import 'package:bakaloo_flutter_app/features/addresses/domain/entities/address_entity.dart';
 import 'package:bakaloo_flutter_app/features/auth/domain/entities/user_entity.dart';
 import 'package:bakaloo_flutter_app/features/auth/presentation/providers/auth_gate_controller.dart';
+import 'package:bakaloo_flutter_app/features/business_account/presentation/screens/business_account_screen.dart';
 import 'package:bakaloo_flutter_app/features/cafe/presentation/screens/cafe_screen.dart';
 import 'package:bakaloo_flutter_app/features/off_zone/presentation/screens/off_zone_screen.dart';
 import 'package:bakaloo_flutter_app/features/super_mall/presentation/screens/super_mall_screen.dart';
@@ -412,6 +413,12 @@ GoRouter appRouter(Ref ref) {
                     path: 'reviews',
                     builder: (BuildContext context, GoRouterState state) {
                       return const ReviewsScreen();
+                    },
+                  ),
+                  GoRoute(
+                    path: 'business-account',
+                    builder: (BuildContext context, GoRouterState state) {
+                      return const BusinessAccountScreen();
                     },
                   ),
                   GoRoute(

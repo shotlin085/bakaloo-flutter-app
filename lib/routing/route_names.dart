@@ -20,6 +20,7 @@ class RouteNames {
   static const addresses = '/profile/addresses';
   static const addAddress = '/profile/addresses/add';
   static const notifications = '/profile/notifications';
+  static const businessAccount = '/profile/business-account';
   static const productDetail = '/product/:productId';
   static const search = '/search';
   static const myReviews = '/profile/reviews';

@@ -11,6 +11,8 @@ class UserProfileModel {
     this.birthday,
     this.loyaltyPoints,
     this.referralCode,
+    this.b2bStatus,
+    this.b2bEnabled,
   });
 
   final String id;
@@ -22,6 +24,8 @@ class UserProfileModel {
   final DateTime? birthday;
   final int? loyaltyPoints;
   final String? referralCode;
+  final String? b2bStatus;
+  final bool? b2bEnabled;
 
   factory UserProfileModel.fromJson(Map<String, dynamic> json) {
     return UserProfileModel(
@@ -43,6 +47,8 @@ class UserProfileModel {
         json,
         <String>['referralCode', 'referral_code'],
       ),
+      b2bStatus: _readNullableString(json, <String>['b2bStatus', 'b2b_status']),
+      b2bEnabled: _readBool(json, <String>['b2bEnabled', 'b2b_enabled']),
     );
   }
 
@@ -56,6 +62,8 @@ class UserProfileModel {
     DateTime? birthday,
     int? loyaltyPoints,
     String? referralCode,
+    String? b2bStatus,
+    bool? b2bEnabled,
     bool clearAvatar = false,
     bool clearBirthday = false,
   }) {
@@ -69,6 +77,8 @@ class UserProfileModel {
       birthday: clearBirthday ? null : birthday ?? this.birthday,
       loyaltyPoints: loyaltyPoints ?? this.loyaltyPoints,
       referralCode: referralCode ?? this.referralCode,
+      b2bStatus: b2bStatus ?? this.b2bStatus,
+      b2bEnabled: b2bEnabled ?? this.b2bEnabled,
     );
   }
 
@@ -82,6 +92,8 @@ class UserProfileModel {
       avatarUrl: avatarUrl,
       loyaltyPoints: loyaltyPoints,
       referralCode: referralCode,
+      b2bStatus: b2bStatus,
+      b2bEnabled: b2bEnabled,
     );
   }
 
@@ -96,6 +108,8 @@ class UserProfileModel {
       'birthday': _formatBirthday(birthday),
       'loyalty_points': loyaltyPoints,
       'referral_code': referralCode,
+      'b2b_status': b2bStatus,
+      'b2b_enabled': b2bEnabled,
     }..removeWhere((key, value) => value == null);
   }
 
@@ -143,6 +157,19 @@ class UserProfileModel {
         if (parsed != null) {
           return parsed;
         }
+      }
+    }
+    return null;
+  }
+
+  static bool? _readBool(
+    Map<String, dynamic> json,
+    List<String> keys,
+  ) {
+    for (final key in keys) {
+      final value = json[key];
+      if (value is bool) {
+        return value;
       }
     }
     return null;

@@ -11,6 +11,7 @@ import 'package:bakaloo_flutter_app/core/network/app_availability_provider.dart'
 import 'package:bakaloo_flutter_app/core/providers/store_provider.dart';
 import 'package:bakaloo_flutter_app/core/socket/socket_service.dart';
 import 'package:bakaloo_flutter_app/core/storage/hive_service.dart';
+import 'package:bakaloo_flutter_app/core/storage/secure_storage_service.dart';
 import 'package:bakaloo_flutter_app/core/theme/remote_theme_model.dart';
 import 'package:bakaloo_flutter_app/core/theme/section_manifest_provider.dart';
 import 'package:bakaloo_flutter_app/core/theme/tab_home_content_model.dart';
@@ -437,7 +438,7 @@ Future<void> _fetchAndCacheTabThemes(Ref ref, String storeKey) {
 Future<void> _runFetchAndCacheTabThemes(Ref ref, String storeKey) async {
   try {
     final Dio dio = _buildDio();
-    final Map<String, dynamic> headers = <String, dynamic>{};
+    final Map<String, dynamic> headers = await _authHeaders();
     final String? etag = _themeMemoryCache[storeKey]?.etag;
     if (etag != null && etag.isNotEmpty) {
       headers['If-None-Match'] = etag;
@@ -582,6 +583,7 @@ Future<TabHomeContentResponse?> _runFetchAndCacheTabHomeContent(
       '${ApiConstants.tabThemes}/$tabKey/home',
       queryParameters: <String, dynamic>{'store_key': storeKey},
       options: Options(
+        headers: await _authHeaders(),
         validateStatus: (int? status) => status != null && status < 500,
       ),
     );
@@ -745,6 +747,25 @@ TabThemesResponse? _readCachedManifestSnapshot(String storeKey) {
   }
 
   return null;
+}
+
+/// These theme/manifest fetches use a bare Dio instance with none of
+/// DioClient's interceptors (no auth header, no refresh) — previously
+/// always anonymous. Best-effort attaches the access token when one exists
+/// so the backend can resolve the request's B2B/B2C storefront audience
+/// from the authenticated user instead of always falling back to the B2C
+/// default; failure to read the token must never block the (already
+/// resilient, cache-then-network) theme fetch itself.
+Future<Map<String, dynamic>> _authHeaders() async {
+  try {
+    final token = await SecureStorageService().getAccessToken();
+    if (token != null && token.isNotEmpty) {
+      return <String, dynamic>{'Authorization': 'Bearer $token'};
+    }
+  } catch (_) {
+    // best-effort
+  }
+  return <String, dynamic>{};
 }
 
 Dio _buildDio() {

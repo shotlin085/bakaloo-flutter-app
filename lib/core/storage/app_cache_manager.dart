@@ -131,9 +131,23 @@ class AppCacheManager {
       //  user-derived freshness markers so the next read refetches.)
       await settings.delete(StorageKeys.cacheUserProfile);
       await settings.delete(StorageKeys.cacheAddresses);
+      // Price mode is per-account (tied to that account's B2B status) — a
+      // stale 'wholesale' cached from the previous user must never leak
+      // into the next user's first request before PriceModeNotifier's own
+      // live self-correction has a chance to run.
+      await settings.delete(StorageKeys.cachePriceMode);
     } catch (_) {
       // best-effort
     }
+    await clearPriceSensitiveCaches();
+  }
+
+  /// Call right after a successful B2B price-mode toggle. Product list/detail
+  /// caches are keyed by page/id only (no price-mode dimension), so a stale
+  /// entry cached under the old mode would otherwise keep serving the wrong
+  /// (retail vs wholesale) price until its own TTL expires.
+  static Future<void> clearPriceSensitiveCaches() async {
+    await _safeClearBox(HiveService.productsBox);
   }
 
   static Future<void> _safeClearBox(Box<dynamic> box) async {

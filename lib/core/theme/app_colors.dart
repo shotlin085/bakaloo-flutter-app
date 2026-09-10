@@ -149,4 +149,27 @@ class AppColors {
     end: Alignment.centerRight,
     colors: [authPinkGradientStart, authPinkGradientEnd],
   );
+
+  // Spin & Win — prize wheel tokens
+  static const spinTitlePurple = Color(0xFF3B1260);
+  static const spinRingPurple = Color(0xFF9B7FE0);
+  static const spinHubStart = Color(0xFF8B3FD9);
+  static const spinHubEnd = Color(0xFF5B21A6);
+  static const spinSegmentCream = Color(0xFFFDF1D9);
+  static const spinSegmentPink = Color(0xFFFBDCEC);
+  static const spinSegmentLavender = Color(0xFFE6DFF9);
+  static const spinSegmentIcon = Color(0xFF5B3A94);
+  static const spinCardTranslucent = Color(0xF2FFFFFF);
+
+  static const spinHubGradient = LinearGradient(
+    begin: Alignment.topLeft,
+    end: Alignment.bottomRight,
+    colors: [spinHubStart, spinHubEnd],
+  );
+
+  static const spinCtaGradient = LinearGradient(
+    begin: Alignment.centerLeft,
+    end: Alignment.centerRight,
+    colors: [spinHubStart, spinHubEnd],
+  );
 }
