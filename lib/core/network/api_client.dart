@@ -390,6 +390,14 @@ abstract class ApiClient {
     @Body() Map<String, dynamic> body,
   );
 
+  @GET(ApiConstants.ledgerMe)
+  Future<HttpResponse<dynamic>> getMyLedgerAccount();
+
+  @POST(ApiConstants.ledgerPay)
+  Future<HttpResponse<dynamic>> payFromLedger(
+    @Body() Map<String, dynamic> body,
+  );
+
   @GET(ApiConstants.productsFeatured)
   Future<ApiResponse<List<dynamic>>> getFeaturedProducts(
     @Query('limit') int limit,

@@ -24,6 +24,9 @@ class CartBottomBar extends StatelessWidget {
     this.onToggleWallet,
     this.onAddMoney,
     this.onPayFullWallet,
+    this.showLedgerOption = false,
+    this.ledgerAvailableCredit = 0,
+    this.onLedger,
   });
 
   final bool hasAddress;
@@ -89,6 +92,15 @@ class CartBottomBar extends StatelessWidget {
   final ValueChanged<bool>? onToggleWallet;
   final VoidCallback? onAddMoney;
   final VoidCallback? onPayFullWallet;
+
+  /// B2B credit line — a genuine exclusive payment method (unlike the
+  /// wallet toggle above), only offered when the customer has an ACTIVE
+  /// ledger account (an admin sets this up per business account). Shown as
+  /// its own one-tap stripe, same shape as the wallet stripe's
+  /// sufficient-balance case.
+  final bool showLedgerOption;
+  final double ledgerAvailableCredit;
+  final VoidCallback? onLedger;
 
   bool get _readyForPayment => hasAddress && hasCompleteAddress;
 
@@ -179,6 +191,14 @@ class CartBottomBar extends StatelessWidget {
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: <Widget>[
+        if (showLedgerOption) ...<Widget>[
+          _LedgerStripe(
+            availableCredit: ledgerAvailableCredit,
+            enabled: !isPlacingOrder,
+            onPressed: onLedger,
+          ),
+          SizedBox(height: 10.h),
+        ],
         if (showWalletToggle) ...<Widget>[
           _WalletToggleStripe(
             walletBalance: walletBalance,
@@ -389,6 +409,134 @@ class CartBottomBar extends StatelessWidget {
                 fontWeight: FontWeight.w600,
                 color: const Color(0xFF3A2E52),
                 fontFamily: 'Inter',
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// B2B credit line stripe — one primary one-tap button, no toggle (unlike
+/// the wallet stripe, ledger eligibility is a plain yes/no, not an amount
+/// that may or may not cover the order). Same visual shape as the wallet
+/// stripe's sufficient-balance case.
+class _LedgerStripe extends StatelessWidget {
+  const _LedgerStripe({
+    required this.availableCredit,
+    required this.enabled,
+    required this.onPressed,
+  });
+
+  final double availableCredit;
+  final bool enabled;
+  final VoidCallback? onPressed;
+
+  static const _violet = Color(0xFF6D28D9);
+  static const _violetBg = Color(0xFFEDE9FE);
+  static const _borderColor = Color(0xFFDDD6FE);
+  static const _titleColor = Color(0xFF171717);
+  static const _mutedGray = Color(0xFF737684);
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: EdgeInsets.symmetric(horizontal: 16.w, vertical: 14.h),
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: <Color>[Colors.white, Color(0xFFFAF8FF)],
+        ),
+        borderRadius: BorderRadius.circular(17.r),
+        border: Border.all(color: _borderColor),
+        boxShadow: <BoxShadow>[
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.05),
+            blurRadius: 14,
+            offset: const Offset(0, 3),
+          ),
+        ],
+      ),
+      child: Row(
+        children: <Widget>[
+          Container(
+            width: 40.w,
+            height: 40.w,
+            decoration: BoxDecoration(
+              color: _violetBg,
+              borderRadius: BorderRadius.circular(12.r),
+            ),
+            child: Icon(
+              Icons.account_balance_outlined,
+              color: _violet,
+              size: 20.sp,
+            ),
+          ),
+          SizedBox(width: 12.w),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: <Widget>[
+                Text(
+                  'B2B Ledger',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  softWrap: false,
+                  style: TextStyle(
+                    fontSize: 15.sp,
+                    fontWeight: FontWeight.w800,
+                    color: _titleColor,
+                    fontFamily: 'Inter',
+                  ),
+                ),
+                SizedBox(height: 3.h),
+                Text(
+                  '₹${availableCredit.toStringAsFixed(0)} credit available',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  softWrap: false,
+                  style: TextStyle(
+                    fontSize: 12.sp,
+                    fontWeight: FontWeight.w600,
+                    color: _mutedGray,
+                    fontFamily: 'Inter',
+                  ),
+                ),
+              ],
+            ),
+          ),
+          SizedBox(width: 8.w),
+          Material(
+            color: Colors.transparent,
+            borderRadius: BorderRadius.circular(13.r),
+            child: InkWell(
+              onTap: enabled ? onPressed : null,
+              borderRadius: BorderRadius.circular(13.r),
+              child: Container(
+                padding: EdgeInsets.symmetric(horizontal: 14.w, vertical: 11.h),
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    colors: (enabled && onPressed != null)
+                        ? const <Color>[Color(0xFF6D28D9), Color(0xFF5B21B6)]
+                        : <Color>[
+                            const Color(0xFF6D28D9).withValues(alpha: 0.4),
+                            const Color(0xFF5B21B6).withValues(alpha: 0.4),
+                          ],
+                  ),
+                  borderRadius: BorderRadius.circular(13.r),
+                ),
+                child: Text(
+                  'Pay via Ledger',
+                  style: TextStyle(
+                    fontSize: 14.sp,
+                    fontWeight: FontWeight.w600,
+                    color: Colors.white,
+                    fontFamily: 'Inter',
+                  ),
+                ),
               ),
             ),
           ),

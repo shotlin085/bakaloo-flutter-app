@@ -39,6 +39,7 @@ import 'package:bakaloo_flutter_app/features/checkout/presentation/providers/sto
 import 'package:bakaloo_flutter_app/features/checkout/presentation/screens/coupons_screen.dart';
 import 'package:bakaloo_flutter_app/features/cart/presentation/widgets/schedule_delivery_sheet.dart';
 import 'package:bakaloo_flutter_app/features/checkout/presentation/widgets/store_hours_sheet.dart';
+import 'package:bakaloo_flutter_app/features/ledger/presentation/providers/ledger_provider.dart';
 import 'package:bakaloo_flutter_app/features/location/presentation/providers/non_serviceable_location_provider.dart';
 import 'package:bakaloo_flutter_app/features/wallet/presentation/providers/wallet_provider.dart';
 import 'package:bakaloo_flutter_app/features/wishlist/presentation/providers/wishlist_ids_provider.dart';
@@ -156,6 +157,11 @@ class _CartScreenState extends ConsumerState<CartScreen> {
     final remainderToPay = toPay - walletApplied < 0
         ? 0.0
         : toPay - walletApplied;
+    // Only offered to a customer with an ACTIVE B2B credit line — an admin
+    // sets this up per business account (dashboard's Financial page), it's
+    // not something every customer has.
+    final ledgerAccount = ref.watch(myLedgerAccountProvider).asData?.value;
+    final showLedgerOption = ledgerAccount?.isActive ?? false;
 
     return Scaffold(
       backgroundColor: const Color(0xFFF5F5F5),
@@ -254,6 +260,9 @@ class _CartScreenState extends ConsumerState<CartScreen> {
                   : () => _completeAddress(context, selectedAddress),
               onPayOnline: () => _handlePayOnline(context),
               onCod: () => _handleCod(context),
+              showLedgerOption: showLedgerOption,
+              ledgerAvailableCredit: ledgerAccount?.availableCredit ?? 0,
+              onLedger: () => _handleLedger(context),
             ),
     );
   }
@@ -851,6 +860,25 @@ class _CartScreenState extends ConsumerState<CartScreen> {
     }
     ref.read(checkoutProvider.notifier).selectAddress(address);
     await _placeOrder(context, PaymentMethod.cod);
+  }
+
+  /// "Pay via Ledger" — a genuine third exclusive payment method (B2B
+  /// credit line), not the orthogonal wallet-toggle. `setUseWallet(false)`
+  /// is defensive: the backend already never applies the wallet overlay to
+  /// a LEDGER order, but a stale `true` left over from toggling it on COD/
+  /// Online earlier in this session shouldn't travel with this request.
+  Future<void> _handleLedger(BuildContext context) async {
+    if (ref.read(checkoutProvider).isPlacingOrder) {
+      return;
+    }
+    final address = await _validateForPayment(context);
+    if (address == null || !context.mounted) {
+      return;
+    }
+    ref.read(checkoutProvider.notifier)
+      ..selectAddress(address)
+      ..setUseWallet(false);
+    await _placeOrder(context, PaymentMethod.ledger);
   }
 
   /// Opens wallet top-up from the cart's "Add Money" button — pre-filled

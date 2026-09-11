@@ -7,6 +7,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 
 import 'package:bakaloo_flutter_app/core/constants/api_constants.dart';
+import 'package:bakaloo_flutter_app/core/network/price_mode_interceptor.dart';
 import 'package:bakaloo_flutter_app/core/providers/store_provider.dart';
 import 'package:bakaloo_flutter_app/core/socket/socket_service.dart';
 import 'package:bakaloo_flutter_app/core/storage/hive_service.dart';
@@ -119,6 +120,23 @@ Future<void> handleSectionSocketEvent(WidgetRef ref, Map data) async {
   await refreshSectionManifest(ref, tabKey);
 }
 
+/// Drops every cached section manifest (all stores/tabs) — used when the
+/// audience a request resolves to can change without the tab/store key
+/// changing (e.g. the B2B wholesale-pricing toggle), since the in-memory
+/// and Hive caches here are keyed only by store+tab, not audience. Without
+/// this, flipping the toggle back and forth on one device could keep
+/// serving whichever audience's content was cached last.
+Future<void> clearAllSectionManifestCaches() async {
+  _memoryCache.clear();
+  _etagCache.clear();
+  try {
+    final Box<dynamic> box = await _openSectionManifestBox();
+    await box.clear();
+  } catch (error) {
+    debugPrint('[Sections] Full cache clear failed: $error');
+  }
+}
+
 Future<void> refreshSectionManifest(WidgetRef ref, String tabKey) async {
   final String storeKey = ref.read(selectedStoreProvider).id;
 
@@ -156,7 +174,12 @@ Future<SectionManifestResponse?> _fetchAndCacheSectionManifest(
 
   try {
     final Dio dio = _buildDio();
-    final Map<String, dynamic> headers = <String, dynamic>{};
+    // Previously fully anonymous — no Authorization header at all, so the
+    // backend's B2B/B2C audience resolution (which needs the authenticated
+    // user's business-account status) always fell back to B2C regardless of
+    // the customer's wholesale-pricing toggle. Reuses remote_theme_provider's
+    // helper rather than duplicating the token-read logic.
+    final Map<String, dynamic> headers = await authHeadersForThemeFetch();
     final String? etag = _etagCache[cacheKey] ?? _memoryCache[cacheKey]?.etag;
     if (etag != null && etag.isNotEmpty) {
       headers['If-None-Match'] = etag;
@@ -277,6 +300,11 @@ Future<Box<dynamic>> _openSectionManifestBox() async {
   return Hive.openBox<dynamic>(_sectionManifestBoxName);
 }
 
+/// This bare Dio skips DioClient's whole interceptor chain (see the auth
+/// header note above) — including PriceModeInterceptor, so without adding
+/// it back here a B2B customer's section-manifest fetches never carried
+/// `priceMode=wholesale` and the backend always resolved them to the B2C
+/// storefront regardless of the toggle.
 Dio _buildDio() {
   return Dio(
     BaseOptions(
@@ -288,7 +316,7 @@ Dio _buildDio() {
       connectTimeout: const Duration(seconds: 25),
       receiveTimeout: const Duration(seconds: 40),
     ),
-  );
+  )..interceptors.add(PriceModeInterceptor());
 }
 
 Map<String, dynamic> _decodeToMap(dynamic cached) {

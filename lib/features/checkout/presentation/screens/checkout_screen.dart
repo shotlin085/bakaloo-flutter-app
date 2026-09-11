@@ -24,6 +24,7 @@ import 'package:bakaloo_flutter_app/features/checkout/presentation/widgets/store
 import 'package:bakaloo_flutter_app/features/checkout/domain/entities/checkout_summary_entity.dart';
 import 'package:bakaloo_flutter_app/features/checkout/domain/entities/delivery_slot_entity.dart';
 import 'package:bakaloo_flutter_app/features/checkout/presentation/providers/checkout_provider.dart';
+import 'package:bakaloo_flutter_app/features/ledger/presentation/providers/ledger_provider.dart';
 import 'package:bakaloo_flutter_app/features/payments/presentation/providers/payment_provider.dart';
 import 'package:bakaloo_flutter_app/features/wallet/presentation/providers/wallet_provider.dart';
 import 'package:bakaloo_flutter_app/routing/route_names.dart';
@@ -131,7 +132,12 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen>
     // all) — a customer who's never topped up otherwise never discovers
     // this option exists. `_WalletToggleRow` swaps the switch for an "Add
     // Money" button whenever there's nothing to toggle on yet.
-    final showWalletToggle = walletMethodEnabled;
+    // The backend never applies the wallet-balance overlay to a LEDGER
+    // order (a B2B credit draw has no concept of a partial wallet offset on
+    // top) — hide the toggle rather than show one that would silently do
+    // nothing once Ledger is selected.
+    final showWalletToggle =
+        walletMethodEnabled && checkoutState.paymentMethod != PaymentMethod.ledger;
     final canUseWallet = walletMethodEnabled && (walletBalance ?? 0) > 0;
     final walletApplied = (checkoutState.useWallet && canUseWallet)
         ? ((walletBalance ?? 0.0) < rawPayable ? walletBalance! : rawPayable)
@@ -262,6 +268,11 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen>
     final selectedMethod = checkoutState.paymentMethod;
     final paymentMethods = billSummary?.paymentMethods ?? const PaymentMethodsInfo();
     final cod = paymentMethods.cod;
+    // Only offered to a customer with an ACTIVE B2B credit line — an admin
+    // sets this up per business account (dashboard's Financial page), it's
+    // not something every customer has.
+    final ledgerAccount = ref.watch(myLedgerAccountProvider).asData?.value;
+    final ledgerActive = ledgerAccount?.isActive ?? false;
 
     return ListView(
       padding: EdgeInsets.fromLTRB(16.w, 16.h, 16.w, 100.h),
@@ -339,6 +350,22 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen>
             isPlacingOrder: checkoutState.paymentMethod == PaymentMethod.online &&
                 checkoutState.isPlacingOrder,
           ),
+
+        // ── Ledger Card — hidden entirely unless the account is ACTIVE ─
+        if (ledgerActive) ...<Widget>[
+          Gap(12.h),
+          _LedgerPaymentCard(
+            total: summary.total,
+            availableCredit: ledgerAccount!.availableCredit,
+            selected: selectedMethod == PaymentMethod.ledger,
+            onSelect: () => ref
+                .read(checkoutProvider.notifier)
+                .selectPaymentMethod(PaymentMethod.ledger),
+            onPlaceOrder: () => _handlePayment(PaymentMethod.ledger),
+            isPlacingOrder: checkoutState.paymentMethod == PaymentMethod.ledger &&
+                checkoutState.isPlacingOrder,
+          ),
+        ],
 
         Gap(18.h),
 
@@ -1609,6 +1636,94 @@ class _RazorpayBadge extends StatelessWidget {
           fontSize: 9.sp,
           fontWeight: FontWeight.w600,
           letterSpacing: 0.3,
+        ),
+      ),
+    );
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Ledger Card — B2B credit line. Only rendered at all when the customer has
+// an ACTIVE ledger account (see the `ledgerActive` gate in _buildBody).
+// ═══════════════════════════════════════════════════════════════════════════
+
+class _LedgerPaymentCard extends StatelessWidget {
+  const _LedgerPaymentCard({
+    required this.total,
+    required this.availableCredit,
+    required this.selected,
+    required this.onSelect,
+    required this.onPlaceOrder,
+    required this.isPlacingOrder,
+  });
+
+  final double total;
+  final double availableCredit;
+  final bool selected;
+  final VoidCallback onSelect;
+  final VoidCallback onPlaceOrder;
+  final bool isPlacingOrder;
+
+  @override
+  Widget build(BuildContext context) {
+    return _PaymentCardShell(
+      selected: selected,
+      onSelect: onSelect,
+      child: Padding(
+        padding: EdgeInsets.all(16.w),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: <Widget>[
+            Row(
+              children: <Widget>[
+                const _PaymentIconTile(
+                  icon: Icons.account_balance_outlined,
+                  background: Color(0xFFEDE9FE),
+                  foreground: Color(0xFF6D28D9),
+                ),
+                Gap(12.w),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: <Widget>[
+                      Text(
+                        'Pay via Ledger',
+                        style: AppTextStyles.labelLarge.copyWith(
+                          fontWeight: FontWeight.w700,
+                          fontSize: 15.sp,
+                        ),
+                      ),
+                      Gap(2.h),
+                      Text(
+                        '${availableCredit.toInrCurrency} credit available',
+                        style: AppTextStyles.bodySmall.copyWith(
+                          color: AppColors.textSecondary,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                Gap(8.w),
+                _SelectionRadio(selected: selected),
+              ],
+            ),
+            AnimatedSize(
+              duration: const Duration(milliseconds: 200),
+              curve: Curves.easeOutCubic,
+              alignment: Alignment.topCenter,
+              child: selected
+                  ? Padding(
+                      padding: EdgeInsets.only(top: 14.h),
+                      child: _PaymentActionButton(
+                        label: 'Place Order (Pay via Ledger)',
+                        icon: Icons.lock_rounded,
+                        isLoading: isPlacingOrder,
+                        onPressed: isPlacingOrder ? null : onPlaceOrder,
+                      ),
+                    )
+                  : const SizedBox(width: double.infinity),
+            ),
+          ],
         ),
       ),
     );

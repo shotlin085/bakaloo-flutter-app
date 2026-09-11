@@ -23,6 +23,7 @@ import 'package:bakaloo_flutter_app/features/checkout/domain/repositories/checko
 import 'package:bakaloo_flutter_app/features/checkout/domain/usecases/place_order.dart';
 import 'package:bakaloo_flutter_app/features/checkout/presentation/providers/coupon_provider.dart';
 import 'package:bakaloo_flutter_app/features/checkout/presentation/providers/store_status_provider.dart';
+import 'package:bakaloo_flutter_app/features/ledger/presentation/providers/ledger_provider.dart';
 import 'package:bakaloo_flutter_app/features/payments/presentation/providers/payment_provider.dart';
 import 'package:bakaloo_flutter_app/features/wallet/presentation/providers/wallet_provider.dart';
 import 'package:bakaloo_flutter_app/routing/app_router.dart';
@@ -38,20 +39,29 @@ typedef CartValidationEntity = CartValidationResult;
 // whichever method is chosen. The backend still accepts the legacy
 // paymentMethod:'WALLET' value from any not-yet-updated app install; it
 // simply can never be sent by this build anymore.
+//
+// `ledger` is a genuine third exclusive method (B2B credit line) — only
+// offered to customers with an ACTIVE ledger account (see
+// myLedgerAccountProvider). Like the legacy WALLET method, it's a two-step
+// flow: placeOrder() creates the order PENDING, then a second call
+// (LedgerNotifier.payFromLedger) settles it — see placeOrder() below.
 enum PaymentMethod {
   cod,
   online,
+  ledger,
 }
 
 extension PaymentMethodX on PaymentMethod {
   String get apiValue => switch (this) {
         PaymentMethod.cod => 'COD',
         PaymentMethod.online => 'ONLINE',
+        PaymentMethod.ledger => 'LEDGER',
       };
 
   String get title => switch (this) {
         PaymentMethod.cod => 'Cash on Delivery',
         PaymentMethod.online => 'Pay Online',
+        PaymentMethod.ledger => 'Pay via Ledger',
       };
 }
 
@@ -459,7 +469,27 @@ class CheckoutNotifier extends _$CheckoutNotifier {
       handedOffToPayment = true;
     }
 
-    if (selectedPaymentMethod == PaymentMethod.cod || alreadyPaid) {
+    if (selectedPaymentMethod == PaymentMethod.ledger && !alreadyPaid) {
+      final ledgerResult =
+          await ref.read(ledgerProvider.notifier).payFromLedger(order.id);
+      if (!ledgerResult.isSuccess) {
+        await _tryCancelOrder(
+          order.id,
+          reason: 'Ledger payment failed',
+        );
+        final message = ledgerResult.failure?.message ??
+            'Unable to pay from your ledger account right now.';
+        state = state.copyWith(
+          isPlacingOrder: false,
+          errorMessage: message,
+        );
+        return CheckoutPlacementResult(errorMessage: message);
+      }
+    }
+
+    if (selectedPaymentMethod == PaymentMethod.cod ||
+        selectedPaymentMethod == PaymentMethod.ledger ||
+        alreadyPaid) {
       // COD has no payment-gateway handoff, and an order the wallet already
       // fully paid has nothing left to hand off to either — clear the cart
       // and navigate to the order success screen ourselves, mirroring what

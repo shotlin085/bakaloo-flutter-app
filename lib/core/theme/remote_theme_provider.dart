@@ -8,6 +8,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:bakaloo_flutter_app/core/constants/api_constants.dart';
 import 'package:bakaloo_flutter_app/core/constants/storage_keys.dart';
 import 'package:bakaloo_flutter_app/core/network/app_availability_provider.dart';
+import 'package:bakaloo_flutter_app/core/network/price_mode_interceptor.dart';
 import 'package:bakaloo_flutter_app/core/providers/store_provider.dart';
 import 'package:bakaloo_flutter_app/core/socket/socket_service.dart';
 import 'package:bakaloo_flutter_app/core/storage/hive_service.dart';
@@ -438,7 +439,7 @@ Future<void> _fetchAndCacheTabThemes(Ref ref, String storeKey) {
 Future<void> _runFetchAndCacheTabThemes(Ref ref, String storeKey) async {
   try {
     final Dio dio = _buildDio();
-    final Map<String, dynamic> headers = await _authHeaders();
+    final Map<String, dynamic> headers = await authHeadersForThemeFetch();
     final String? etag = _themeMemoryCache[storeKey]?.etag;
     if (etag != null && etag.isNotEmpty) {
       headers['If-None-Match'] = etag;
@@ -583,7 +584,7 @@ Future<TabHomeContentResponse?> _runFetchAndCacheTabHomeContent(
       '${ApiConstants.tabThemes}/$tabKey/home',
       queryParameters: <String, dynamic>{'store_key': storeKey},
       options: Options(
-        headers: await _authHeaders(),
+        headers: await authHeadersForThemeFetch(),
         validateStatus: (int? status) => status != null && status < 500,
       ),
     );
@@ -756,7 +757,11 @@ TabThemesResponse? _readCachedManifestSnapshot(String storeKey) {
 /// from the authenticated user instead of always falling back to the B2C
 /// default; failure to read the token must never block the (already
 /// resilient, cache-then-network) theme fetch itself.
-Future<Map<String, dynamic>> _authHeaders() async {
+///
+/// Public (not `_`-prefixed) so section_manifest_provider.dart's own bare
+/// Dio — a separate instance for the same reason — can reuse it instead of
+/// duplicating the token-read logic.
+Future<Map<String, dynamic>> authHeadersForThemeFetch() async {
   try {
     final token = await SecureStorageService().getAccessToken();
     if (token != null && token.isNotEmpty) {
@@ -768,6 +773,12 @@ Future<Map<String, dynamic>> _authHeaders() async {
   return <String, dynamic>{};
 }
 
+/// This bare Dio (built for the auth-header reasons documented above) skips
+/// DioClient's whole interceptor chain, including PriceModeInterceptor — so
+/// without adding it back here, a B2B customer's theme/tab-home fetches
+/// never carried `priceMode=wholesale` and the backend always resolved them
+/// to the B2C storefront regardless of the toggle. Confirmed as the actual
+/// cause of "wholesale pricing turned on but the theme stayed B2C."
 Dio _buildDio() {
   return Dio(
     BaseOptions(
@@ -777,7 +788,7 @@ Dio _buildDio() {
       connectTimeout: const Duration(seconds: 25),
       receiveTimeout: const Duration(seconds: 40),
     ),
-  );
+  )..interceptors.add(PriceModeInterceptor());
 }
 
 String _manifestCacheKey(String storeKey) => 'tab_themes_data_$storeKey';

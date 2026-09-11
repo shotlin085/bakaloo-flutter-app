@@ -165,6 +165,9 @@ class ApiConstants {
   static const businessAccountApply = '/business-accounts/apply';
   static const businessAccountToggle = '/business-accounts/me/toggle';
 
+  static const ledgerMe = '/ledger/me';
+  static const ledgerPay = '/ledger/pay';
+
   static const notifications = '/notifications';
   static const notificationTokens = '/notifications/tokens';
   static const notificationPreferences = '/notifications/preferences';

@@ -6,6 +6,7 @@ import 'package:bakaloo_flutter_app/core/constants/storage_keys.dart';
 import 'package:bakaloo_flutter_app/core/storage/app_cache_manager.dart';
 import 'package:bakaloo_flutter_app/core/storage/hive_service.dart';
 import 'package:bakaloo_flutter_app/core/theme/remote_theme_provider.dart';
+import 'package:bakaloo_flutter_app/core/theme/section_manifest_provider.dart';
 import 'package:bakaloo_flutter_app/core/errors/failure.dart';
 import 'package:bakaloo_flutter_app/features/auth/presentation/providers/auth_notifier.dart';
 import 'package:bakaloo_flutter_app/features/auth/presentation/providers/auth_state.dart';
@@ -120,6 +121,17 @@ class PriceModeNotifier extends _$PriceModeNotifier {
     await AppCacheManager.clearPriceSensitiveCaches();
     try {
       ref.invalidate(cartProvider);
+    } catch (_) {}
+    // Section manifests (the Section Builder home-screen content) are
+    // cached separately from tab themes/home-merch, keyed only by
+    // store+tab — not audience — so a plain theme refresh wouldn't pick up
+    // the other audience's section layout. Clear them explicitly and
+    // invalidate every instance of the family so the currently visible tab
+    // refetches immediately.
+    try {
+      await clearAllSectionManifestCaches();
+      ref.invalidate(sectionManifestProvider);
+      ref.invalidate(activeSectionManifestProvider);
     } catch (_) {}
     try {
       await ref.read(managedThemeRefreshProvider.notifier).refresh();
