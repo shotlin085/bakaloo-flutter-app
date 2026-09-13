@@ -1,5 +1,6 @@
 import 'dart:convert';
 
+import 'package:bakaloo_flutter_app/features/orders/data/models/b2b_settlement_model.dart';
 import 'package:bakaloo_flutter_app/features/orders/data/models/order_item_model.dart';
 import 'package:bakaloo_flutter_app/features/orders/data/models/order_timeline_model.dart';
 import 'package:bakaloo_flutter_app/features/orders/domain/entities/order_entity.dart';
@@ -33,6 +34,10 @@ class OrderModel {
     this.scheduledSlotStart,
     this.scheduledSlotEnd,
     this.deliveryOtp,
+    this.b2bApprovalStatus,
+    this.b2bAmountSettled = 0,
+    this.b2bPaymentDueDate,
+    this.b2bSettlements = const <B2BSettlementModel>[],
   });
 
   final String id;
@@ -61,6 +66,10 @@ class OrderModel {
   final DateTime? scheduledSlotStart;
   final DateTime? scheduledSlotEnd;
   final String? deliveryOtp;
+  final String? b2bApprovalStatus;
+  final double b2bAmountSettled;
+  final DateTime? b2bPaymentDueDate;
+  final List<B2BSettlementModel> b2bSettlements;
 
   factory OrderModel.fromJson(Map<String, dynamic> json) {
     final createdAt = _readDateTime(
@@ -158,6 +167,13 @@ class OrderModel {
         json, <String>['scheduledSlotEnd', 'scheduled_slot_end'],),
       deliveryOtp: _readNullableString(
         json, <String>['deliveryOtp', 'delivery_otp'],),
+      b2bApprovalStatus: _readNullableString(
+        json, <String>['b2bApprovalStatus', 'b2b_approval_status'],),
+      b2bAmountSettled: _readDouble(
+        json, <String>['b2bAmountSettled', 'b2b_amount_settled'],),
+      b2bPaymentDueDate: _readDateTime(
+        json, <String>['b2bPaymentDueDate', 'b2b_payment_due_date'],),
+      b2bSettlements: _readSettlements(json),
     );
   }
 
@@ -189,6 +205,11 @@ class OrderModel {
       scheduledSlotStart: scheduledSlotStart,
       scheduledSlotEnd: scheduledSlotEnd,
       deliveryOtp: deliveryOtp,
+      b2bApprovalStatus: b2bApprovalStatus,
+      b2bAmountSettled: b2bAmountSettled,
+      b2bPaymentDueDate: b2bPaymentDueDate,
+      b2bSettlements:
+          b2bSettlements.map((item) => item.toEntity()).toList(growable: false),
     );
   }
 
@@ -227,6 +248,19 @@ class OrderModel {
     return rawItems
         .whereType<Map>()
         .map((item) => OrderItemModel.fromJson(Map<String, dynamic>.from(item)))
+        .toList(growable: false);
+  }
+
+  static List<B2BSettlementModel> _readSettlements(Map<String, dynamic> json) {
+    final raw = json['b2bSettlements'] ?? json['b2b_settlements'];
+    if (raw is! List) {
+      return const <B2BSettlementModel>[];
+    }
+    return raw
+        .whereType<Map>()
+        .map(
+          (item) => B2BSettlementModel.fromJson(Map<String, dynamic>.from(item)),
+        )
         .toList(growable: false);
   }
 

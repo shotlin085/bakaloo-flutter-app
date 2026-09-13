@@ -1,5 +1,6 @@
 import 'package:freezed_annotation/freezed_annotation.dart';
 
+import 'package:bakaloo_flutter_app/features/orders/domain/entities/b2b_settlement_entity.dart';
 import 'package:bakaloo_flutter_app/features/orders/domain/entities/order_item_entity.dart';
 import 'package:bakaloo_flutter_app/features/orders/domain/entities/order_timeline_entity.dart';
 
@@ -43,7 +44,20 @@ abstract class OrderEntity with _$OrderEntity {
     // 4-digit code the customer reads out to the rider on delivery.
     // Only present while the assignment is ACCEPTED/IN_TRANSIT.
     String? deliveryOtp,
+    // "Place Order" B2B credit — null for every non-B2B order.
+    // 'PENDING' until an admin approves it, 'APPROVED' after. There is no
+    // credit limit; "amount owed" is total minus b2bAmountSettled, settled
+    // per-order via b2bSettlements rather than an account-level balance.
+    String? b2bApprovalStatus,
+    @Default(0) double b2bAmountSettled,
+    DateTime? b2bPaymentDueDate,
+    @Default(<B2BSettlementEntity>[]) List<B2BSettlementEntity> b2bSettlements,
   }) = _OrderEntity;
+
+  bool get isB2BCredit => b2bApprovalStatus != null;
+
+  double get b2bAmountPending =>
+      (total - b2bAmountSettled) < 0 ? 0 : total - b2bAmountSettled;
 
   List<OrderTimelineEntity> get statusHistory => timeline;
 

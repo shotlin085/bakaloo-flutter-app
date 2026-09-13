@@ -294,6 +294,13 @@ class _OrderDetailScreenState extends ConsumerState<OrderDetailScreen> {
                 title: 'Payment',
                 child: _PaymentInfo(order: order),
               ),
+              if (order.isB2BCredit) ...<Widget>[
+                Gap(16.h),
+                _SectionCard(
+                  title: 'B2B Credit',
+                  child: _B2BCreditInfo(order: order),
+                ),
+              ],
               if (refundRequest != null) ...<Widget>[
                 Gap(16.h),
                 _SectionCard(
@@ -961,6 +968,139 @@ class _PaymentInfo extends StatelessWidget {
       }
       return '${part[0].toUpperCase()}${part.substring(1)}';
     }).join(' ');
+  }
+}
+
+/// "Place Order" B2B credit summary — how much of the order has actually
+/// been collected so far (recorded manually by an admin after delivery,
+/// potentially across several partial visits), what's still pending, and
+/// the payment-schedule date if the admin set one (e.g. "pay in 5 days").
+/// There is no credit limit to show — an approved B2B account can order
+/// any amount, so this is purely about this one order's own settlement.
+class _B2BCreditInfo extends StatelessWidget {
+  const _B2BCreditInfo({required this.order});
+
+  final OrderEntity order;
+
+  @override
+  Widget build(BuildContext context) {
+    final pending = order.b2bAmountPending;
+    final isFullySettled = pending <= 0.01;
+    final dueDate = order.b2bPaymentDueDate;
+    final isOverdue = dueDate != null && pending > 0.01 && dueDate.isExpired;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: <Widget>[
+        _InfoRow(
+          label: 'Settled',
+          value: order.b2bAmountSettled.toInrCurrency,
+          valueColor: AppColors.primaryGreen,
+        ),
+        if (!isFullySettled)
+          _InfoRow(
+            label: 'Pending',
+            value: pending.toInrCurrency,
+            valueColor: AppColors.orderStatusAmber,
+          )
+        else
+          const _InfoRow(
+            label: 'Status',
+            value: 'Fully settled',
+            valueColor: AppColors.primaryGreen,
+          ),
+        if (dueDate != null && !isFullySettled) ...<Widget>[
+          Gap(4.h),
+          Container(
+            padding: EdgeInsets.symmetric(horizontal: 10.w, vertical: 8.h),
+            decoration: BoxDecoration(
+              color: isOverdue
+                  ? const Color(0xFFFEF2F2)
+                  : AppColors.orderStatusAmberBg,
+              borderRadius: BorderRadius.circular(AppDimensions.radiusMd),
+            ),
+            child: Row(
+              children: <Widget>[
+                PhosphorIcon(
+                  PhosphorIcons.calendarDots,
+                  size: 16.sp,
+                  color: isOverdue ? AppColors.errorRed : AppColors.orderStatusAmber,
+                ),
+                Gap(8.w),
+                Expanded(
+                  child: Text(
+                    isOverdue
+                        ? 'Payment was due ${dueDate.toIndianDate}'
+                        : 'Payment due by ${dueDate.toIndianDate}',
+                    style: AppTextStyles.bodySmall.copyWith(
+                      color: isOverdue ? AppColors.errorRed : AppColors.orderStatusAmber,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+        if (order.b2bSettlements.isNotEmpty) ...<Widget>[
+          Gap(10.h),
+          Text(
+            'Collection history',
+            style: AppTextStyles.labelSmall.copyWith(
+              color: AppColors.textSecondary,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+          Gap(6.h),
+          ...order.b2bSettlements.map(
+            (settlement) => Padding(
+              padding: EdgeInsets.only(bottom: 8.h),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: <Widget>[
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: <Widget>[
+                        Text(
+                          _settlementMethodLabel(settlement.method),
+                          style: AppTextStyles.bodyMedium
+                              .copyWith(fontWeight: FontWeight.w600),
+                        ),
+                        Text(
+                          settlement.createdAt.toIndianDateTime,
+                          style: AppTextStyles.bodySmall
+                              .copyWith(color: AppColors.textSecondary),
+                        ),
+                        if ((settlement.note ?? '').trim().isNotEmpty)
+                          Text(
+                            settlement.note!.trim(),
+                            style: AppTextStyles.bodySmall
+                                .copyWith(color: AppColors.textSecondary),
+                          ),
+                      ],
+                    ),
+                  ),
+                  Text(
+                    settlement.amount.toInrCurrency,
+                    style: AppTextStyles.labelLarge.copyWith(fontWeight: FontWeight.w700),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ],
+    );
+  }
+
+  String _settlementMethodLabel(String method) {
+    return switch (method.trim().toUpperCase()) {
+      'CASH' => 'Cash',
+      'UPI' => 'UPI',
+      'RAZORPAY' => 'Razorpay',
+      _ => 'Other',
+    };
   }
 }
 
