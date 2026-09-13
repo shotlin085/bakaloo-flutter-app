@@ -15,6 +15,7 @@ class PlaceOrderParams {
     this.scheduledSlotLabel,
     this.quickDeliverySelected = false,
     this.useWallet = false,
+    this.useLedger = false,
   });
 
   final String addressId;
@@ -32,6 +33,11 @@ class PlaceOrderParams {
   /// of [paymentMethod] rather than replacing it. Ignored by the backend
   /// when paymentMethod is the legacy 'WALLET'.
   final bool useWallet;
+  /// Explicit opt-in only — same convention as [useWallet], for the B2B
+  /// credit line instead of wallet balance. Mutually exclusive with
+  /// useWallet (see CheckoutNotifier.setUseLedger). Ignored by the backend
+  /// when paymentMethod is 'LEDGER'.
+  final bool useLedger;
 
   Map<String, dynamic> toJson() {
     return <String, dynamic>{
@@ -55,6 +61,7 @@ class PlaceOrderParams {
       // Always explicit — unlike couponCode/deliveryNotes, false here is a
       // meaningful, deliberate value, not an absent one.
       'useWallet': useWallet,
+      'useLedger': useLedger,
     };
   }
 }
@@ -75,6 +82,7 @@ class PlacedOrderEntity {
     this.couponCode,
     this.estimatedDelivery,
     this.walletAmountUsed = 0,
+    this.ledgerAmountUsed = 0,
   });
 
   final String id;
@@ -91,6 +99,7 @@ class PlacedOrderEntity {
   final String? couponCode;
   final DateTime? estimatedDelivery;
   final double walletAmountUsed;
+  final double ledgerAmountUsed;
 }
 
 abstract class CheckoutRepository {

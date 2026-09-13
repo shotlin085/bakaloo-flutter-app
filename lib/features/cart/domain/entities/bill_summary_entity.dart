@@ -267,6 +267,11 @@ abstract class PaymentMethodsInfo with _$PaymentMethodsInfo {
     @Default(CodPaymentInfo()) CodPaymentInfo cod,
     @Default(MethodAvailability()) MethodAvailability razorpay,
     @Default(MethodAvailability()) MethodAvailability wallet,
+    // Admin kill-switch (Settings → Payments) for the B2B ledger toggle
+    // and "Place Order" button — independent of whether this particular
+    // customer's own ledger account is ACTIVE (see myLedgerAccountProvider,
+    // which still gates it per-account on the Flutter side).
+    @Default(MethodAvailability()) MethodAvailability ledger,
   }) = _PaymentMethodsInfo;
 
   factory PaymentMethodsInfo.fromJson(Map<String, dynamic> json) =>

@@ -26,7 +26,11 @@ class CartBottomBar extends StatelessWidget {
     this.onPayFullWallet,
     this.showLedgerOption = false,
     this.ledgerAvailableCredit = 0,
-    this.onLedger,
+    this.ledgerApplied = 0,
+    this.useLedger = false,
+    this.onToggleLedger,
+    this.onPayFullLedger,
+    this.onPlaceOrderOnCredit,
   });
 
   final bool hasAddress;
@@ -93,14 +97,24 @@ class CartBottomBar extends StatelessWidget {
   final VoidCallback? onAddMoney;
   final VoidCallback? onPayFullWallet;
 
-  /// B2B credit line — a genuine exclusive payment method (unlike the
-  /// wallet toggle above), only offered when the customer has an ACTIVE
-  /// ledger account (an admin sets this up per business account). Shown as
-  /// its own one-tap stripe, same shape as the wallet stripe's
-  /// sufficient-balance case.
+  /// B2B ledger-balance toggle — same shape as the wallet toggle above
+  /// (offsets Pay Online / the credit-order button rather than replacing
+  /// it), only offered when the customer has an ACTIVE ledger account (an
+  /// admin sets this up per business account) AND the admin hasn't
+  /// disabled ledger payments platform-wide (Settings → Payments).
   final bool showLedgerOption;
   final double ledgerAvailableCredit;
-  final VoidCallback? onLedger;
+  final double ledgerApplied;
+  final bool useLedger;
+  final ValueChanged<bool>? onToggleLedger;
+  final VoidCallback? onPayFullLedger;
+
+  /// B2B-exclusive "Place Order" button, replacing Cash on Delivery's slot
+  /// entirely when set — draws the order's full total onto the ledger as
+  /// credit (overage-allowed) and holds it for admin approval, rather than
+  /// collecting cash on delivery. Null for every non-B2B customer, who
+  /// keeps the ordinary Cash on Delivery button in that slot.
+  final VoidCallback? onPlaceOrderOnCredit;
 
   bool get _readyForPayment => hasAddress && hasCompleteAddress;
 
@@ -192,10 +206,14 @@ class CartBottomBar extends StatelessWidget {
       mainAxisSize: MainAxisSize.min,
       children: <Widget>[
         if (showLedgerOption) ...<Widget>[
-          _LedgerStripe(
+          _LedgerToggleStripe(
             availableCredit: ledgerAvailableCredit,
+            ledgerApplied: ledgerApplied,
+            orderTotal: orderTotal,
+            value: useLedger,
             enabled: !isPlacingOrder,
-            onPressed: onLedger,
+            onChanged: onToggleLedger ?? (_) {},
+            onPayFullLedger: onPayFullLedger,
           ),
           SizedBox(height: 10.h),
         ],
@@ -279,8 +297,9 @@ class CartBottomBar extends StatelessWidget {
               child: SizedBox(
                 height: 52.h,
                 child: ElevatedButton(
-                  onPressed:
-                      (codEnabled && !isPlacingOrder) ? onCod : null,
+                  onPressed: !isPlacingOrder
+                      ? (onPlaceOrderOnCredit ?? (codEnabled ? onCod : null))
+                      : null,
                   style: ElevatedButton.styleFrom(
                     backgroundColor: const Color(0xFF7C3AED),
                     disabledBackgroundColor:
@@ -305,7 +324,12 @@ class CartBottomBar extends StatelessWidget {
                           ),
                         )
                       : Text(
-                          'Cash on Delivery',
+                          // "Place Order" — B2B-exclusive, replaces Cash on
+                          // Delivery's slot entirely (see
+                          // onPlaceOrderOnCredit's doc comment above).
+                          onPlaceOrderOnCredit != null
+                              ? 'Place Order'
+                              : 'Cash on Delivery',
                           textAlign: TextAlign.center,
                           style: TextStyle(
                             fontSize: 14.sp,
@@ -418,20 +442,30 @@ class CartBottomBar extends StatelessWidget {
   }
 }
 
-/// B2B credit line stripe — one primary one-tap button, no toggle (unlike
-/// the wallet stripe, ledger eligibility is a plain yes/no, not an amount
-/// that may or may not cover the order). Same visual shape as the wallet
-/// stripe's sufficient-balance case.
-class _LedgerStripe extends StatelessWidget {
-  const _LedgerStripe({
+/// B2B ledger-balance toggle — mirrors [_WalletToggleStripe]'s shape
+/// exactly (same offset-against-Pay-Online/Place-Order mechanic, see
+/// OrdersService#placeOrder's ledger-balance-toggle block), but for the
+/// B2B credit line instead of the customer's own wallet balance. No "Add
+/// Money" equivalent — a customer can't top up a credit line themselves,
+/// so the insufficient-coverage case is just the checkmark toggle alone.
+class _LedgerToggleStripe extends StatelessWidget {
+  const _LedgerToggleStripe({
     required this.availableCredit,
+    required this.ledgerApplied,
+    required this.orderTotal,
+    required this.value,
     required this.enabled,
-    required this.onPressed,
+    required this.onChanged,
+    this.onPayFullLedger,
   });
 
   final double availableCredit;
+  final double ledgerApplied;
+  final double orderTotal;
+  final bool value;
   final bool enabled;
-  final VoidCallback? onPressed;
+  final ValueChanged<bool> onChanged;
+  final VoidCallback? onPayFullLedger;
 
   static const _violet = Color(0xFF6D28D9);
   static const _violetBg = Color(0xFFEDE9FE);
@@ -439,8 +473,12 @@ class _LedgerStripe extends StatelessWidget {
   static const _titleColor = Color(0xFF171717);
   static const _mutedGray = Color(0xFF737684);
 
+  bool get _hasCredit => availableCredit > 0;
+  bool get _sufficient => availableCredit >= orderTotal && orderTotal > 0;
+
   @override
   Widget build(BuildContext context) {
+    final active = value && _hasCredit && !_sufficient;
     return Container(
       padding: EdgeInsets.symmetric(horizontal: 16.w, vertical: 14.h),
       decoration: BoxDecoration(
@@ -493,8 +531,54 @@ class _LedgerStripe extends StatelessWidget {
                   ),
                 ),
                 SizedBox(height: 3.h),
-                Text(
-                  '₹${availableCredit.toStringAsFixed(0)} credit available',
+                Text.rich(
+                  _sufficient
+                      ? TextSpan(
+                          children: <InlineSpan>[
+                            TextSpan(
+                              text: '₹${availableCredit.toStringAsFixed(0)} ',
+                              style: const TextStyle(
+                                color: _violet,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                            const TextSpan(text: 'available  |  '),
+                            TextSpan(
+                              text: '₹${orderTotal.toStringAsFixed(0)} ',
+                              style: const TextStyle(
+                                color: _violet,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                            const TextSpan(text: 'order total'),
+                          ],
+                        )
+                      : active && ledgerApplied > 0
+                          ? TextSpan(
+                              children: <InlineSpan>[
+                                TextSpan(
+                                  text: '₹${ledgerApplied.toStringAsFixed(0)} ',
+                                  style: const TextStyle(
+                                    color: _violet,
+                                    fontWeight: FontWeight.w700,
+                                  ),
+                                ),
+                                const TextSpan(text: 'applied  |  '),
+                                TextSpan(
+                                  text: '₹${availableCredit.toStringAsFixed(0)} ',
+                                  style: const TextStyle(
+                                    color: _violet,
+                                    fontWeight: FontWeight.w700,
+                                  ),
+                                ),
+                                const TextSpan(text: 'available'),
+                              ],
+                            )
+                          : TextSpan(
+                              text: _hasCredit
+                                  ? '₹${availableCredit.toStringAsFixed(0)} credit available'
+                                  : 'No credit available',
+                            ),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   softWrap: false,
@@ -509,37 +593,44 @@ class _LedgerStripe extends StatelessWidget {
             ),
           ),
           SizedBox(width: 8.w),
-          Material(
-            color: Colors.transparent,
-            borderRadius: BorderRadius.circular(13.r),
-            child: InkWell(
-              onTap: enabled ? onPressed : null,
+          if (_sufficient)
+            Material(
+              color: Colors.transparent,
               borderRadius: BorderRadius.circular(13.r),
-              child: Container(
-                padding: EdgeInsets.symmetric(horizontal: 14.w, vertical: 11.h),
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    colors: (enabled && onPressed != null)
-                        ? const <Color>[Color(0xFF6D28D9), Color(0xFF5B21B6)]
-                        : <Color>[
-                            const Color(0xFF6D28D9).withValues(alpha: 0.4),
-                            const Color(0xFF5B21B6).withValues(alpha: 0.4),
-                          ],
+              child: InkWell(
+                onTap: enabled ? onPayFullLedger : null,
+                borderRadius: BorderRadius.circular(13.r),
+                child: Container(
+                  padding: EdgeInsets.symmetric(horizontal: 14.w, vertical: 11.h),
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      colors: (enabled && onPayFullLedger != null)
+                          ? const <Color>[Color(0xFF6D28D9), Color(0xFF5B21B6)]
+                          : <Color>[
+                              const Color(0xFF6D28D9).withValues(alpha: 0.4),
+                              const Color(0xFF5B21B6).withValues(alpha: 0.4),
+                            ],
+                    ),
+                    borderRadius: BorderRadius.circular(13.r),
                   ),
-                  borderRadius: BorderRadius.circular(13.r),
-                ),
-                child: Text(
-                  'Pay via Ledger',
-                  style: TextStyle(
-                    fontSize: 14.sp,
-                    fontWeight: FontWeight.w600,
-                    color: Colors.white,
-                    fontFamily: 'Inter',
+                  child: Text(
+                    'Pay via Ledger',
+                    style: TextStyle(
+                      fontSize: 14.sp,
+                      fontWeight: FontWeight.w600,
+                      color: Colors.white,
+                      fontFamily: 'Inter',
+                    ),
                   ),
                 ),
               ),
+            )
+          else
+            _CheckmarkToggle(
+              value: value,
+              enabled: enabled,
+              onChanged: onChanged,
             ),
-          ),
         ],
       ),
     );

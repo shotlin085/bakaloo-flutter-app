@@ -139,6 +139,19 @@ class _CartScreenState extends ConsumerState<CartScreen> {
     // while a refetch is in flight instead of flashing to ₹0 (`.asData` is
     // null during AsyncLoading even when it's carrying a previous value).
     final walletBalance = walletAsync.value?.balance ?? 0.0;
+    // Only offered to a customer with an ACTIVE B2B credit line — an admin
+    // sets this up per business account (dashboard's Financial page) — AND
+    // only while the platform-wide toggle (Settings → Payments → B2B
+    // Ledger) is on. showLedgerOption replaces the wallet stripe entirely
+    // for a B2B customer (see showWalletStripe below) — B2B and B2C never
+    // show both at once.
+    final ledgerAccount = ref.watch(myLedgerAccountProvider).asData?.value;
+    final ledgerMethodEnabled =
+        lastKnownSummary?.paymentMethods.ledger.enabled ??
+            displayBillSummary.paymentMethods.ledger.enabled;
+    final showLedgerOption =
+        ledgerMethodEnabled && (ledgerAccount?.isActive ?? false);
+
     final walletMethodEnabled =
         lastKnownSummary?.paymentMethods.wallet.enabled ??
             displayBillSummary.paymentMethods.wallet.enabled;
@@ -146,22 +159,31 @@ class _CartScreenState extends ConsumerState<CartScreen> {
     // all) — a customer who's never topped up otherwise never discovers
     // this option exists. `_WalletToggleStripe` itself swaps the switch for
     // an "Add Money" button whenever there's nothing to toggle on yet.
-    final showWalletStripe = walletMethodEnabled;
-    final canUseWallet = walletMethodEnabled && walletBalance > 0;
+    // Never shown alongside the ledger toggle — an active B2B credit line
+    // replaces the wallet stripe, it doesn't add to it (see the user's own
+    // wallet balance being irrelevant once a business is ordering on
+    // credit terms).
+    final showWalletStripe = walletMethodEnabled && !showLedgerOption;
+    final canUseWallet = showWalletStripe && walletBalance > 0;
     final useWallet = ref.watch(
       checkoutProvider.select((s) => s.useWallet),
     );
     final walletApplied = (useWallet && canUseWallet)
         ? (walletBalance < toPay ? walletBalance : toPay)
         : 0.0;
-    final remainderToPay = toPay - walletApplied < 0
+
+    final ledgerAvailableCredit = ledgerAccount?.availableCredit ?? 0;
+    final canUseLedger = showLedgerOption && ledgerAvailableCredit > 0;
+    final useLedger = ref.watch(
+      checkoutProvider.select((s) => s.useLedger),
+    );
+    final ledgerApplied = (useLedger && canUseLedger)
+        ? (ledgerAvailableCredit < toPay ? ledgerAvailableCredit : toPay)
+        : 0.0;
+
+    final remainderToPay = toPay - walletApplied - ledgerApplied < 0
         ? 0.0
-        : toPay - walletApplied;
-    // Only offered to a customer with an ACTIVE B2B credit line — an admin
-    // sets this up per business account (dashboard's Financial page), it's
-    // not something every customer has.
-    final ledgerAccount = ref.watch(myLedgerAccountProvider).asData?.value;
-    final showLedgerOption = ledgerAccount?.isActive ?? false;
+        : toPay - walletApplied - ledgerApplied;
 
     return Scaffold(
       backgroundColor: const Color(0xFFF5F5F5),
@@ -261,8 +283,21 @@ class _CartScreenState extends ConsumerState<CartScreen> {
               onPayOnline: () => _handlePayOnline(context),
               onCod: () => _handleCod(context),
               showLedgerOption: showLedgerOption,
-              ledgerAvailableCredit: ledgerAccount?.availableCredit ?? 0,
-              onLedger: () => _handleLedger(context),
+              ledgerAvailableCredit: ledgerAvailableCredit,
+              ledgerApplied: ledgerApplied,
+              useLedger: useLedger,
+              onToggleLedger: (value) =>
+                  ref.read(checkoutProvider.notifier).setUseLedger(value),
+              onPayFullLedger: () => _handlePayFullLedger(
+                context,
+                codEnabled:
+                    lastKnownSummary?.paymentMethods.cod.enabled ?? true,
+              ),
+              // B2B-exclusive "Place Order" — replaces Cash on Delivery's
+              // slot for a B2B customer with an active, enabled ledger.
+              // Null (falls back to ordinary COD) for every other customer.
+              onPlaceOrderOnCredit:
+                  showLedgerOption ? () => _handlePlaceOrderOnCredit(context) : null,
             ),
     );
   }
@@ -862,12 +897,14 @@ class _CartScreenState extends ConsumerState<CartScreen> {
     await _placeOrder(context, PaymentMethod.cod);
   }
 
-  /// "Pay via Ledger" — a genuine third exclusive payment method (B2B
-  /// credit line), not the orthogonal wallet-toggle. `setUseWallet(false)`
-  /// is defensive: the backend already never applies the wallet overlay to
-  /// a LEDGER order, but a stale `true` left over from toggling it on COD/
-  /// Online earlier in this session shouldn't travel with this request.
-  Future<void> _handleLedger(BuildContext context) async {
+  /// "Pay via Ledger" — the ledger stripe's dedicated one-tap action once
+  /// available credit already covers the order in full. Same shape as
+  /// _handlePayFullWallet: reuses the ordinary COD/Online placeOrder path
+  /// with useLedger forced on, rather than being its own exclusive method.
+  Future<void> _handlePayFullLedger(
+    BuildContext context, {
+    required bool codEnabled,
+  }) async {
     if (ref.read(checkoutProvider).isPlacingOrder) {
       return;
     }
@@ -877,8 +914,39 @@ class _CartScreenState extends ConsumerState<CartScreen> {
     }
     ref.read(checkoutProvider.notifier)
       ..selectAddress(address)
-      ..setUseWallet(false);
-    await _placeOrder(context, PaymentMethod.ledger);
+      // Reachable without the switch ever having been toggled on (it only
+      // shows once available credit already covers the order) — set this
+      // explicitly rather than assuming it's already true.
+      ..setUseLedger(true);
+    await _placeOrder(
+      context,
+      codEnabled ? PaymentMethod.cod : PaymentMethod.online,
+    );
+  }
+
+  /// "Place Order" — B2B-exclusive credit method (payment_method
+  /// B2B_CREDIT), replacing Cash on Delivery's slot entirely. Draws the
+  /// order's full total onto the ledger (overage-allowed past the normal
+  /// monthly allowance) and holds it for admin approval — unlike the
+  /// ledger toggle above, this always draws the whole order regardless of
+  /// available credit, and is a genuine exclusive method, not an offset on
+  /// top of COD/Online. `setUseWallet`/`setUseLedger` reset to false is
+  /// defensive: the backend never applies either overlay to a B2B_CREDIT
+  /// order, but a stale `true` left over from earlier in this session
+  /// shouldn't travel with this request.
+  Future<void> _handlePlaceOrderOnCredit(BuildContext context) async {
+    if (ref.read(checkoutProvider).isPlacingOrder) {
+      return;
+    }
+    final address = await _validateForPayment(context);
+    if (address == null || !context.mounted) {
+      return;
+    }
+    ref.read(checkoutProvider.notifier)
+      ..selectAddress(address)
+      ..setUseWallet(false)
+      ..setUseLedger(false);
+    await _placeOrder(context, PaymentMethod.b2bCredit);
   }
 
   /// Opens wallet top-up from the cart's "Add Money" button — pre-filled

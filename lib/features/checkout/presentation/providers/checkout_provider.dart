@@ -40,15 +40,25 @@ typedef CartValidationEntity = CartValidationResult;
 // paymentMethod:'WALLET' value from any not-yet-updated app install; it
 // simply can never be sent by this build anymore.
 //
-// `ledger` is a genuine third exclusive method (B2B credit line) — only
-// offered to customers with an ACTIVE ledger account (see
-// myLedgerAccountProvider). Like the legacy WALLET method, it's a two-step
-// flow: placeOrder() creates the order PENDING, then a second call
-// (LedgerNotifier.payFromLedger) settles it — see placeOrder() below.
+// `ledger` is the legacy exclusive method (B2B credit line) — kept for
+// backward compatibility with not-yet-updated app installs, same as the
+// legacy WALLET method above, but no longer reachable from this build's
+// UI (see cart_screen.dart, which now uses the ledger-balance toggle +
+// `b2bCredit` below instead). It's a two-step flow: placeOrder() creates
+// the order PENDING, then a second call (LedgerNotifier.payFromLedger)
+// settles it — see placeOrder() below.
+//
+// `b2bCredit` — "Place Order": the current B2B-exclusive credit method,
+// replacing Cash on Delivery's slot for a B2B customer. Unlike `ledger`,
+// this is a single-step flow (placeOrder() draws the full credit and sets
+// the order PENDING admin approval in the same call — no second API call
+// needed) and never auto-confirms: the order sits pending until an admin
+// approves it (see the dashboard's B2B Orders section).
 enum PaymentMethod {
   cod,
   online,
   ledger,
+  b2bCredit,
 }
 
 extension PaymentMethodX on PaymentMethod {
@@ -56,12 +66,14 @@ extension PaymentMethodX on PaymentMethod {
         PaymentMethod.cod => 'COD',
         PaymentMethod.online => 'ONLINE',
         PaymentMethod.ledger => 'LEDGER',
+        PaymentMethod.b2bCredit => 'B2B_CREDIT',
       };
 
   String get title => switch (this) {
         PaymentMethod.cod => 'Cash on Delivery',
         PaymentMethod.online => 'Pay Online',
         PaymentMethod.ledger => 'Pay via Ledger',
+        PaymentMethod.b2bCredit => 'Place Order',
       };
 }
 
@@ -88,6 +100,12 @@ abstract class CheckoutState with _$CheckoutState {
     // Quick Delivery. Applies on top of `paymentMethod`, offsetting the
     // total rather than replacing the method.
     @Default(false) bool useWallet,
+    // Ledger-balance toggle — same convention as useWallet, for the B2B
+    // credit line instead of wallet balance. Mutually exclusive with
+    // useWallet in practice (the app never shows both toggles at once —
+    // an active ledger replaces the wallet stripe entirely, see
+    // cart_screen.dart), enforced server-side too (OrdersService#placeOrder).
+    @Default(false) bool useLedger,
   }) = _CheckoutState;
 }
 
@@ -187,9 +205,26 @@ class CheckoutNotifier extends _$CheckoutNotifier {
 
   /// Toggles applying wallet balance against the total, on top of whichever
   /// [PaymentMethod] is currently selected — does not change the method
-  /// itself.
+  /// itself. Turning wallet on always turns ledger off — the app only ever
+  /// shows one of the two toggles at a time, but this keeps state
+  /// consistent even if both were somehow set.
   void setUseWallet(bool value) {
-    state = state.copyWith(useWallet: value, errorMessage: null);
+    state = state.copyWith(
+      useWallet: value,
+      useLedger: value ? false : state.useLedger,
+      errorMessage: null,
+    );
+  }
+
+  /// Toggles applying the B2B ledger balance against the total, on top of
+  /// whichever [PaymentMethod] is currently selected — same convention as
+  /// [setUseWallet], for the credit line instead of wallet balance.
+  void setUseLedger(bool value) {
+    state = state.copyWith(
+      useLedger: value,
+      useWallet: value ? false : state.useWallet,
+      errorMessage: null,
+    );
   }
 
   Future<bool> applyCoupon(String code) async {
@@ -269,6 +304,7 @@ class CheckoutNotifier extends _$CheckoutNotifier {
       selectedDeliverySlot: null,
       paymentMethod: PaymentMethod.online,
       useWallet: false,
+      useLedger: false,
       currentStep: CheckoutStep.address,
       errorMessage: null,
     );
@@ -400,6 +436,7 @@ class CheckoutNotifier extends _$CheckoutNotifier {
             scheduledSlotLabel: _scheduledSlotLabel,
             quickDeliverySelected: effectiveDeliverySlot.quickDeliverySelected,
             useWallet: state.useWallet,
+            useLedger: state.useLedger,
           ),
         );
 
@@ -503,6 +540,13 @@ class CheckoutNotifier extends _$CheckoutNotifier {
       // wallet-screen visit) happened to invalidate it.
       if (state.useWallet) {
         ref.invalidate(walletProvider);
+      }
+      // Same reasoning as the wallet invalidation above — a ledger toggle
+      // or B2B_CREDIT "Place Order" draws the ledger the instant the order
+      // is placed, so the cart's "available credit" figure needs a
+      // refetch too.
+      if (state.useLedger || selectedPaymentMethod == PaymentMethod.b2bCredit) {
+        ref.invalidate(myLedgerAccountProvider);
       }
       resetForNewOrder();
       ref.read(appRouterProvider).go('/orders/success/${order.id}');
