@@ -45,8 +45,6 @@ import 'package:bakaloo_flutter_app/features/products/presentation/widgets/show_
 import 'package:bakaloo_flutter_app/features/location/presentation/providers/location_prompt_provider.dart';
 import 'package:bakaloo_flutter_app/features/notifications/presentation/providers/notification_provider.dart';
 import 'package:bakaloo_flutter_app/features/location/presentation/widgets/location_prompt_sheet.dart';
-import 'package:bakaloo_flutter_app/features/profile/presentation/providers/profile_provider.dart';
-import 'package:bakaloo_flutter_app/features/profile/presentation/widgets/name_prompt_dialog.dart';
 import 'package:bakaloo_flutter_app/features/spin_wheel/domain/entities/spin_eligibility.dart';
 import 'package:bakaloo_flutter_app/features/spin_wheel/presentation/providers/spin_wheel_provider.dart';
 import 'package:bakaloo_flutter_app/features/spin_wheel/presentation/widgets/spin_win_dialog.dart';
@@ -153,37 +151,17 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
   // no address" start, never happening when location was already on.
   bool _locationPromptInFlight = false;
   StreamSubscription<ServiceStatus>? _locationServiceStatusSub;
-  // Guards against a second _maybeShowNamePrompt call stacking a duplicate
-  // dialog while one check/dialog is already in flight. MUST only be set
-  // to true once we've confirmed there's actually a logged-in user to
-  // check — Home is reachable as a guest before login, and if this were
-  // set unconditionally up front, the guest-mode no-op would permanently
-  // poison it for the rest of this HomeScreen instance's lifetime (which
-  // can span a later login, since Home is the always-mounted root — see
-  // _authStateSub below): the dialog would then never show even after the
-  // user logs in, which is exactly the same class of bug already fixed
-  // for the location prompt (see _locationPromptShownThisSession above).
-  bool _namePromptAttemptedThisSession = false;
-  // In-flight guard for _maybeShowNamePrompt, same role as
-  // _locationPromptInFlight above. Needed because
-  // _namePromptAttemptedThisSession is now deliberately NOT set until the
-  // profile fetch actually succeeds (see _maybeShowNamePrompt) — without a
-  // separate in-flight flag, two near-simultaneous calls (e.g. the
-  // authStateProvider listener firing right as the initState post-frame
-  // callback's own delayed call is still awaiting the profile fetch) could
-  // both pass the guard and race to open two dialogs.
-  bool _namePromptInFlight = false;
 
-  // Same one-shot-per-session guard pattern as the two flags above — see
+  // Same one-shot-per-session guard pattern as the flag above — see
   // _maybeShowSpinWheelPrompt, which gates the actual popup on a fresh
   // GET /spin-wheel/eligibility check (real spins-available count from the
-  // backend, not a local guess). Reset on every app resume, same as
-  // _namePromptAttemptedThisSession below (see didChangeAppLifecycleState)
-  // — without that reset a customer who backgrounds the app mid-session
-  // would never get re-checked even after a new spin lands for them.
+  // backend, not a local guess). Reset on every app resume (see
+  // didChangeAppLifecycleState) — without that reset a customer who
+  // backgrounds the app mid-session would never get re-checked even after
+  // a new spin lands for them.
   bool _spinWheelPromptShownThisSession = false;
-  // Spin & Win is the least urgent of the three onboarding prompts, so it's
-  // deliberately not raced against location/name — see
+  // Spin & Win is the least urgent of the onboarding prompts, so it's
+  // deliberately not raced against location — see
   // _scheduleSpinWheelPrompt. This timer is cancelled/rescheduled (never
   // stacked) on every re-entry point (cold start, login, resume).
   Timer? _spinWheelPromptDelayTimer;
@@ -417,29 +395,29 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
   /// (cold start, login while already on Home, app resume) should call
   /// this instead of the check functions directly:
   ///   1. Location — mandatory, awaited fully before anything else shows.
-  ///   2. Name — mandatory, awaited fully once location is resolved.
-  ///   3. Spin & Win — NOT mandatory and NOT shown immediately after name;
-  ///      it's the least urgent of the three, so it's scheduled a few
-  ///      minutes out instead (see _scheduleSpinWheelPrompt). Reported
-  ///      bug this fixes: "same time spin and win pop-up also coming" —
-  ///      name and spin used to be fired with `unawaited` back-to-back
-  ///      right after location closed, so whichever one's network check
-  ///      (profile fetch vs. eligibility fetch) happened to resolve first
-  ///      could pop up before, after, or literally alongside the other.
+  ///   2. Spin & Win — NOT mandatory and NOT shown immediately after
+  ///      location; it's the least urgent of the two, so it's scheduled a
+  ///      few minutes out instead (see _scheduleSpinWheelPrompt).
+  ///
+  /// A separate mandatory name prompt used to run between these two —
+  /// removed in favor of collecting the name as a required field on the
+  /// address form itself (see AddEditAddressScreen), the first time a
+  /// customer saves an address. The backend still refuses to place an
+  /// order for a nameless account (NAME_REQUIRED in
+  /// orders.service.js#placeOrder) regardless of what the client does.
   Future<void> _maybeShowOnboardingPrompts() async {
     await _maybeShowLocationPrompt();
-    if (!mounted) return;
-    await _maybeShowNamePrompt();
     if (!mounted) return;
     _scheduleSpinWheelPrompt();
   }
 
   /// Schedules the Spin & Win popup to auto-open _spinWheelPromptDelay
-  /// after location + name are done, instead of racing it against them.
-  /// Cancels any previously pending timer first — re-entry points (login,
-  /// app resume) call _maybeShowOnboardingPrompts again, and without this
-  /// cancel a customer who resumes the app twice within the delay window
-  /// would end up with two timers both trying to open the dialog.
+  /// after location is resolved, instead of racing it against the location
+  /// prompt. Cancels any previously pending timer first — re-entry points
+  /// (login, app resume) call _maybeShowOnboardingPrompts again, and
+  /// without this cancel a customer who resumes the app twice within the
+  /// delay window would end up with two timers both trying to open the
+  /// dialog.
   void _scheduleSpinWheelPrompt() {
     if (_spinWheelPromptShownThisSession) return;
     _spinWheelPromptDelayTimer?.cancel();
@@ -551,67 +529,6 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
     }
   }
 
-  /// Prompts for a name once per cold start when the logged-in user's
-  /// profile doesn't have one yet — OTP-only signup never asks for a name,
-  /// so this is the one place that eventually collects it. Dismissing
-  /// without saving just means it asks again on the next app open, since
-  /// the gate is re-derived fresh from the profile each time, not a
-  /// one-shot "already asked" flag.
-  ///
-  /// Deliberately checks `profileProvider` (a live GET /users/me), NOT
-  /// `currentUserProvider` — the latter is the cached/JWT-derived auth
-  /// identity, and the access-token JWT never carries a `name` claim at
-  /// all. Whenever that cache is empty (fresh install, cleared app data,
-  /// or just a restore that fell through to decoding the JWT) the session
-  /// gets rebuilt with name always null regardless of what's actually
-  /// saved server-side, which made this dialog reappear for users who'd
-  /// already provided a name. The profile fetch is the actual source of
-  /// truth for this field.
-  Future<void> _maybeShowNamePrompt() async {
-    if (!mounted || _namePromptAttemptedThisSession || _namePromptInFlight) {
-      return;
-    }
-    // Home is reachable while browsing as a guest (no auth redirect for
-    // this route) — skip entirely rather than fetching a profile that
-    // doesn't exist for an anonymous session. Deliberately NOT setting
-    // _namePromptAttemptedThisSession before this check: a guest-mode
-    // call here must stay a true no-op so a later login (caught by
-    // _authStateSub / didChangeAppLifecycleState below) still gets to
-    // run this check for real instead of finding it already "attempted".
-    if (ref.read(currentUserProvider) == null) return;
-
-    _namePromptInFlight = true;
-    try {
-      final profileData = await ref.read(profileProvider.future);
-      if (!mounted) return;
-      final hasName = (profileData.user.name ?? '').trim().isNotEmpty;
-      if (hasName) {
-        _namePromptAttemptedThisSession = true;
-        return;
-      }
-      await showNamePromptDialog(context, ref);
-      // Only reached once the dialog's own Save call actually succeeded
-      // (it's non-dismissible — see name_prompt_dialog.dart), so the name
-      // is now genuinely on file.
-      _namePromptAttemptedThisSession = true;
-    } catch (_) {
-      // Non-critical — silently ignore (e.g. profile fetch failed
-      // offline). Deliberately NOT setting _namePromptAttemptedThisSession
-      // here: this used to be set unconditionally before the fetch even
-      // started, so a single flaky-network profile fetch would silently
-      // and permanently disable the mandatory name check for the rest of
-      // the session — the client-side half of why some accounts ended up
-      // with no name on file despite this dialog supposedly being
-      // mandatory. Leaving it false lets the next real trigger (app
-      // resume, a later login) genuinely retry instead of giving up for
-      // good. The backend now also refuses to place an order for a
-      // nameless account regardless of what the client does — see
-      // NAME_REQUIRED in orders.service.js#placeOrder.
-    } finally {
-      _namePromptInFlight = false;
-    }
-  }
-
   void _updateStickyHeaderTriggerOffset() {
     if (!_homeScrollController.hasClients) {
       return;
@@ -662,29 +579,6 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.resumed) {
       unawaited(_refreshThemeDrivenLayout());
-      // Covers the case where the app was only backgrounded (not actually
-      // process-killed) while the mandatory name dialog was open or before
-      // it ever got a chance to check — resuming without this never
-      // re-runs _maybeShowNamePrompt, so a user who backgrounded out of
-      // the name step effectively never gets asked again for the rest of
-      // that process's life. Reported as: name step "stuck"/skippable.
-      //
-      // BUG FIX: calling _maybeShowOnboardingPrompts() alone did NOT
-      // actually fix that — _maybeShowNamePrompt's own one-shot guard
-      // (_namePromptAttemptedThisSession) was never cleared, so this call
-      // hit its very first line and returned immediately every time,
-      // silently no-op'ing forever after the first attempt. Any interruption
-      // during that first attempt (backgrounding mid-fetch, a task-switcher
-      // swipe-away that Android happens to resume rather than recreate, a
-      // pull-to-refresh) permanently burned the one-shot flag without the
-      // dialog ever actually being shown/completed — the strict "must
-      // provide a name" rule this dialog exists to enforce silently stopped
-      // being enforced for the rest of that app session. Resetting it here
-      // makes every resume genuinely re-derive from the profile fresh, per
-      // this class's own documented intent (see _maybeShowNamePrompt's doc
-      // comment) — a no-op the moment a name is actually on file, so this
-      // never re-prompts anyone who's already provided one.
-      _namePromptAttemptedThisSession = false;
       // Same fix, same reasoning, for the spin-wheel prompt: without
       // resetting this too, a customer who backgrounds the app (not a full
       // kill — the same State instance survives) permanently burns this

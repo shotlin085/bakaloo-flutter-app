@@ -5,7 +5,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:gap/gap.dart';
 import 'package:geolocator/geolocator.dart';
-import 'package:maplibre_gl/maplibre_gl.dart';
 import 'package:phosphoricons_flutter/phosphoricons_flutter.dart';
 
 import 'package:bakaloo_flutter_app/core/maps/geo_point.dart';
@@ -27,6 +26,7 @@ import 'package:bakaloo_flutter_app/features/auth/presentation/providers/auth_no
 import 'package:bakaloo_flutter_app/features/auth/presentation/providers/auth_state.dart';
 import 'package:bakaloo_flutter_app/features/location/presentation/widgets/location_permission_denied_dialog.dart';
 import 'package:bakaloo_flutter_app/features/products/presentation/widgets/show_product_options.dart';
+import 'package:bakaloo_flutter_app/features/profile/presentation/providers/profile_provider.dart';
 
 class AddEditAddressScreen extends ConsumerStatefulWidget {
   const AddEditAddressScreen({
@@ -66,7 +66,8 @@ class _AddEditAddressScreenState extends ConsumerState<AddEditAddressScreen> {
   final TextEditingController _cityController = TextEditingController();
   final TextEditingController _stateController = TextEditingController();
   final TextEditingController _pincodeController = TextEditingController();
-  final TextEditingController _receiverNameController = TextEditingController();
+  final TextEditingController _firstNameController = TextEditingController();
+  final TextEditingController _lastNameController = TextEditingController();
   final TextEditingController _receiverPhoneController =
       TextEditingController();
   final Debouncer _pincodeDebouncer = Debouncer(
@@ -99,6 +100,8 @@ class _AddEditAddressScreenState extends ConsumerState<AddEditAddressScreen> {
   bool get _canSave =>
       !_isSaving &&
       _hasPinnedLocation &&
+      _firstNameController.text.trim().isNotEmpty &&
+      _lastNameController.text.trim().isNotEmpty &&
       _addressController.text.trim().isNotEmpty &&
       _houseNoController.text.trim().isNotEmpty &&
       _cityController.text.trim().isNotEmpty &&
@@ -122,6 +125,8 @@ class _AddEditAddressScreenState extends ConsumerState<AddEditAddressScreen> {
     _seedFromInitialAddress();
     _addressController.addListener(_handleFormStateChanged);
     _houseNoController.addListener(_handleFormStateChanged);
+    _firstNameController.addListener(_handleFormStateChanged);
+    _lastNameController.addListener(_handleFormStateChanged);
     _cityController.addListener(_handleCityTextChanged);
     _stateController.addListener(_handleStateTextChanged);
     _pincodeController.addListener(_handlePincodeTextChanged);
@@ -202,6 +207,12 @@ class _AddEditAddressScreenState extends ConsumerState<AddEditAddressScreen> {
     _houseNoController
       ..removeListener(_handleFormStateChanged)
       ..dispose();
+    _firstNameController
+      ..removeListener(_handleFormStateChanged)
+      ..dispose();
+    _lastNameController
+      ..removeListener(_handleFormStateChanged)
+      ..dispose();
     _cityController
       ..removeListener(_handleCityTextChanged)
       ..dispose();
@@ -213,7 +224,6 @@ class _AddEditAddressScreenState extends ConsumerState<AddEditAddressScreen> {
       ..dispose();
     _buildingController.dispose();
     _landmarkController.dispose();
-    _receiverNameController.dispose();
     _receiverPhoneController.dispose();
     _pincodeDebouncer.dispose();
     addressSheetVisible.value = false;
@@ -221,10 +231,6 @@ class _AddEditAddressScreenState extends ConsumerState<AddEditAddressScreen> {
   }
 
   void _seedFromInitialAddress() {
-    final address = widget.initialAddress;
-    if (address == null) {
-      return;
-    }
     final authState = ref.read(authStateProvider);
     final accountName = switch (authState) {
       AuthAuthenticated(:final user) => user.name?.trim(),
@@ -234,6 +240,25 @@ class _AddEditAddressScreenState extends ConsumerState<AddEditAddressScreen> {
       AuthAuthenticated(:final user) => user.phone.trim(),
       _ => null,
     };
+
+    final address = widget.initialAddress;
+    if (address == null) {
+      // A brand-new address for a returning customer who already has a
+      // name on file — pre-fill First/Last Name from the account so they
+      // only have to fill in the fields that are actually new for this
+      // location (house/block, landmark, etc.), not retype their name
+      // every time. Left blank for a genuinely new user; the fields are
+      // required, so they can't save without filling them in at least
+      // once — see _saveAddress, which then saves that as the account's
+      // default name.
+      final nameParts = _splitFullName(accountName);
+      _firstNameController.text = nameParts.$1;
+      _lastNameController.text = nameParts.$2;
+      if ((accountPhone ?? '').isNotEmpty) {
+        _receiverPhoneController.text = _sanitizePhone(accountPhone!);
+      }
+      return;
+    }
 
     _selectedLabel = _normalizeLabel(address.label);
     if (widget.forceCompletion) {
@@ -256,12 +281,13 @@ class _AddEditAddressScreenState extends ConsumerState<AddEditAddressScreen> {
       _buildingController.text = secondaryParts.$2;
       _landmarkController.text = secondaryParts.$3;
     }
-    _receiverNameController.text = (_firstNonEmpty(<String?>[
-          address.receiverName,
-          accountName,
-          address.name,
-        ]) ??
-        '');
+    final nameParts = _splitFullName(_firstNonEmpty(<String?>[
+      address.receiverName,
+      accountName,
+      address.name,
+    ]));
+    _firstNameController.text = nameParts.$1;
+    _lastNameController.text = nameParts.$2;
     _receiverPhoneController.text = _sanitizePhone(
       _firstNonEmpty(<String?>[
             address.receiverPhone,
@@ -567,30 +593,21 @@ class _AddEditAddressScreenState extends ConsumerState<AddEditAddressScreen> {
     }
   }
 
-  Future<void> _prefillReceiverFromAccount() async {
+  Future<void> _prefillPhoneFromAccount() async {
     final authState = ref.read(authStateProvider);
     if (authState case AuthAuthenticated(:final user)) {
-      var changed = false;
-      if (_receiverNameController.text.trim().isEmpty &&
-          (user.name ?? '').trim().isNotEmpty) {
-        _receiverNameController.text = user.name!.trim();
-        changed = true;
-      }
       if (_receiverPhoneController.text.trim().isEmpty &&
           user.phone.trim().isNotEmpty) {
         _receiverPhoneController.text = _sanitizePhone(user.phone);
-        changed = true;
-      }
-      if (changed) {
         setState(() {});
         return;
       }
-      AppToast.show(context, '✅ Receiver details are already filled.',
+      AppToast.show(context, '✅ Phone number is already filled.',
           type: ToastType.info);
       return;
     }
 
-    AppToast.show(context, 'ℹ️ Add receiver details manually.',
+    AppToast.show(context, 'ℹ️ Add the phone number manually.',
         type: ToastType.info);
   }
 
@@ -621,11 +638,40 @@ class _AddEditAddressScreenState extends ConsumerState<AddEditAddressScreen> {
       _isSaving = true;
     });
 
+    final fullName =
+        '${_firstNameController.text.trim()} ${_lastNameController.text.trim()}'
+            .trim();
+
+    // First time this account provides a name (whether that's the very
+    // first address ever, or an older account that predates this field),
+    // save it as the account's own default display name — the backend
+    // refuses to place an order for a nameless account regardless
+    // (NAME_REQUIRED, orders.service.js#placeOrder), so this is what
+    // actually satisfies that requirement now that there's no separate
+    // onboarding prompt for it. A later address with a different
+    // recipient name (e.g. an office receptionist) deliberately does NOT
+    // overwrite it again — this only ever fires once, the first time the
+    // account name is missing.
+    final authState = ref.read(authStateProvider);
+    final hasAccountName = switch (authState) {
+      AuthAuthenticated(:final user) => (user.name ?? '').trim().isNotEmpty,
+      _ => true,
+    };
+    if (!hasAccountName && fullName.isNotEmpty) {
+      try {
+        await ref.read(profileProvider.notifier).updateProfile(name: fullName);
+      } catch (_) {
+        // Best-effort — never let a profile-name hiccup block saving the
+        // address itself. The backend's own NAME_REQUIRED check at
+        // checkout is the real backstop if this happens to fail.
+      }
+    }
+
     final params = AddressUpsertParams(
       label: _selectedLabel,
       addressLine1: _addressController.text.trim(),
       addressLine2: _composeSecondaryAddress(),
-      receiverName: _emptyToNull(_receiverNameController.text),
+      receiverName: _emptyToNull(fullName),
       receiverPhone: _receiverPhoneValue,
       city: _city!.trim(),
       state: _state!.trim(),
@@ -762,12 +808,12 @@ class _AddEditAddressScreenState extends ConsumerState<AddEditAddressScreen> {
                     color: Colors.white,
                     child: Column(
                       children: <Widget>[
-                        _CompactMapPreview(
-                          point: _previewPoint,
-                          hasPinnedLocation: _hasPinnedLocation,
-                          isLocating: _isLocating,
-                          onCurrentLocationTap:
-                              _openMapPickerFromCurrentLocation,
+                        Padding(
+                          padding: EdgeInsets.fromLTRB(16.w, 18.h, 16.w, 0),
+                          child: _FullNameSection(
+                            firstNameController: _firstNameController,
+                            lastNameController: _lastNameController,
+                          ),
                         ),
                         _AddressHeader(
                           buttonLabel: _hasPinnedLocation ? 'Change' : 'Pick',
@@ -908,9 +954,8 @@ class _AddEditAddressScreenState extends ConsumerState<AddEditAddressScreen> {
                         ),
                         Gap(22.h),
                         _ReceiverSection(
-                          nameController: _receiverNameController,
                           phoneController: _receiverPhoneController,
-                          onContactTap: _prefillReceiverFromAccount,
+                          onContactTap: _prefillPhoneFromAccount,
                         ),
                       ],
                     ),
@@ -985,122 +1030,69 @@ class _AddEditAddressScreenState extends ConsumerState<AddEditAddressScreen> {
   }
 }
 
-class _CompactMapPreview extends ConsumerWidget {
-  const _CompactMapPreview({
-    required this.point,
-    required this.hasPinnedLocation,
-    required this.isLocating,
-    required this.onCurrentLocationTap,
+/// Full Name — required, shown at the top of the form (see AddEditAddressScreen
+/// docs). This is what actually collects the account's display name now
+/// that there's no separate onboarding popup for it (see home_screen.dart):
+/// the first time an account has no name on file, saving any address with
+/// these fields filled in also sets it as the account's own name. Pre-filled
+/// from that same account name on every later address, so a returning
+/// customer only has to fill in what's actually new for that location.
+class _FullNameSection extends StatelessWidget {
+  const _FullNameSection({
+    required this.firstNameController,
+    required this.lastNameController,
   });
 
-  final GeoPoint point;
-  final bool hasPinnedLocation;
-  final bool isLocating;
-  final VoidCallback onCurrentLocationTap;
+  final TextEditingController firstNameController;
+  final TextEditingController lastNameController;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final styleAsync = ref.watch(olaMapsStyleProvider);
-
-    return SizedBox(
-      height: 180.h,
-      child: Stack(
-        children: <Widget>[
-          ClipRRect(
-            borderRadius: BorderRadius.vertical(
-              bottom: Radius.circular(AppDimensions.radiusXl.r),
-            ),
-            child: styleAsync.maybeWhen(
-              data: (style) => style.configured && style.styleUrl != null
-                  ? MapLibreMap(
-                      key: ValueKey<String>('map-${point.lat}-${point.lng}'),
-                      styleString: style.styleUrl!,
-                      initialCameraPosition: CameraPosition(
-                        target: LatLng(point.lat, point.lng),
-                        zoom: hasPinnedLocation ? 16 : 13.6,
-                      ),
-                      compassEnabled: false,
-                      rotateGesturesEnabled: false,
-                      scrollGesturesEnabled: false,
-                      tiltGesturesEnabled: false,
-                      zoomGesturesEnabled: false,
-                      doubleClickZoomEnabled: false,
-                      dragEnabled: false,
-                    )
-                  : Container(color: AppColors.bgInput),
-              orElse: () => Container(color: AppColors.bgInput),
-            ),
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: <Widget>[
+        Text(
+          'Your Name',
+          style: AppTextStyles.labelLarge.copyWith(
+            fontFamily: 'Poppins',
+            fontSize: 14.sp,
+            fontWeight: FontWeight.w600,
           ),
-          // The map above is always centered on `point` and fully
-          // non-interactive (all gestures off), so a plain centered icon
-          // lands in exactly the same spot a MapLibre marker-at-point
-          // would — no need for MapLibre's native symbol layer here.
-          IgnorePointer(
-            child: Center(
-              child: PhosphorIcon(
-                PhosphorIcons.mapPinFill,
-                size: 32.sp,
-                color: AppColors.cartPink,
+        ),
+        Gap(12.h),
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: <Widget>[
+            Expanded(
+              child: _FormField(
+                controller: firstNameController,
+                label: 'First Name *',
+                textInputAction: TextInputAction.next,
+                validator: (String? value) {
+                  if ((value ?? '').trim().isEmpty) {
+                    return 'First name is required.';
+                  }
+                  return null;
+                },
               ),
             ),
-          ),
-          Positioned(
-            top: 12.h,
-            right: 12.w,
-            child: Material(
-              color: Colors.white,
-              shape: const CircleBorder(),
-              elevation: 4,
-              child: InkWell(
-                customBorder: const CircleBorder(),
-                onTap: onCurrentLocationTap,
-                child: SizedBox(
-                  width: 36.w,
-                  height: 36.w,
-                  child: Center(
-                    child: isLocating
-                        ? SizedBox(
-                            width: 16.w,
-                            height: 16.w,
-                            child: const CircularProgressIndicator(
-                              strokeWidth: 2,
-                              valueColor: AlwaysStoppedAnimation<Color>(
-                                AppColors.textSecondary,
-                              ),
-                            ),
-                          )
-                        : PhosphorIcon(
-                            PhosphorIcons.crosshairSimpleBold,
-                            size: 18.sp,
-                            color: AppColors.textSecondary,
-                          ),
-                  ),
-                ),
+            Gap(12.w),
+            Expanded(
+              child: _FormField(
+                controller: lastNameController,
+                label: 'Last Name *',
+                textInputAction: TextInputAction.next,
+                validator: (String? value) {
+                  if ((value ?? '').trim().isEmpty) {
+                    return 'Last name is required.';
+                  }
+                  return null;
+                },
               ),
             ),
-          ),
-          if (!hasPinnedLocation)
-            Positioned(
-              left: 16.w,
-              right: 16.w,
-              bottom: 16.h,
-              child: Container(
-                padding: EdgeInsets.symmetric(horizontal: 14.w, vertical: 10.h),
-                decoration: BoxDecoration(
-                  color: Colors.white.withValues(alpha: 0.92),
-                  borderRadius: BorderRadius.circular(AppDimensions.radiusMd),
-                  boxShadow: const <BoxShadow>[AppShadows.cardShadow],
-                ),
-                child: Text(
-                  'Map preview is centered on Kolkata until you pick your exact delivery spot.',
-                  style: AppTextStyles.bodySmall.copyWith(
-                    color: AppColors.textSecondary,
-                  ),
-                ),
-              ),
-            ),
-        ],
-      ),
+          ],
+        ),
+      ],
     );
   }
 }
@@ -1343,12 +1335,10 @@ class _LabelChipSelector extends StatelessWidget {
 
 class _ReceiverSection extends StatelessWidget {
   const _ReceiverSection({
-    required this.nameController,
     required this.phoneController,
     required this.onContactTap,
   });
 
-  final TextEditingController nameController;
   final TextEditingController phoneController;
   final VoidCallback onContactTap;
 
@@ -1363,20 +1353,6 @@ class _ReceiverSection extends StatelessWidget {
             fontFamily: 'Poppins',
             fontSize: 14.sp,
             fontWeight: FontWeight.w600,
-          ),
-        ),
-        Gap(12.h),
-        _FormField(
-          controller: nameController,
-          label: "Receiver's Name",
-          textInputAction: TextInputAction.next,
-          suffixIcon: IconButton(
-            onPressed: onContactTap,
-            icon: Icon(
-              Icons.contact_page_outlined,
-              size: 20.sp,
-              color: const Color(0xFF6B7B8C),
-            ),
           ),
         ),
         Gap(12.h),
@@ -1396,6 +1372,14 @@ class _ReceiverSection extends StatelessWidget {
             }
             return null;
           },
+          suffixIcon: IconButton(
+            onPressed: onContactTap,
+            icon: Icon(
+              Icons.contact_page_outlined,
+              size: 20.sp,
+              color: const Color(0xFF6B7B8C),
+            ),
+          ),
           prefix: Padding(
             padding: EdgeInsets.only(left: 16.w, right: 8.w),
             child: Center(
@@ -1480,4 +1464,24 @@ String? _emptyToNull(String value) {
 
 String _sanitizePhone(String value) {
   return value.replaceAll(RegExp(r'[^0-9]'), '');
+}
+
+// A stored full name (account name, or an older address's single
+// receiverName field) only ever came in as one string — split on the
+// first space so it can seed the First/Last Name fields. A single-word
+// name lands entirely in First Name, leaving Last Name blank for the user
+// to fill in themselves.
+(String, String) _splitFullName(String? rawValue) {
+  final value = (rawValue ?? '').trim();
+  if (value.isEmpty) {
+    return ('', '');
+  }
+  final spaceIndex = value.indexOf(' ');
+  if (spaceIndex == -1) {
+    return (value, '');
+  }
+  return (
+    value.substring(0, spaceIndex).trim(),
+    value.substring(spaceIndex + 1).trim(),
+  );
 }
