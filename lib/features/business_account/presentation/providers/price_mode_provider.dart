@@ -12,6 +12,13 @@ import 'package:bakaloo_flutter_app/features/auth/presentation/providers/auth_no
 import 'package:bakaloo_flutter_app/features/auth/presentation/providers/auth_state.dart';
 import 'package:bakaloo_flutter_app/features/business_account/presentation/providers/business_account_provider.dart';
 import 'package:bakaloo_flutter_app/features/cart/presentation/providers/cart_provider.dart';
+import 'package:bakaloo_flutter_app/features/categories/presentation/providers/category_provider.dart';
+import 'package:bakaloo_flutter_app/features/home/presentation/providers/banner_provider.dart';
+import 'package:bakaloo_flutter_app/features/home/presentation/providers/home_provider.dart';
+import 'package:bakaloo_flutter_app/features/products/presentation/providers/product_detail_provider.dart';
+import 'package:bakaloo_flutter_app/features/products/presentation/providers/product_list_provider.dart';
+import 'package:bakaloo_flutter_app/features/products/presentation/providers/recently_viewed_provider.dart';
+import 'package:bakaloo_flutter_app/features/search/presentation/providers/search_provider.dart';
 
 part 'price_mode_provider.g.dart';
 
@@ -117,6 +124,16 @@ class PriceModeNotifier extends _$PriceModeNotifier {
 
   /// Drops every cache that could otherwise keep rendering prices/theme
   /// content from the mode just switched away from.
+  ///
+  /// clearPriceSensitiveCaches() only clears the on-disk Hive box these
+  /// fetches persist to — it does nothing to an already-built Riverpod
+  /// provider sitting in memory with the old mode's result, which is what
+  /// Home/Category/Search/Product-detail actually render from while
+  /// mounted. Each one needs its own explicit ref.invalidate() the same way
+  /// cartProvider and the section-manifest family already get below.
+  /// Reported: toggling wholesale updated the cart correctly but left
+  /// Home, Category, Search, and the product detail page all still
+  /// showing retail prices and quantities until a cold restart.
   Future<void> _clearPriceSensitiveState() async {
     await AppCacheManager.clearPriceSensitiveCaches();
     try {
@@ -135,6 +152,28 @@ class PriceModeNotifier extends _$PriceModeNotifier {
     } catch (_) {}
     try {
       await ref.read(managedThemeRefreshProvider.notifier).refresh();
+    } catch (_) {}
+    // Every provider that fetches priced product data outside the Tab Home
+    // Content system above (which managedThemeRefreshProvider.refresh()
+    // already covers) — Home's featured/new-arrivals/deals/trending/
+    // per-category rails, Category's product shelf, Search results, and
+    // the product detail page (plus its related/pair-with/recently-viewed
+    // rails). invalidate() on a family clears every cached instance of it.
+    try {
+      ref
+        ..invalidate(homeProvider)
+        ..invalidate(homeFeaturedProductsProvider)
+        ..invalidate(homeNewArrivalsProvider)
+        ..invalidate(homeDealsProvider)
+        ..invalidate(homeTrendingProductsProvider)
+        ..invalidate(homeCategoryProductsProvider)
+        ..invalidate(categoryProductShelfProvider)
+        ..invalidate(productListProvider)
+        ..invalidate(searchProvider)
+        ..invalidate(productDetailProvider)
+        ..invalidate(relatedProductsProvider)
+        ..invalidate(pairWithProductsProvider)
+        ..invalidate(recentlyViewedProductsProvider);
     } catch (_) {}
   }
 }
