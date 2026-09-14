@@ -16,6 +16,8 @@ import 'package:bakaloo_flutter_app/core/notifications/fcm_token_helper.dart';
 import 'package:bakaloo_flutter_app/core/socket/socket_service.dart';
 import 'package:bakaloo_flutter_app/core/storage/app_cache_manager.dart';
 import 'package:bakaloo_flutter_app/core/storage/hive_service.dart';
+import 'package:bakaloo_flutter_app/core/theme/remote_theme_provider.dart';
+import 'package:bakaloo_flutter_app/core/theme/section_manifest_provider.dart';
 import 'package:bakaloo_flutter_app/features/auth/data/datasources/auth_remote_datasource.dart';
 import 'package:bakaloo_flutter_app/features/auth/data/models/user_model.dart';
 import 'package:bakaloo_flutter_app/features/auth/data/repositories/auth_repository_impl.dart';
@@ -29,6 +31,12 @@ import 'package:bakaloo_flutter_app/features/auth/presentation/providers/auth_st
 import 'package:bakaloo_flutter_app/features/business_account/presentation/providers/business_account_provider.dart';
 import 'package:bakaloo_flutter_app/features/business_account/presentation/providers/price_mode_provider.dart';
 import 'package:bakaloo_flutter_app/features/cart/presentation/providers/cart_provider.dart';
+import 'package:bakaloo_flutter_app/features/categories/presentation/providers/category_provider.dart';
+import 'package:bakaloo_flutter_app/features/home/presentation/providers/home_provider.dart';
+import 'package:bakaloo_flutter_app/features/home/presentation/providers/banner_provider.dart';
+import 'package:bakaloo_flutter_app/features/products/presentation/providers/product_detail_provider.dart';
+import 'package:bakaloo_flutter_app/features/products/presentation/providers/product_list_provider.dart';
+import 'package:bakaloo_flutter_app/features/search/presentation/providers/search_provider.dart';
 import 'package:bakaloo_flutter_app/features/wallet/presentation/providers/wallet_provider.dart';
 
 part 'auth_notifier.g.dart';
@@ -102,6 +110,12 @@ class AuthNotifier extends _$AuthNotifier {
         ref.read(socketServiceProvider).connect(authEntity.accessToken);
         await _registerFcmToken();
 
+        // PriceModeInterceptor runs before any Riverpod product provider.
+        // Seed its synchronous Hive value from the authenticated identity
+        // before Home begins catalog requests, so a B2B launch cannot make
+        // an initial B2C request and cache ₹19/quantity-1 cards.
+        await _syncPriceModeLaunchCache(authEntity.user);
+
         // PHASE 6 FIX: Reconcile per-user cache BEFORE marking authenticated.
         // If a different user (e.g. demo → real) logged in, their cart/wallet/
         // order snapshots are wiped so stale data never renders.
@@ -169,6 +183,7 @@ class AuthNotifier extends _$AuthNotifier {
     // reinstall/update that restored a token for a different user can't show
     // the previous user's cached data.
     await AppCacheManager.reconcileUser(user.id);
+    await _syncPriceModeLaunchCache(user);
 
     state = AuthAuthenticated(user: user);
     ref.read(socketServiceProvider).connect(accessToken);
@@ -176,6 +191,14 @@ class AuthNotifier extends _$AuthNotifier {
     // FIX: Also trigger auto-assign on session restore so that a user
     // who last opened the app before the fix now gets allocation resolved.
     unawaited(_triggerAllocationAutoAssign());
+  }
+
+  Future<void> _syncPriceModeLaunchCache(UserEntity user) async {
+    final wholesale = user.b2bStatus == 'APPROVED' && user.b2bEnabled == true;
+    await HiveService.settingsBox.put(
+      StorageKeys.cachePriceMode,
+      wholesale ? 'wholesale' : 'retail',
+    );
   }
 
   /// Keeps the persisted + in-memory auth user in sync after a profile
@@ -344,14 +367,16 @@ class AuthNotifier extends _$AuthNotifier {
   /// This resolves the "Product not found" error for real users who logged in
   /// but never had allocation triggered.
   ///
-  /// Fire-and-forget — auth state is already set before this runs.
-  /// If it fails (network error, server error), the product service fallback
-  /// (anonymous unscoped visibility) still allows browsing.
+  /// Fire-and-forget — auth state is already set before this runs. On
+  /// success we discard every storefront response obtained before the shop
+  /// allocation existed, then immediately refetch the assigned shop's data.
   Future<void> _triggerAllocationAutoAssign() async {
     try {
       await ref.read(dioClientProvider).post<dynamic>(
             ApiConstants.allocationAutoAssign,
           );
+      await AppCacheManager.clearPriceSensitiveCaches();
+      _invalidateStorefrontProviders();
     } on DioException catch (e) {
       // 401 means token expired — ignore; the refresh interceptor will handle it.
       // Any other error is non-fatal: the anonymous fallback keeps products visible.
@@ -360,6 +385,28 @@ class AuthNotifier extends _$AuthNotifier {
       }
     } catch (_) {
       // Non-fatal — ignore.
+    }
+  }
+
+  void _invalidateStorefrontProviders() {
+    try {
+      ref
+        ..invalidate(homeProvider)
+        ..invalidate(homeFeaturedProductsProvider)
+        ..invalidate(homeNewArrivalsProvider)
+        ..invalidate(homeDealsProvider)
+        ..invalidate(homeTrendingProductsProvider)
+        ..invalidate(homeCategoryProductsProvider)
+        ..invalidate(categoryProductShelfProvider)
+        ..invalidate(productListProvider)
+        ..invalidate(productDetailProvider)
+        ..invalidate(searchProvider)
+        ..invalidate(remoteThemeProvider)
+        ..invalidate(sectionManifestProvider)
+        ..invalidate(activeSectionManifestProvider);
+    } catch (_) {
+      // The user is already signed in. A refetch failure is non-fatal and the
+      // next screen read will retry using the cleared cache.
     }
   }
 

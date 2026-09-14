@@ -135,9 +135,8 @@ class _FilterState {
       inStockOnly: inStockOnly ?? this.inStockOnly,
       onSaleOnly: onSaleOnly ?? this.onSaleOnly,
       priceRange: priceRange ?? this.priceRange,
-      categoryId: categoryId == _sentinel
-          ? this.categoryId
-          : categoryId as String?,
+      categoryId:
+          categoryId == _sentinel ? this.categoryId : categoryId as String?,
     );
   }
 
@@ -431,8 +430,9 @@ class _SearchScreenState extends ConsumerState<SearchScreen>
       }).toList();
     }
     if (_filterState.categoryId != null) {
-      products =
-          products.where((p) => p.categoryId == _filterState.categoryId).toList();
+      products = products
+          .where((p) => p.categoryId == _filterState.categoryId)
+          .toList();
     }
 
     // Apply sort
@@ -557,8 +557,8 @@ class _SearchScreenState extends ConsumerState<SearchScreen>
                           backgroundColor: AppColors.orderViolet,
                           padding: EdgeInsets.symmetric(vertical: 14.h),
                           shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(
-                                AppDimensions.radiusFull),
+                            borderRadius:
+                                BorderRadius.circular(AppDimensions.radiusFull),
                           ),
                         ),
                         child: Text(
@@ -584,8 +584,8 @@ class _SearchScreenState extends ConsumerState<SearchScreen>
 
   Future<void> _showFilterSheet(BuildContext ctx) async {
     _FilterState tempFilter = _filterState;
-    final categories =
-        ref.read(categoryCollectionProvider).asData?.value ?? <CategoryEntity>[];
+    final categories = ref.read(categoryCollectionProvider).asData?.value ??
+        <CategoryEntity>[];
 
     await showModalBottomSheet<void>(
       context: ctx,
@@ -658,18 +658,16 @@ class _SearchScreenState extends ConsumerState<SearchScreen>
                           _FilterSwitchRow(
                             label: 'In Stock only',
                             value: tempFilter.inStockOnly,
-                            onChanged: (v) =>
-                                setModalState(() => tempFilter =
-                                    tempFilter.copyWith(inStockOnly: v)),
+                            onChanged: (v) => setModalState(() => tempFilter =
+                                tempFilter.copyWith(inStockOnly: v)),
                           ),
                           Gap(4.h),
                           // On Sale
                           _FilterSwitchRow(
                             label: 'On Sale only',
                             value: tempFilter.onSaleOnly,
-                            onChanged: (v) =>
-                                setModalState(() => tempFilter =
-                                    tempFilter.copyWith(onSaleOnly: v)),
+                            onChanged: (v) => setModalState(() => tempFilter =
+                                tempFilter.copyWith(onSaleOnly: v)),
                           ),
                           Gap(16.h),
                           const Divider(height: 1, color: AppColors.divider),
@@ -687,8 +685,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen>
                             spacing: 8.w,
                             runSpacing: 8.h,
                             children: _PriceRange.values.map((range) {
-                              final isSelected =
-                                  tempFilter.priceRange == range;
+                              final isSelected = tempFilter.priceRange == range;
                               return GestureDetector(
                                 onTap: () => setModalState(() => tempFilter =
                                     tempFilter.copyWith(priceRange: range)),
@@ -743,8 +740,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen>
                                 return GestureDetector(
                                   onTap: () => setModalState(
                                     () => tempFilter = tempFilter.copyWith(
-                                      categoryId:
-                                          isSelected ? null : cat.id,
+                                      categoryId: isSelected ? null : cat.id,
                                     ),
                                   ),
                                   child: Container(
@@ -785,10 +781,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen>
                     // Apply button
                     const Divider(height: 1, color: AppColors.divider),
                     Padding(
-                      padding: EdgeInsets.fromLTRB(
-                          20.w,
-                          12.h,
-                          20.w,
+                      padding: EdgeInsets.fromLTRB(20.w, 12.h, 20.w,
                           12.h + MediaQuery.of(sheetCtx).padding.bottom),
                       child: SizedBox(
                         width: double.infinity,
@@ -1013,8 +1006,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen>
                                   sortOption: _sortOption,
                                   filterState: _filterState,
                                   onSortTap: () => _showSortSheet(context),
-                                  onFilterTap: () =>
-                                      _showFilterSheet(context),
+                                  onFilterTap: () => _showFilterSheet(context),
                                 );
                               },
                             ),
@@ -1591,16 +1583,14 @@ class _SearchResultsState extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final isFiltered = !filterState.isDefault ||
-        sortOption != _SortOption.relevance;
+    final isFiltered =
+        !filterState.isDefault || sortOption != _SortOption.relevance;
 
     // Result count label
     final displayCount = displayProducts.length;
     final countLabel = isFiltered
         ? '$displayCount result${displayCount == 1 ? '' : 's'} (filtered)'
-        : (totalBackendCount == 1
-            ? '1 result'
-            : '$totalBackendCount results');
+        : (totalBackendCount == 1 ? '1 result' : '$totalBackendCount results');
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -1664,10 +1654,10 @@ class _SortedFilteredList extends StatelessWidget {
     return ValueListenableBuilder<PagingState<int, ProductEntity>>(
       valueListenable: pagingController,
       builder: (context, pagingState, _) {
-        final isLoadingMore = pagingState.nextPageKey != null &&
-            pagingState.error == null;
-        final hasError = pagingState.error != null &&
-            pagingState.nextPageKey != null;
+        final isLoadingMore =
+            pagingState.nextPageKey != null && pagingState.error == null;
+        final hasError =
+            pagingState.error != null && pagingState.nextPageKey != null;
 
         return ListView.separated(
           padding: EdgeInsets.fromLTRB(16.w, 12.h, 16.w, 24.h),
@@ -1687,8 +1677,8 @@ class _SortedFilteredList extends StatelessWidget {
               // Trigger next page load
               WidgetsBinding.instance.addPostFrameCallback((_) {
                 if (pagingState.nextPageKey != null) {
-                  pagingController.notifyPageRequestListeners(
-                      pagingState.nextPageKey!);
+                  pagingController
+                      .notifyPageRequestListeners(pagingState.nextPageKey!);
                 }
               });
               return const Padding(
@@ -1731,14 +1721,10 @@ class _SortFilterPill extends StatelessWidget {
         duration: const Duration(milliseconds: 200),
         padding: EdgeInsets.symmetric(horizontal: 10.w, vertical: 6.h),
         decoration: BoxDecoration(
-          color: isActive
-              ? AppColors.orderVioletSurface
-              : Colors.transparent,
+          color: isActive ? AppColors.orderVioletSurface : Colors.transparent,
           borderRadius: BorderRadius.circular(AppDimensions.radiusFull),
           border: Border.all(
-            color: isActive
-                ? AppColors.orderVioletBorder
-                : Colors.transparent,
+            color: isActive ? AppColors.orderVioletBorder : Colors.transparent,
           ),
         ),
         child: Row(
@@ -1823,10 +1809,12 @@ class _SearchResultTile extends ConsumerWidget {
     // product_card.dart, whose logic this tile duplicates rather than
     // reuses (a separate, simpler row layout for search results).
     final wholesaleActive = ref.watch(isWholesalePricingActiveProvider);
-    final bulkMinimum =
-        wholesaleActive && product.hasBulkMinimum ? product.bulkMinQuantity : null;
-    final bulkMaximum =
-        wholesaleActive && product.hasBulkMaximum ? product.bulkMaxQuantity : null;
+    final bulkMinimum = wholesaleActive && product.hasBulkMinimum
+        ? product.bulkMinQuantity
+        : null;
+    final bulkMaximum = wholesaleActive && product.hasBulkMaximum
+        ? product.bulkMaxQuantity
+        : null;
 
     return InkWell(
       onTap: () => context.push('/product/${product.id}'),
@@ -1920,8 +1908,8 @@ class _SearchResultTile extends ConsumerWidget {
                       // watched value above) so a stale cache can never
                       // let a mutation through — block before it ever
                       // reaches the network.
-                      final status = ref
-                          .read(purchaseLimitStatusProvider(product.id));
+                      final status =
+                          ref.read(purchaseLimitStatusProvider(product.id));
                       if (status?.isAtLimit ?? false) {
                         AppToast.show(
                           context,
@@ -1945,6 +1933,7 @@ class _SearchResultTile extends ConsumerWidget {
                                 product.id,
                                 startQty,
                                 product: product,
+                                shopProductId: product.shopProductId,
                               );
                       if (!context.mounted) {
                         return;
@@ -1971,8 +1960,8 @@ class _SearchResultTile extends ConsumerWidget {
                       // watched value above) so a stale cache can never
                       // let a mutation through — block before it ever
                       // reaches the network.
-                      final status = ref
-                          .read(purchaseLimitStatusProvider(product.id));
+                      final status =
+                          ref.read(purchaseLimitStatusProvider(product.id));
                       if (status?.isAtLimit ?? false) {
                         AppToast.show(
                           context,
@@ -1980,9 +1969,12 @@ class _SearchResultTile extends ConsumerWidget {
                         );
                         return;
                       }
-                      final result = await ref
-                          .read(cartProvider.notifier)
-                          .updateItem(product.id, quantity + 1);
+                      final result =
+                          await ref.read(cartProvider.notifier).updateItem(
+                                product.id,
+                                quantity + 1,
+                                shopProductId: product.shopProductId,
+                              );
                       if (!context.mounted) {
                         return;
                       }
@@ -1996,14 +1988,17 @@ class _SearchResultTile extends ConsumerWidget {
                   : null,
               onDecrement: product.inStock && quantity > 0
                   ? () async {
-                      final result =
-                          quantity == 1 || (bulkMinimum != null && quantity <= bulkMinimum)
-                              ? await ref
-                                  .read(cartProvider.notifier)
-                                  .removeItem(product.id)
-                              : await ref
-                                  .read(cartProvider.notifier)
-                                  .updateItem(product.id, quantity - 1);
+                      final result = quantity == 1 ||
+                              (bulkMinimum != null && quantity <= bulkMinimum)
+                          ? await ref.read(cartProvider.notifier).removeItem(
+                                product.id,
+                                shopProductId: product.shopProductId,
+                              )
+                          : await ref.read(cartProvider.notifier).updateItem(
+                                product.id,
+                                quantity - 1,
+                                shopProductId: product.shopProductId,
+                              );
                       if (!context.mounted) {
                         return;
                       }
@@ -2083,7 +2078,8 @@ class _NoResultsState extends StatelessWidget {
                   product: suggestions[index],
                   style: ProductCardStyle.scroll,
                   onOptionsTap: suggestions[index].hasMultipleOptions
-                      ? () => showProductOptionsSheet(context, suggestions[index])
+                      ? () =>
+                          showProductOptionsSheet(context, suggestions[index])
                       : null,
                 );
               },

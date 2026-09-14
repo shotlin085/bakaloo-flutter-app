@@ -70,12 +70,16 @@ class CartQuickAddSection extends ConsumerWidget {
     // A wholesale listing with a bulk minimum can't usefully start at 1 —
     // land straight on it instead, same as every other ADD surface.
     final wholesaleActive = ref.read(isWholesalePricingActiveProvider);
-    final startQty =
-        wholesaleActive && product.hasBulkMinimum ? product.bulkMinQuantity! : 1;
+    final startQty = wholesaleActive && product.hasBulkMinimum
+        ? product.bulkMinQuantity!
+        : 1;
 
-    final result = await ref
-        .read(cartProvider.notifier)
-        .addItem(product.id, startQty, product: product);
+    final result = await ref.read(cartProvider.notifier).addItem(
+          product.id,
+          startQty,
+          product: product,
+          shopProductId: product.shopProductId,
+        );
     if (!context.mounted) {
       return;
     }

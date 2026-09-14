@@ -47,21 +47,42 @@ class PriceModeNotifier extends _$PriceModeNotifier {
   @override
   PriceMode build() {
     final cached = HiveService.settingsBox.get(StorageKeys.cachePriceMode);
-    final initial = cached == 'wholesale' ? PriceMode.wholesale : PriceMode.retail;
+    final initial =
+        cached == 'wholesale' ? PriceMode.wholesale : PriceMode.retail;
+
+    // Watching starts the live account lookup for every app launch. The
+    // previous listen-only implementation could keep the Hive "retail"
+    // launch guess indefinitely when the account response had already
+    // completed before the listener was registered. That meant a customer
+    // with approved B2B enabled sent no `priceMode=wholesale` at all.
+    final account = ref.watch(myBusinessAccountProvider).asData?.value;
+    final liveMode =
+        account != null && account.status == 'APPROVED' && account.b2bEnabled
+            ? PriceMode.wholesale
+            : initial;
+
+    if (account != null && liveMode != initial) {
+      unawaited(_persist(liveMode));
+    }
 
     // Self-correct as soon as the live business-account status is known —
     // the Hive value above is only ever a same-session fast-launch guess.
     ref.listen(myBusinessAccountProvider, (previous, next) {
       final account = next.asData?.value;
-      final eligible = account != null && account.status == 'APPROVED' && account.b2bEnabled;
+      final eligible =
+          account != null && account.status == 'APPROVED' && account.b2bEnabled;
       final corrected = eligible ? PriceMode.wholesale : PriceMode.retail;
       if (corrected != state) {
         state = corrected;
         unawaited(_persist(corrected));
+        // A live account refresh can correct the Hive launch guess without
+        // going through toggle(). Invalidate the same price-sensitive state
+        // here, otherwise category/search can retain B2C cards.
+        unawaited(_clearPriceSensitiveState());
       }
     });
 
-    return initial;
+    return liveMode;
   }
 
   Future<PriceModeActionResult> toggle() async {
@@ -86,7 +107,8 @@ class PriceModeNotifier extends _$PriceModeNotifier {
     return result.fold<Future<PriceModeActionResult>>(
       (failure) async => PriceModeActionResult(failure: failure),
       (account) async {
-        final next = account.b2bEnabled ? PriceMode.wholesale : PriceMode.retail;
+        final next =
+            account.b2bEnabled ? PriceMode.wholesale : PriceMode.retail;
         state = next;
         await _persist(next);
         ref.invalidate(myBusinessAccountProvider);
@@ -147,8 +169,9 @@ class PriceModeNotifier extends _$PriceModeNotifier {
     // refetches immediately.
     try {
       await clearAllSectionManifestCaches();
-      ref.invalidate(sectionManifestProvider);
-      ref.invalidate(activeSectionManifestProvider);
+      ref
+        ..invalidate(sectionManifestProvider)
+        ..invalidate(activeSectionManifestProvider);
     } catch (_) {}
     try {
       await ref.read(managedThemeRefreshProvider.notifier).refresh();

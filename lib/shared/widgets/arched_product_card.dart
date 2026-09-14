@@ -75,8 +75,7 @@ class _ArchBackgroundPainter extends CustomPainter {
 
     final paint = Paint()..isAntiAlias = true;
     if (gradient != null) {
-      paint.shader =
-          gradient!.createShader(Rect.fromLTWH(0, 0, w, h));
+      paint.shader = gradient!.createShader(Rect.fromLTWH(0, 0, w, h));
     } else {
       paint.color = color;
     }
@@ -552,10 +551,12 @@ class _ArchedAddButton extends ConsumerWidget {
     // product_card.dart, whose logic this arched variant duplicates rather
     // than reuses.
     final wholesaleActive = ref.watch(isWholesalePricingActiveProvider);
-    final bulkMinimum =
-        wholesaleActive && product.hasBulkMinimum ? product.bulkMinQuantity : null;
-    final bulkMaximum =
-        wholesaleActive && product.hasBulkMaximum ? product.bulkMaxQuantity : null;
+    final bulkMinimum = wholesaleActive && product.hasBulkMinimum
+        ? product.bulkMinQuantity
+        : null;
+    final bulkMaximum = wholesaleActive && product.hasBulkMaximum
+        ? product.bulkMaxQuantity
+        : null;
 
     if (quantity > 0) {
       return Container(
@@ -574,16 +575,21 @@ class _ArchedAddButton extends ConsumerWidget {
                       // quantity to sit at — remove the line entirely.
                       if (quantity == 1 ||
                           (bulkMinimum != null && quantity <= bulkMinimum)) {
-                        final result = await ref
-                            .read(cartProvider.notifier)
-                            .removeItem(product.id);
+                        final result =
+                            await ref.read(cartProvider.notifier).removeItem(
+                                  product.id,
+                                  shopProductId: product.shopProductId,
+                                );
                         if (!context.mounted || result.isSuccess) return;
                         showCartSnackBar(context, result.failure!.message);
                         return;
                       }
-                      final result = await ref
-                          .read(cartProvider.notifier)
-                          .updateItem(product.id, quantity - 1);
+                      final result =
+                          await ref.read(cartProvider.notifier).updateItem(
+                                product.id,
+                                quantity - 1,
+                                shopProductId: product.shopProductId,
+                              );
                       if (!context.mounted || result.isSuccess) return;
                       showCartSnackBar(context, result.failure!.message);
                     }
@@ -637,9 +643,12 @@ class _ArchedAddButton extends ConsumerWidget {
                         );
                         return;
                       }
-                      final result = await ref
-                          .read(cartProvider.notifier)
-                          .updateItem(product.id, quantity + 1);
+                      final result =
+                          await ref.read(cartProvider.notifier).updateItem(
+                                product.id,
+                                quantity + 1,
+                                shopProductId: product.shopProductId,
+                              );
                       if (!context.mounted || result.isSuccess) return;
                       showCartSnackBar(context, result.failure!.message);
                     }
@@ -699,9 +708,12 @@ class _ArchedAddButton extends ConsumerWidget {
                 // A wholesale listing with a bulk minimum can't usefully
                 // start at 1 — land straight on it instead.
                 final startQty = bulkMinimum ?? 1;
-                final result = await ref
-                    .read(cartProvider.notifier)
-                    .addItem(product.id, startQty, product: product);
+                final result = await ref.read(cartProvider.notifier).addItem(
+                      product.id,
+                      startQty,
+                      product: product,
+                      shopProductId: product.shopProductId,
+                    );
                 if (!context.mounted) return;
                 if (!result.isSuccess) {
                   showCartSnackBar(context, result.failure!.message);
@@ -776,4 +788,3 @@ class _ArchedAddButton extends ConsumerWidget {
     );
   }
 }
-

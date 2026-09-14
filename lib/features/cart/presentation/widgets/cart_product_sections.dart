@@ -321,7 +321,12 @@ void _addEntityProduct(WidgetRef ref, ProductEntity product) {
   final wholesaleActive = ref.read(isWholesalePricingActiveProvider);
   final startQty =
       wholesaleActive && product.hasBulkMinimum ? product.bulkMinQuantity! : 1;
-  ref.read(cartProvider.notifier).addItem(product.id, startQty, product: product);
+  ref.read(cartProvider.notifier).addItem(
+        product.id,
+        startQty,
+        product: product,
+        shopProductId: product.shopProductId,
+      );
 }
 
 double _asDouble(dynamic value) {

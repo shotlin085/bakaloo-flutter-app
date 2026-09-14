@@ -140,6 +140,32 @@ void main() {
     }
   });
 
+  group('RefreshInterceptor.onError — guest requests', () {
+    test(
+        'does not clear a session or try to refresh for an unauthenticated 401',
+        () async {
+      final guestRequest = RequestOptions(path: '/wallet');
+      final guestError = DioException(
+        requestOptions: guestRequest,
+        response: Response<dynamic>(
+          requestOptions: guestRequest,
+          statusCode: 401,
+        ),
+        type: DioExceptionType.badResponse,
+      );
+      final interceptor = buildInterceptor(
+        _dioThatResponds(200, <String, dynamic>{}),
+      );
+      final handler = _RecordingHandler();
+
+      await interceptor.onError(guestError, handler);
+
+      expect(forceLogoutCalled, isFalse);
+      verifyNever(() => storage.clearAll());
+      expect(handler.rejectedWith, same(guestError));
+    });
+  });
+
   group('RefreshInterceptor.onError — confirmed refresh-token rejection', () {
     test('a 401 from the refresh endpoint itself forces logout', () async {
       final interceptor = buildInterceptor(

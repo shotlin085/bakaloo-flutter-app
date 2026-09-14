@@ -35,10 +35,18 @@ class RefreshInterceptor extends Interceptor {
     final statusCode = err.response?.statusCode;
     final requestOptions = err.requestOptions;
     final hasRetried = requestOptions.extra['retried'] == true;
+    final currentHeader = requestOptions.headers['Authorization'] as String?;
+    final requestHadAccessToken =
+        currentHeader != null && currentHeader.trim().isNotEmpty;
 
     if (statusCode != 401 ||
         hasRetried ||
-        requestOptions.path == ApiConstants.refreshToken) {
+        requestOptions.path == ApiConstants.refreshToken ||
+        !requestHadAccessToken) {
+      // Public/guest calls such as the home wallet teaser must not enter
+      // refresh-token recovery. They do not carry a customer session, and
+      // treating their expected 401 as an expired session can clear the
+      // stored B2B identity while catalog requests are still starting.
       handler.next(err);
       return;
     }
@@ -46,9 +54,7 @@ class RefreshInterceptor extends Interceptor {
     try {
       final response = await _lock.synchronized(() async {
         final latestAccessToken = await _secureStorageService.getAccessToken();
-        final currentHeader =
-            requestOptions.headers['Authorization'] as String?;
-        final currentToken = currentHeader?.replaceFirst('Bearer ', '').trim();
+        final currentToken = currentHeader.replaceFirst('Bearer ', '').trim();
 
         if (latestAccessToken != null &&
             latestAccessToken.isNotEmpty &&

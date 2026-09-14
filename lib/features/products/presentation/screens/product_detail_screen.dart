@@ -572,8 +572,9 @@ class _ProductDetailScreenState extends ConsumerState<ProductDetailScreen> {
     // "+" past several more times to reach the minimum. Land straight on
     // it instead, mirroring the same-purpose logic in product_card.dart.
     final wholesaleActive = ref.read(isWholesalePricingActiveProvider);
-    final startQty =
-        wholesaleActive && product.hasBulkMinimum ? product.bulkMinQuantity! : 1;
+    final startQty = wholesaleActive && product.hasBulkMinimum
+        ? product.bulkMinQuantity!
+        : 1;
 
     unawaited(
       ref.read(analyticsServiceProvider).logAddToCart(
@@ -586,6 +587,7 @@ class _ProductDetailScreenState extends ConsumerState<ProductDetailScreen> {
           product.id,
           startQty,
           product: product,
+          shopProductId: product.shopProductId,
         );
     if (!mounted) {
       return;
@@ -642,8 +644,15 @@ class _ProductDetailScreenState extends ConsumerState<ProductDetailScreen> {
     }
 
     final result = effectiveQty <= 0
-        ? await ref.read(cartProvider.notifier).removeItem(product.id)
-        : await ref.read(cartProvider.notifier).updateItem(product.id, effectiveQty);
+        ? await ref.read(cartProvider.notifier).removeItem(
+              product.id,
+              shopProductId: product.shopProductId,
+            )
+        : await ref.read(cartProvider.notifier).updateItem(
+              product.id,
+              effectiveQty,
+              shopProductId: product.shopProductId,
+            );
 
     if (!mounted || result.isSuccess) {
       return;

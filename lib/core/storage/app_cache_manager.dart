@@ -30,7 +30,7 @@ class AppCacheManager {
 
   /// Bump this whenever ANY cached payload schema changes in a way that would
   /// render stale/wrong UI from an older build.
-  static const int appCacheSchemaVersion = 3;
+  static const int appCacheSchemaVersion = 4;
 
   static const String _schemaVersionKey = 'bakaloo_app_cache_schema_version';
   static const String _apiBaseUrlKey = 'bakaloo_app_cache_api_base_url';
@@ -148,6 +148,13 @@ class AppCacheManager {
   /// (retail vs wholesale) price until its own TTL expires.
   static Future<void> clearPriceSensitiveCaches() async {
     await _safeClearBox(HiveService.productsBox);
+    // Category, home-section and remote-theme payloads also embed product
+    // cards. They were previously left behind after B2B switches or a shop
+    // allocation change, letting a cached master/B2C price render first.
+    await _safeClearBox(HiveService.categoriesBox);
+    await _safeClearBox(HiveService.remoteThemeBox);
+    await _safeClearBox(HiveService.bannersBox);
+    await _clearSectionManifestBox();
   }
 
   static Future<void> _safeClearBox(Box<dynamic> box) async {

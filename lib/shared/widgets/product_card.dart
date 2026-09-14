@@ -236,8 +236,7 @@ class _ProductCardState extends State<ProductCard> {
               child: Container(
                 decoration: BoxDecoration(
                   color: AppColors.overlayDark,
-                  borderRadius:
-                      BorderRadius.circular(AppDimensions.radiusMd),
+                  borderRadius: BorderRadius.circular(AppDimensions.radiusMd),
                 ),
                 alignment: Alignment.center,
                 child: Text(
@@ -436,7 +435,8 @@ class _ProductCardState extends State<ProductCard> {
                   showImageBorder: false,
                 ),
                 Padding(
-                  padding: EdgeInsets.fromLTRB(contentPadding, 6.h, contentPadding, 0),
+                  padding: EdgeInsets.fromLTRB(
+                      contentPadding, 6.h, contentPadding, 0),
                   child: Row(
                     crossAxisAlignment: CrossAxisAlignment.center,
                     children: <Widget>[
@@ -477,7 +477,8 @@ class _ProductCardState extends State<ProductCard> {
                 ),
                 if (offAmount != null && offAmount > 0)
                   Padding(
-                    padding: EdgeInsets.fromLTRB(contentPadding, 3.h, contentPadding, 0),
+                    padding: EdgeInsets.fromLTRB(
+                        contentPadding, 3.h, contentPadding, 0),
                     child: Text(
                       product.discountPercent > 0
                           ? '${product.discountPercent}% OFF on MRP'
@@ -510,10 +511,12 @@ class _ProductCardState extends State<ProductCard> {
                 ),
                 if (product.hasRating)
                   Padding(
-                    padding: EdgeInsets.fromLTRB(contentPadding, 3.h, contentPadding, 0),
+                    padding: EdgeInsets.fromLTRB(
+                        contentPadding, 3.h, contentPadding, 0),
                     child: Row(
                       children: <Widget>[
-                        Icon(Icons.star_rounded, size: 12.sp, color: const Color(0xFFFFA000)),
+                        Icon(Icons.star_rounded,
+                            size: 12.sp, color: const Color(0xFFFFA000)),
                         Gap(2.w),
                         Expanded(
                           child: Text(
@@ -533,10 +536,12 @@ class _ProductCardState extends State<ProductCard> {
                   ),
                 if (product.hasDeliveryTime)
                   Padding(
-                    padding: EdgeInsets.fromLTRB(contentPadding, 2.h, contentPadding, 0),
+                    padding: EdgeInsets.fromLTRB(
+                        contentPadding, 2.h, contentPadding, 0),
                     child: Row(
                       children: <Widget>[
-                        PhosphorIcon(PhosphorIcons.clock, size: 11.sp, color: const Color(0xFF888888)),
+                        PhosphorIcon(PhosphorIcons.clock,
+                            size: 11.sp, color: const Color(0xFF888888)),
                         Gap(3.w),
                         Text(
                           product.formattedDeliveryTime,
@@ -1025,10 +1030,12 @@ class _ZeptoAddQtyButton extends ConsumerWidget {
     // bulk settings are. Watched so the stepper's behavior updates live if
     // wholesale mode flips while this card is on screen.
     final wholesaleActive = ref.watch(isWholesalePricingActiveProvider);
-    final bulkMinimum =
-        wholesaleActive && product.hasBulkMinimum ? product.bulkMinQuantity : null;
-    final bulkMaximum =
-        wholesaleActive && product.hasBulkMaximum ? product.bulkMaxQuantity : null;
+    final bulkMinimum = wholesaleActive && product.hasBulkMinimum
+        ? product.bulkMinQuantity
+        : null;
+    final bulkMaximum = wholesaleActive && product.hasBulkMaximum
+        ? product.bulkMaxQuantity
+        : null;
     final greenBorder = accentColor ?? AppColors.primaryGreen;
     final buttonHeight = tight ? 30.h : 32.h;
     // Inline grid ADD buttons sit next to the unit label in a narrow 3-col
@@ -1074,16 +1081,20 @@ class _ZeptoAddQtyButton extends ConsumerWidget {
                 // stranded under the minimum, same as tapping "-" at 1.
                 if (quantity == 1 ||
                     (bulkMinimum != null && quantity <= bulkMinimum)) {
-                  final result = await ref
-                      .read(cartProvider.notifier)
-                      .removeItem(product.id);
+                  final result =
+                      await ref.read(cartProvider.notifier).removeItem(
+                            product.id,
+                            shopProductId: product.shopProductId,
+                          );
                   if (!context.mounted || result.isSuccess) return;
                   showCartSnackBar(context, result.failure!.message);
                   return;
                 }
-                final result = await ref
-                    .read(cartProvider.notifier)
-                    .updateItem(product.id, quantity - 1);
+                final result = await ref.read(cartProvider.notifier).updateItem(
+                      product.id,
+                      quantity - 1,
+                      shopProductId: product.shopProductId,
+                    );
                 if (!context.mounted || result.isSuccess) return;
                 showCartSnackBar(context, result.failure!.message);
               },
@@ -1131,9 +1142,11 @@ class _ZeptoAddQtyButton extends ConsumerWidget {
                   AppToast.show(context, 'Maximum product order complete');
                   return;
                 }
-                final result = await ref
-                    .read(cartProvider.notifier)
-                    .updateItem(product.id, quantity + 1);
+                final result = await ref.read(cartProvider.notifier).updateItem(
+                      product.id,
+                      quantity + 1,
+                      shopProductId: product.shopProductId,
+                    );
                 if (!context.mounted || result.isSuccess) return;
                 showCartSnackBar(context, result.failure!.message);
               },
@@ -1213,9 +1226,12 @@ class _ZeptoAddQtyButton extends ConsumerWidget {
                   // have to immediately tap "+" past several more times to
                   // reach the minimum. Land straight on it instead.
                   final startQty = bulkMinimum ?? 1;
-                  final result = await ref
-                      .read(cartProvider.notifier)
-                      .addItem(product.id, startQty, product: product);
+                  final result = await ref.read(cartProvider.notifier).addItem(
+                        product.id,
+                        startQty,
+                        product: product,
+                        shopProductId: product.shopProductId,
+                      );
                   if (!context.mounted) return;
                   if (!result.isSuccess) {
                     showCartSnackBar(context, result.failure!.message);
@@ -1237,62 +1253,63 @@ class _ZeptoAddQtyButton extends ConsumerWidget {
           child: Opacity(
             opacity: disableDirectAdd ? 0.4 : 1,
             child: Container(
-            // Multi-option grid buttons grow taller to stack "ADD" over the
-            // "N options" line INSIDE the green border (reference layout).
-            height: isGrid && showOptions ? buttonHeight + 16.h : buttonHeight,
-            width: compactPlus
-                ? buttonHeight
-                : isGrid
-                    ? gridButtonWidth
-                    : buttonHeight,
-            padding: EdgeInsets.symmetric(vertical: 3.h),
-            decoration: BoxDecoration(
-              border: Border.all(color: greenBorder, width: 1.5),
-              borderRadius: BorderRadius.circular(8.r),
-            ),
-            alignment: Alignment.center,
-            child: compactPlus
-                ? PhosphorIcon(
-                    PhosphorIcons.plusBold,
-                    size: tight ? 15.0 : 18.0,
-                    color: greenBorder,
-                  )
-                : isGrid
-                    ? Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        mainAxisSize: MainAxisSize.min,
-                        children: <Widget>[
-                          Text(
-                            'ADD',
-                            style: TextStyle(
-                              color: greenBorder,
-                              fontWeight: FontWeight.w700,
-                              fontSize: addFontSize,
-                              letterSpacing: 0.4,
-                              height: 1.0,
-                            ),
-                          ),
-                          if (showOptions)
+              // Multi-option grid buttons grow taller to stack "ADD" over the
+              // "N options" line INSIDE the green border (reference layout).
+              height:
+                  isGrid && showOptions ? buttonHeight + 16.h : buttonHeight,
+              width: compactPlus
+                  ? buttonHeight
+                  : isGrid
+                      ? gridButtonWidth
+                      : buttonHeight,
+              padding: EdgeInsets.symmetric(vertical: 3.h),
+              decoration: BoxDecoration(
+                border: Border.all(color: greenBorder, width: 1.5),
+                borderRadius: BorderRadius.circular(8.r),
+              ),
+              alignment: Alignment.center,
+              child: compactPlus
+                  ? PhosphorIcon(
+                      PhosphorIcons.plusBold,
+                      size: tight ? 15.0 : 18.0,
+                      color: greenBorder,
+                    )
+                  : isGrid
+                      ? Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          mainAxisSize: MainAxisSize.min,
+                          children: <Widget>[
                             Text(
-                              '${product.optionCount} options',
-                              maxLines: 1,
-                              softWrap: false,
-                              overflow: TextOverflow.ellipsis,
+                              'ADD',
                               style: TextStyle(
-                                fontSize: 8.5.sp,
-                                fontWeight: FontWeight.w500,
                                 color: greenBorder,
-                                height: 1.2,
+                                fontWeight: FontWeight.w700,
+                                fontSize: addFontSize,
+                                letterSpacing: 0.4,
+                                height: 1.0,
                               ),
                             ),
-                        ],
-                      )
-                    : PhosphorIcon(
-                        PhosphorIcons.plusBold,
-                        size: tight ? 15.0 : 18.0,
-                        color: greenBorder,
-                      ),
-          ),
+                            if (showOptions)
+                              Text(
+                                '${product.optionCount} options',
+                                maxLines: 1,
+                                softWrap: false,
+                                overflow: TextOverflow.ellipsis,
+                                style: TextStyle(
+                                  fontSize: 8.5.sp,
+                                  fontWeight: FontWeight.w500,
+                                  color: greenBorder,
+                                  height: 1.2,
+                                ),
+                              ),
+                          ],
+                        )
+                      : PhosphorIcon(
+                          PhosphorIcons.plusBold,
+                          size: tight ? 15.0 : 18.0,
+                          color: greenBorder,
+                        ),
+            ),
           ),
         ),
       ),
