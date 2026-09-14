@@ -5,7 +5,6 @@ import 'package:dio/dio.dart';
 
 import 'package:bakaloo_flutter_app/core/errors/error_handler.dart';
 import 'package:bakaloo_flutter_app/core/errors/failure.dart';
-import 'package:bakaloo_flutter_app/core/storage/cache_strategy.dart';
 import 'package:bakaloo_flutter_app/features/products/data/datasources/product_remote_datasource.dart';
 import 'package:bakaloo_flutter_app/features/products/data/local/product_local_datasource.dart';
 import 'package:bakaloo_flutter_app/features/products/data/models/product_model.dart';
@@ -22,7 +21,6 @@ class ProductRepositoryImpl implements ProductRepository {
 
   final ProductRemoteDataSource _remoteDataSource;
   final ProductLocalDataSource _localDataSource;
-  static const Duration _pageCacheTtl = Duration(minutes: 10);
 
   @override
   Future<Either<Failure, ProductListResult>> getProducts({
@@ -32,12 +30,14 @@ class ProductRepositoryImpl implements ProductRepository {
     final cacheKey = 'products_page_${page}_$limit';
 
     if (page == 1) {
+      // Network-first: admin-controlled fields (price, wholesale price,
+      // stock, bulk-order settings) need to show what's live right now, not
+      // what was cached on a previous visit — same reasoning as
+      // getProductDetail() below. Serving it whenever it happened to still
+      // be "fresh" meant a dashboard edit didn't show up here for up to 10
+      // minutes, even across a cold restart, since Hive persists to disk.
+      // The cache is now a fallback for offline/error only.
       final cached = _cachedPage(cacheKey);
-      final isFresh = _localDataSource.isFresh(cacheKey, _pageCacheTtl);
-      if (cached != null && isFresh) {
-        unawaited(_refreshPage1(cacheKey, limit));
-        return Right(cached);
-      }
 
       try {
         final remotePage = await _remoteDataSource.getProducts(
@@ -150,7 +150,6 @@ class ProductRepositoryImpl implements ProductRepository {
     return _getSimpleList(
       () => _remoteDataSource.getFeatured(limit: limit),
       cacheKey: 'products_featured_$limit',
-      ttl: CacheStrategy.featuredProducts.ttl!,
     );
   }
 
@@ -161,7 +160,6 @@ class ProductRepositoryImpl implements ProductRepository {
     return _getSimpleList(
       () => _remoteDataSource.getNewArrivals(limit: limit),
       cacheKey: 'products_new_arrivals_$limit',
-      ttl: const Duration(minutes: 10),
     );
   }
 
@@ -170,7 +168,6 @@ class ProductRepositoryImpl implements ProductRepository {
     return _getSimpleList(
       () => _remoteDataSource.getDeals(limit: limit),
       cacheKey: 'products_deals_$limit',
-      ttl: const Duration(minutes: 10),
     );
   }
 
@@ -236,23 +233,14 @@ class ProductRepositoryImpl implements ProductRepository {
     return ProductListResult(items: items, pagination: pagination);
   }
 
-  Future<void> _refreshPage1(String cacheKey, int limit) async {
-    try {
-      final remotePage =
-          await _remoteDataSource.getProducts(page: 1, limit: limit);
-      await _localDataSource.cacheList(
-        key: cacheKey,
-        items:
-            remotePage.items.map((ProductModel item) => item.toJson()).toList(),
-        pagination: remotePage.pagination,
-      );
-    } catch (_) {}
-  }
-
+  // Network-first — same reasoning as getProducts()/getProductDetail()
+  // above: these rails show admin-controlled price/stock/bulk-order data
+  // that needs to reflect a dashboard edit immediately, not up to `ttl`
+  // (previously up to 10 minutes) later. The cache is a fallback for
+  // offline/error only.
   Future<Either<Failure, List<ProductEntity>>> _getSimpleList(
     Future<List<ProductModel>> Function() loader, {
     required String cacheKey,
-    required Duration ttl,
   }) async {
     final cachedJson = _localDataSource.getCachedList(cacheKey);
     final cachedItems =
@@ -264,12 +252,6 @@ class ProductRepositoryImpl implements ProductRepository {
             )
             .map((ProductModel item) => item.toEntity())
             .toList();
-    final isFresh = _localDataSource.isFresh(cacheKey, ttl);
-
-    if (cachedItems.isNotEmpty && isFresh) {
-      unawaited(_refreshSimpleList(loader, cacheKey));
-      return Right(cachedItems);
-    }
 
     try {
       final products = await loader();
@@ -301,22 +283,4 @@ class ProductRepositoryImpl implements ProductRepository {
     }
   }
 
-  Future<void> _refreshSimpleList(
-    Future<List<ProductModel>> Function() loader,
-    String cacheKey,
-  ) async {
-    try {
-      final products = await loader();
-      await _localDataSource.cacheList(
-        key: cacheKey,
-        items: products.map((ProductModel item) => item.toJson()).toList(),
-        pagination: PaginationEntity(
-          page: 1,
-          limit: products.length,
-          total: products.length,
-          totalPages: products.isEmpty ? 0 : 1,
-        ),
-      );
-    } catch (_) {}
-  }
 }

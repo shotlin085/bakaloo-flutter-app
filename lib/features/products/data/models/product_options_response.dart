@@ -53,6 +53,9 @@ class ProductOptionItem {
     this.avgRating = 0.0,
     this.ratingCount = 0,
     this.displayDeliveryMinutes,
+    this.bulkMinQuantity,
+    this.bulkMaxQuantity,
+    this.bulkOrderEligible,
   });
 
   final String id;
@@ -75,6 +78,17 @@ class ProductOptionItem {
   final double avgRating;
   final int ratingCount;
   final int? displayDeliveryMinutes;
+  final int? bulkMinQuantity;
+  final int? bulkMaxQuantity;
+  final bool? bulkOrderEligible;
+
+  /// See ProductEntity.hasBulkMinimum for the same "minimum of 1 is no
+  /// constraint" / "bulkOrderEligible == false overrides a stale minimum"
+  /// reasoning — kept in sync with that getter.
+  bool get hasBulkMinimum =>
+      bulkOrderEligible != false && (bulkMinQuantity ?? 1) > 1;
+
+  bool get hasBulkMaximum => bulkOrderEligible != false && bulkMaxQuantity != null;
 
   double get effectivePrice {
     if (salePrice != null && salePrice! > 0 && salePrice! < price) {
@@ -140,6 +154,9 @@ class ProductOptionItem {
       displayDeliveryMinutes: _toNullableInt(
         pick('displayDeliveryMinutes', 'display_delivery_minutes'),
       ),
+      bulkMinQuantity: _toNullableInt(pick('bulkMinQuantity', 'bulk_min_quantity')),
+      bulkMaxQuantity: _toNullableInt(pick('bulkMaxQuantity', 'bulk_max_quantity')),
+      bulkOrderEligible: _toNullableBool(pick('bulkOrderEligible', 'bulk_order_eligible')),
     );
   }
 }
@@ -203,6 +220,17 @@ bool _toBool(Object? value, {bool fallback = false}) {
   if (value is String) return value.toLowerCase() == 'true';
   if (value is num) return value != 0;
   return fallback;
+}
+
+/// Unlike [_toBool], preserves `null` (missing/absent) rather than
+/// collapsing it to a fallback — bulkOrderEligible's null/true/false are
+/// three distinct states (see ProductOptionItem.hasBulkMinimum).
+bool? _toNullableBool(Object? value) {
+  if (value == null) return null;
+  if (value is bool) return value;
+  if (value is String) return value.toLowerCase() == 'true';
+  if (value is num) return value != 0;
+  return null;
 }
 
 List<String> _toStringList(dynamic value) {

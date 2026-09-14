@@ -3,6 +3,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:go_router/go_router.dart';
 
+import 'package:bakaloo_flutter_app/core/utils/app_toast.dart';
+import 'package:bakaloo_flutter_app/features/business_account/presentation/providers/price_mode_provider.dart';
 import 'package:bakaloo_flutter_app/features/cart/presentation/providers/cart_enhancement_providers.dart';
 import 'package:bakaloo_flutter_app/features/cart/presentation/providers/cart_provider.dart';
 import 'package:bakaloo_flutter_app/features/cart/presentation/widgets/cart_misc_widgets.dart';
@@ -65,13 +67,29 @@ class CartQuickAddSection extends ConsumerWidget {
       return;
     }
 
+    // A wholesale listing with a bulk minimum can't usefully start at 1 —
+    // land straight on it instead, same as every other ADD surface.
+    final wholesaleActive = ref.read(isWholesalePricingActiveProvider);
+    final startQty =
+        wholesaleActive && product.hasBulkMinimum ? product.bulkMinQuantity! : 1;
+
     final result = await ref
         .read(cartProvider.notifier)
-        .addItem(product.id, 1, product: product);
-    if (!context.mounted || result.isSuccess) {
+        .addItem(product.id, startQty, product: product);
+    if (!context.mounted) {
       return;
     }
-    showCartSnackBar(context, result.failure!.message);
+    if (!result.isSuccess) {
+      showCartSnackBar(context, result.failure!.message);
+      return;
+    }
+    if (startQty > 1) {
+      AppToast.show(
+        context,
+        'Added $startQty — the bulk minimum for this product',
+        type: ToastType.info,
+      );
+    }
   }
 }
 

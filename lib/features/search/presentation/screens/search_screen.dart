@@ -18,6 +18,7 @@ import 'package:bakaloo_flutter_app/core/theme/app_shadows.dart';
 import 'package:bakaloo_flutter_app/core/theme/app_text_styles.dart';
 import 'package:bakaloo_flutter_app/core/utils/app_toast.dart';
 import 'package:bakaloo_flutter_app/features/auth/presentation/providers/auth_gate_controller.dart';
+import 'package:bakaloo_flutter_app/features/business_account/presentation/providers/price_mode_provider.dart';
 import 'package:bakaloo_flutter_app/features/cart/presentation/providers/cart_provider.dart';
 import 'package:bakaloo_flutter_app/features/categories/domain/entities/category_entity.dart';
 import 'package:bakaloo_flutter_app/features/categories/presentation/providers/category_provider.dart';
@@ -1817,6 +1818,15 @@ class _SearchResultTile extends ConsumerWidget {
     final purchaseLimitStatus =
         ref.watch(purchaseLimitStatusProvider(product.id));
     final isAtLimit = purchaseLimitStatus?.isAtLimit ?? false;
+    // Bulk quantity floor/ceiling only ever apply while the viewer is
+    // actually buying wholesale — same gating as _ZeptoAddQtyButton in
+    // product_card.dart, whose logic this tile duplicates rather than
+    // reuses (a separate, simpler row layout for search results).
+    final wholesaleActive = ref.watch(isWholesalePricingActiveProvider);
+    final bulkMinimum =
+        wholesaleActive && product.hasBulkMinimum ? product.bulkMinQuantity : null;
+    final bulkMaximum =
+        wholesaleActive && product.hasBulkMaximum ? product.bulkMaxQuantity : null;
 
     return InkWell(
       onTap: () => context.push('/product/${product.id}'),
@@ -1927,10 +1937,13 @@ class _SearchResultTile extends ConsumerWidget {
                       if (!allowed || !context.mounted) {
                         return;
                       }
+                      // A wholesale listing with a bulk minimum can't
+                      // usefully start at 1 — land straight on it instead.
+                      final startQty = bulkMinimum ?? 1;
                       final result =
                           await ref.read(cartProvider.notifier).addItem(
                                 product.id,
-                                1,
+                                startQty,
                                 product: product,
                               );
                       if (!context.mounted) {
@@ -1941,10 +1954,18 @@ class _SearchResultTile extends ConsumerWidget {
                           context,
                           result.failure!.message,
                         );
+                        return;
+                      }
+                      if (startQty > 1) {
+                        AppToast.show(
+                          context,
+                          'Added $startQty — the bulk minimum for this product',
+                          type: ToastType.info,
+                        );
                       }
                     }
                   : null,
-              onIncrement: product.inStock && quantity < 50
+              onIncrement: product.inStock && quantity < (bulkMaximum ?? 50)
                   ? () async {
                       // Re-checked fresh on every tap (ref.read, not the
                       // watched value above) so a stale cache can never
@@ -1975,13 +1996,14 @@ class _SearchResultTile extends ConsumerWidget {
                   : null,
               onDecrement: product.inStock && quantity > 0
                   ? () async {
-                      final result = quantity == 1
-                          ? await ref
-                              .read(cartProvider.notifier)
-                              .removeItem(product.id)
-                          : await ref
-                              .read(cartProvider.notifier)
-                              .updateItem(product.id, quantity - 1);
+                      final result =
+                          quantity == 1 || (bulkMinimum != null && quantity <= bulkMinimum)
+                              ? await ref
+                                  .read(cartProvider.notifier)
+                                  .removeItem(product.id)
+                              : await ref
+                                  .read(cartProvider.notifier)
+                                  .updateItem(product.id, quantity - 1);
                       if (!context.mounted) {
                         return;
                       }

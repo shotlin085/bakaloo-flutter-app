@@ -8,6 +8,7 @@ import 'package:phosphoricons_flutter/phosphoricons_flutter.dart';
 import 'package:bakaloo_flutter_app/core/theme/app_colors.dart';
 import 'package:bakaloo_flutter_app/core/theme/app_text_styles.dart';
 import 'package:bakaloo_flutter_app/core/utils/app_toast.dart';
+import 'package:bakaloo_flutter_app/features/business_account/presentation/providers/price_mode_provider.dart';
 import 'package:bakaloo_flutter_app/features/cart/presentation/providers/cart_provider.dart';
 import 'package:bakaloo_flutter_app/features/products/data/models/product_options_response.dart';
 import 'package:bakaloo_flutter_app/features/products/domain/entities/product_entity.dart';
@@ -482,13 +483,29 @@ class _CartActionButton extends ConsumerWidget {
       width: 92.w,
       child: OutlinedButton(
         onPressed: () async {
+          // A wholesale listing with a bulk minimum can't usefully start
+          // at 1 — land straight on it instead, same as every other ADD
+          // surface (product card, search, product detail).
+          final wholesaleActive = ref.read(isWholesalePricingActiveProvider);
+          final startQty =
+              wholesaleActive && option.hasBulkMinimum ? option.bulkMinQuantity! : 1;
           final result = await ref.read(cartProvider.notifier).addItem(
                 option.id,
-                1,
+                startQty,
                 shopProductId: option.shopProductId,
               );
-          if (!context.mounted || result.isSuccess) return;
-          AppToast.show(context, result.failure!.message);
+          if (!context.mounted) return;
+          if (!result.isSuccess) {
+            AppToast.show(context, result.failure!.message);
+            return;
+          }
+          if (startQty > 1) {
+            AppToast.show(
+              context,
+              'Added $startQty — the bulk minimum for this product',
+              type: ToastType.info,
+            );
+          }
         },
         style: OutlinedButton.styleFrom(
           backgroundColor: Colors.white,
@@ -523,6 +540,15 @@ class _QuantityStepper extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    // Bulk quantity floor/ceiling only ever apply while the viewer is
+    // actually buying wholesale — same gating as every other ADD surface.
+    final wholesaleActive = ref.watch(isWholesalePricingActiveProvider);
+    final bulkMinimum =
+        wholesaleActive && option.hasBulkMinimum ? option.bulkMinQuantity : null;
+    final bulkMaximum =
+        wholesaleActive && option.hasBulkMaximum ? option.bulkMaxQuantity : null;
+    final effectiveMax = bulkMaximum ?? option.maxOrderQty ?? 50;
+
     return Container(
       height: 38.h,
       width: 92.w,
@@ -536,7 +562,10 @@ class _QuantityStepper extends ConsumerWidget {
           _StepperButton(
             icon: PhosphorIcons.minus,
             onTap: () async {
-              if (quantity == 1) {
+              // A step below the bulk minimum isn't a valid quantity to
+              // sit at — remove the line entirely.
+              if (quantity == 1 ||
+                  (bulkMinimum != null && quantity <= bulkMinimum)) {
                 final result = await ref.read(cartProvider.notifier).removeItem(
                       option.id,
                       shopProductId: option.shopProductId,
@@ -566,10 +595,12 @@ class _QuantityStepper extends ConsumerWidget {
           _StepperButton(
             icon: PhosphorIcons.plus,
             onTap: () async {
-              if (quantity >= (option.maxOrderQty ?? 50)) {
+              if (quantity >= effectiveMax) {
                 AppToast.show(
                   context,
-                  '⚠️ Maximum ${option.maxOrderQty ?? 50} items allowed per order',
+                  bulkMaximum != null
+                      ? '⚠️ Maximum bulk quantity for this product is $bulkMaximum'
+                      : '⚠️ Maximum $effectiveMax items allowed per order',
                   type: ToastType.warning,
                 );
                 return;

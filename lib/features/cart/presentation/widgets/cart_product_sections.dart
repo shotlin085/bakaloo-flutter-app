@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 
+import 'package:bakaloo_flutter_app/features/business_account/presentation/providers/price_mode_provider.dart';
 import 'package:bakaloo_flutter_app/features/cart/presentation/providers/cart_enhancement_providers.dart';
 import 'package:bakaloo_flutter_app/features/cart/presentation/providers/cart_provider.dart';
 import 'package:bakaloo_flutter_app/features/cart/presentation/widgets/cart_product_cards.dart';
@@ -315,7 +316,12 @@ void _addMapProduct(WidgetRef ref, Map<String, dynamic> product) {
 }
 
 void _addEntityProduct(WidgetRef ref, ProductEntity product) {
-  ref.read(cartProvider.notifier).addItem(product.id, 1, product: product);
+  // A wholesale listing with a bulk minimum can't usefully start at 1 —
+  // land straight on it instead, same as every other ADD surface.
+  final wholesaleActive = ref.read(isWholesalePricingActiveProvider);
+  final startQty =
+      wholesaleActive && product.hasBulkMinimum ? product.bulkMinQuantity! : 1;
+  ref.read(cartProvider.notifier).addItem(product.id, startQty, product: product);
 }
 
 double _asDouble(dynamic value) {

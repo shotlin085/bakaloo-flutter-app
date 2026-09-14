@@ -9,6 +9,7 @@ import 'package:bakaloo_flutter_app/core/constants/api_constants.dart';
 import 'package:bakaloo_flutter_app/core/theme/app_colors.dart';
 import 'package:bakaloo_flutter_app/core/utils/app_toast.dart';
 import 'package:bakaloo_flutter_app/features/auth/presentation/providers/auth_gate_controller.dart';
+import 'package:bakaloo_flutter_app/features/business_account/presentation/providers/price_mode_provider.dart';
 import 'package:bakaloo_flutter_app/features/cart/presentation/providers/cart_provider.dart';
 import 'package:bakaloo_flutter_app/features/products/domain/entities/product_entity.dart';
 import 'package:bakaloo_flutter_app/features/products/presentation/widgets/show_product_options.dart';
@@ -546,6 +547,15 @@ class _ArchedAddButton extends ConsumerWidget {
     final purchaseLimitStatus =
         ref.watch(purchaseLimitStatusProvider(product.id));
     final isAtLimit = purchaseLimitStatus?.isAtLimit ?? false;
+    // Bulk quantity floor/ceiling only ever apply while the viewer is
+    // actually buying wholesale — same gating as _ZeptoAddQtyButton in
+    // product_card.dart, whose logic this arched variant duplicates rather
+    // than reuses.
+    final wholesaleActive = ref.watch(isWholesalePricingActiveProvider);
+    final bulkMinimum =
+        wholesaleActive && product.hasBulkMinimum ? product.bulkMinQuantity : null;
+    final bulkMaximum =
+        wholesaleActive && product.hasBulkMaximum ? product.bulkMaxQuantity : null;
 
     if (quantity > 0) {
       return Container(
@@ -560,7 +570,10 @@ class _ArchedAddButton extends ConsumerWidget {
             InkWell(
               onTap: product.inStock
                   ? () async {
-                      if (quantity == 1) {
+                      // A step below the bulk minimum isn't a valid
+                      // quantity to sit at — remove the line entirely.
+                      if (quantity == 1 ||
+                          (bulkMinimum != null && quantity <= bulkMinimum)) {
                         final result = await ref
                             .read(cartProvider.notifier)
                             .removeItem(product.id);
@@ -601,7 +614,16 @@ class _ArchedAddButton extends ConsumerWidget {
             InkWell(
               onTap: product.inStock
                   ? () async {
-                      if (quantity >= 50) return;
+                      if (quantity >= (bulkMaximum ?? 50)) {
+                        if (bulkMaximum != null) {
+                          AppToast.show(
+                            context,
+                            'Maximum bulk quantity for this product is $bulkMaximum',
+                            type: ToastType.info,
+                          );
+                        }
+                        return;
+                      }
                       // Re-checked fresh on every tap (ref.read, not the
                       // watched value above) so a stale cache can never let
                       // a mutation through — block before it ever reaches
@@ -674,11 +696,24 @@ class _ArchedAddButton extends ConsumerWidget {
                   product,
                 );
                 if (!allowed || !context.mounted) return;
+                // A wholesale listing with a bulk minimum can't usefully
+                // start at 1 — land straight on it instead.
+                final startQty = bulkMinimum ?? 1;
                 final result = await ref
                     .read(cartProvider.notifier)
-                    .addItem(product.id, 1, product: product);
-                if (!context.mounted || result.isSuccess) return;
-                showCartSnackBar(context, result.failure!.message);
+                    .addItem(product.id, startQty, product: product);
+                if (!context.mounted) return;
+                if (!result.isSuccess) {
+                  showCartSnackBar(context, result.failure!.message);
+                  return;
+                }
+                if (startQty > 1) {
+                  AppToast.show(
+                    context,
+                    'Added $startQty — the bulk minimum for this product',
+                    type: ToastType.info,
+                  );
+                }
               }
             : null,
         borderRadius: BorderRadius.circular(10.r),
