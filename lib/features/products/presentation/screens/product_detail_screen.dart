@@ -11,6 +11,7 @@ import 'package:bakaloo_flutter_app/core/constants/api_constants.dart';
 import 'package:bakaloo_flutter_app/core/theme/app_colors.dart';
 import 'package:bakaloo_flutter_app/core/utils/app_toast.dart';
 import 'package:bakaloo_flutter_app/features/auth/presentation/providers/auth_gate_controller.dart';
+import 'package:bakaloo_flutter_app/features/business_account/presentation/providers/price_mode_provider.dart';
 import 'package:bakaloo_flutter_app/features/cart/presentation/providers/cart_provider.dart';
 import 'package:bakaloo_flutter_app/features/products/domain/entities/product_entity.dart';
 import 'package:bakaloo_flutter_app/features/products/presentation/providers/product_detail_provider.dart';
@@ -150,6 +151,13 @@ class _ProductDetailScreenState extends ConsumerState<ProductDetailScreen> {
         final purchaseLimitStatus =
             ref.watch(purchaseLimitStatusProvider(effectiveProduct.id));
         final isAtPurchaseLimit = purchaseLimitStatus?.isAtLimit ?? false;
+        // Same "wholesale mode only" gate as _updateCart/_addProductToCart
+        // below — a bulk ceiling only ever constrains the stepper while the
+        // viewer is actually buying wholesale.
+        final wholesaleActive = ref.watch(isWholesalePricingActiveProvider);
+        final isAtBulkMaximum = wholesaleActive &&
+            effectiveProduct.hasBulkMaximum &&
+            cartQty >= effectiveProduct.bulkMaxQuantity!;
 
         // Piggybacks on the product detail fetch that's already happening —
         // no extra per-card network call. Cheap no-op when already known.
@@ -343,7 +351,7 @@ class _ProductDetailScreenState extends ConsumerState<ProductDetailScreen> {
               onAddToCart: () => _addSelectedVariantToCart(effectiveProduct),
               onViewCart: () => context.push(RouteNames.cart),
               onQuantityChange: (qty) => _updateCart(effectiveProduct, qty),
-              disableIncrement: isAtPurchaseLimit,
+              disableIncrement: isAtPurchaseLimit || isAtBulkMaximum,
             ),
           ),
         );
@@ -559,27 +567,53 @@ class _ProductDetailScreenState extends ConsumerState<ProductDetailScreen> {
       return;
     }
 
+    // A wholesale listing with a bulk minimum can't usefully start at 1 —
+    // that's a quantity the customer would just have to immediately tap
+    // "+" past several more times to reach the minimum. Land straight on
+    // it instead, mirroring the same-purpose logic in product_card.dart.
+    final wholesaleActive = ref.read(isWholesalePricingActiveProvider);
+    final startQty =
+        wholesaleActive && product.hasBulkMinimum ? product.bulkMinQuantity! : 1;
+
     unawaited(
       ref.read(analyticsServiceProvider).logAddToCart(
             product.id,
-            1,
+            startQty,
             product.effectivePrice,
           ),
     );
     final result = await ref.read(cartProvider.notifier).addItem(
           product.id,
-          1,
+          startQty,
           product: product,
         );
-    if (!mounted || result.isSuccess) {
+    if (!mounted) {
       return;
     }
-
-    showCartSnackBar(context, result.failure!.message);
+    if (!result.isSuccess) {
+      showCartSnackBar(context, result.failure!.message);
+      return;
+    }
+    if (startQty > 1) {
+      AppToast.show(
+        context,
+        'Added $startQty — the bulk minimum for this product',
+        type: ToastType.info,
+      );
+    }
   }
 
   Future<void> _updateCart(ProductEntity product, int qty) async {
     final currentQty = ref.read(cartItemQuantityProvider(product.id));
+    final wholesaleActive = ref.read(isWholesalePricingActiveProvider);
+    final bulkMinimum = wholesaleActive && product.hasBulkMinimum
+        ? product.bulkMinQuantity
+        : null;
+    final bulkMaximum = wholesaleActive && product.hasBulkMaximum
+        ? product.bulkMaxQuantity
+        : null;
+    var effectiveQty = qty;
+
     if (qty > currentQty) {
       // This is an increment attempt (ProductBottomBar's onQuantityChange
       // is a single callback shared by both +/-, so the direction is
@@ -592,11 +626,24 @@ class _ProductDetailScreenState extends ConsumerState<ProductDetailScreen> {
         AppToast.show(context, 'Maximum product order complete');
         return;
       }
+      if (bulkMaximum != null && qty > bulkMaximum) {
+        AppToast.show(
+          context,
+          'Maximum bulk quantity for this product is $bulkMaximum',
+          type: ToastType.info,
+        );
+        return;
+      }
+    } else if (bulkMinimum != null && qty < bulkMinimum) {
+      // A step below the bulk minimum isn't a valid quantity to sit at —
+      // remove the line entirely rather than leaving it stranded under the
+      // minimum, same as decrementing to 0.
+      effectiveQty = 0;
     }
 
-    final result = qty <= 0
+    final result = effectiveQty <= 0
         ? await ref.read(cartProvider.notifier).removeItem(product.id)
-        : await ref.read(cartProvider.notifier).updateItem(product.id, qty);
+        : await ref.read(cartProvider.notifier).updateItem(product.id, effectiveQty);
 
     if (!mounted || result.isSuccess) {
       return;

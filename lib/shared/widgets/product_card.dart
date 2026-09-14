@@ -10,6 +10,7 @@ import 'package:bakaloo_flutter_app/core/theme/app_dimensions.dart';
 import 'package:bakaloo_flutter_app/core/theme/app_text_styles.dart';
 import 'package:bakaloo_flutter_app/core/utils/app_toast.dart';
 import 'package:bakaloo_flutter_app/features/auth/presentation/providers/auth_gate_controller.dart';
+import 'package:bakaloo_flutter_app/features/business_account/presentation/providers/price_mode_provider.dart';
 import 'package:bakaloo_flutter_app/features/cart/presentation/providers/cart_provider.dart';
 import 'package:bakaloo_flutter_app/features/products/domain/entities/product_entity.dart';
 import 'package:bakaloo_flutter_app/features/purchase_limits/presentation/providers/purchase_limits_provider.dart';
@@ -1018,6 +1019,16 @@ class _ZeptoAddQtyButton extends ConsumerWidget {
     final purchaseLimitStatus =
         ref.watch(purchaseLimitStatusProvider(product.id));
     final isAtLimit = purchaseLimitStatus?.isAtLimit ?? false;
+    // Bulk quantity floor/ceiling only ever apply while the viewer is
+    // actually buying wholesale — a B2C customer (or a B2B one browsing
+    // retail) sees the plain ±1 stepper regardless of what a listing's own
+    // bulk settings are. Watched so the stepper's behavior updates live if
+    // wholesale mode flips while this card is on screen.
+    final wholesaleActive = ref.watch(isWholesalePricingActiveProvider);
+    final bulkMinimum =
+        wholesaleActive && product.hasBulkMinimum ? product.bulkMinQuantity : null;
+    final bulkMaximum =
+        wholesaleActive && product.hasBulkMaximum ? product.bulkMaxQuantity : null;
     final greenBorder = accentColor ?? AppColors.primaryGreen;
     final buttonHeight = tight ? 30.h : 32.h;
     // Inline grid ADD buttons sit next to the unit label in a narrow 3-col
@@ -1058,7 +1069,11 @@ class _ZeptoAddQtyButton extends ConsumerWidget {
           children: <Widget>[
             InkWell(
               onTap: () async {
-                if (quantity == 1) {
+                // A step below the bulk minimum isn't a valid quantity to
+                // sit at — remove the line entirely rather than leaving it
+                // stranded under the minimum, same as tapping "-" at 1.
+                if (quantity == 1 ||
+                    (bulkMinimum != null && quantity <= bulkMinimum)) {
                   final result = await ref
                       .read(cartProvider.notifier)
                       .removeItem(product.id);
@@ -1097,7 +1112,16 @@ class _ZeptoAddQtyButton extends ConsumerWidget {
             ),
             InkWell(
               onTap: () async {
-                if (quantity >= 50) return;
+                if (quantity >= (bulkMaximum ?? 50)) {
+                  if (bulkMaximum != null) {
+                    AppToast.show(
+                      context,
+                      'Maximum bulk quantity for this product is $bulkMaximum',
+                      type: ToastType.info,
+                    );
+                  }
+                  return;
+                }
                 // Re-checked fresh on every tap (ref.read, not the watched
                 // value above) so a stale cache can never let a mutation
                 // through — block before it ever reaches the network.
@@ -1184,13 +1208,25 @@ class _ZeptoAddQtyButton extends ConsumerWidget {
                     product,
                   );
                   if (!allowed || !context.mounted) return;
+                  // A wholesale listing with a bulk minimum can't usefully
+                  // start at 1 — that's a quantity the customer would just
+                  // have to immediately tap "+" past several more times to
+                  // reach the minimum. Land straight on it instead.
+                  final startQty = bulkMinimum ?? 1;
                   final result = await ref
                       .read(cartProvider.notifier)
-                      .addItem(product.id, 1, product: product);
+                      .addItem(product.id, startQty, product: product);
                   if (!context.mounted) return;
                   if (!result.isSuccess) {
                     showCartSnackBar(context, result.failure!.message);
                     return;
+                  }
+                  if (startQty > 1) {
+                    AppToast.show(
+                      context,
+                      'Added $startQty — the bulk minimum for this product',
+                      type: ToastType.info,
+                    );
                   }
                   onAdd?.call();
                 }

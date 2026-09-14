@@ -95,6 +95,9 @@ abstract class ProductModel with _$ProductModel {
     @JsonKey(name: 'display_delivery_minutes') int? displayDeliveryMinutes,
     @JsonKey(name: 'shop_product_id') String? shopProductId,
     @JsonKey(name: 'shop_id') String? shopId,
+    @JsonKey(name: 'bulk_min_quantity') int? bulkMinQuantity,
+    @JsonKey(name: 'bulk_max_quantity') int? bulkMaxQuantity,
+    @JsonKey(name: 'bulk_order_eligible') bool? bulkOrderEligible,
   }) = _ProductModel;
 
   factory ProductModel.fromJson(Map<String, dynamic> json) =>
@@ -159,6 +162,9 @@ abstract class ProductModel with _$ProductModel {
       displayDeliveryMinutes: displayDeliveryMinutes,
       shopProductId: shopProductId,
       shopId: shopId,
+      bulkMinQuantity: bulkMinQuantity,
+      bulkMaxQuantity: bulkMaxQuantity,
+      bulkOrderEligible: bulkOrderEligible,
     );
   }
 }
