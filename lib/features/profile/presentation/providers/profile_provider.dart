@@ -91,6 +91,7 @@ class ProfileNotifier extends _$ProfileNotifier {
       },
       (profile) {
         _writeCache(profile);
+        _syncAuthIdentity(profile);
         return profile;
       },
     );
@@ -117,7 +118,26 @@ class ProfileNotifier extends _$ProfileNotifier {
           state = AsyncData(profile);
         }
         _writeCache(profile);
+        _syncAuthIdentity(profile);
       },
+    );
+  }
+
+  /// The auth session's cached identity (HiveService.userBox, read back by
+  /// AuthNotifier on every cold start — see its syncCachedUser doc comment)
+  /// otherwise only ever updates from this same class's own updateProfile()
+  /// call below, or at login. A name changed any other way (dashboard edit,
+  /// a re-seeded test account, a support fix directly in the DB) then shows
+  /// correctly here — this notifier always fetches the live profile — while
+  /// authStateProvider quietly keeps serving the old cached name forever,
+  /// including to other screens that read it directly (e.g. the address
+  /// form's "Your Name" prefill, cart_ordering_for.dart's "Ordering for").
+  /// Reported: address form pre-filled a stale name that didn't match the
+  /// one actually shown on this Profile screen. Calling this on every fresh
+  /// fetch — not just explicit edits — keeps the two permanently in sync.
+  void _syncAuthIdentity(ProfileData profile) {
+    unawaited(
+      ref.read(authStateProvider.notifier).syncCachedUser(profile.user),
     );
   }
 
@@ -164,6 +184,7 @@ class ProfileNotifier extends _$ProfileNotifier {
       (profile) {
         state = AsyncData(profile);
         _writeCache(profile);
+        _syncAuthIdentity(profile);
         return const ProfileActionResult();
       },
     );
@@ -188,12 +209,7 @@ class ProfileNotifier extends _$ProfileNotifier {
         state = AsyncData(profile);
         _writeCache(profile);
         ref.invalidate(userStatsProvider);
-        // Keep the auth session's cached identity in sync — otherwise this
-        // save "reverts" on the next app restart (see syncCachedUser's doc
-        // comment in auth_notifier.dart for why).
-        unawaited(
-          ref.read(authStateProvider.notifier).syncCachedUser(profile.user),
-        );
+        _syncAuthIdentity(profile);
         return const ProfileActionResult();
       },
     );
