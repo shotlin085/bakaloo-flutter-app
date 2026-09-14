@@ -1,5 +1,6 @@
 import 'dart:math' as math;
 
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
@@ -113,8 +114,10 @@ class _SpinWinDialogState extends ConsumerState<SpinWinDialog> {
     final configAsync = ref.watch(spinConfigProvider);
     final isLiveAsync = ref.watch(spinConfigIsLiveProvider);
     final eligibilityAsync = ref.watch(spinEligibilityProvider);
+    final appearance = ref.watch(spinWheelAppearanceProvider).value;
 
     final prizes = configAsync.value ?? kSpinWheelPrizes;
+    final backgroundImageUrl = appearance?.backgroundImageUrl;
     final eligibility = eligibilityAsync.value;
     final noSpinsLeft = eligibility != null && !eligibility.hasSpinsAvailable;
     final canSpin = (isLiveAsync.value ?? false) && !noSpinsLeft && !_isSpinning;
@@ -133,7 +136,20 @@ class _SpinWinDialogState extends ConsumerState<SpinWinDialog> {
         child: Stack(
           children: <Widget>[
             Positioned.fill(
-              child: Image.asset(_backgroundAsset, fit: BoxFit.cover),
+              child: backgroundImageUrl != null
+                  ? CachedNetworkImage(
+                      imageUrl: backgroundImageUrl,
+                      fit: BoxFit.cover,
+                      memCacheWidth:
+                          (mediaQuery.size.width * mediaQuery.devicePixelRatio)
+                              .round(),
+                      fadeInDuration: const Duration(milliseconds: 200),
+                      placeholder: (context, url) =>
+                          Image.asset(_backgroundAsset, fit: BoxFit.cover),
+                      errorWidget: (context, url, error) =>
+                          Image.asset(_backgroundAsset, fit: BoxFit.cover),
+                    )
+                  : Image.asset(_backgroundAsset, fit: BoxFit.cover),
             ),
             SafeArea(
               bottom: false,
@@ -292,18 +308,18 @@ class _SpinWinDialogState extends ConsumerState<SpinWinDialog> {
                               mainAxisSize: MainAxisSize.min,
                               children: <Widget>[
                                 Text(
-                                  'Win up to ₹100 off',
+                                  appearance?.bannerTitle ?? 'Win up to ₹100 off',
                                   style: AppTextStyles.labelLarge,
                                 ),
                                 Text(
-                                  'on your next order',
+                                  appearance?.bannerSubtitle ?? 'on your next order',
                                   style: AppTextStyles.bodySmall,
                                 ),
                               ],
                             ),
                           ),
                           Text(
-                            'Good Deals\nEveryday!',
+                            appearance?.bannerTagline ?? 'Good Deals\nEveryday!',
                             textAlign: TextAlign.right,
                             style: AppTextStyles.bodySmall.copyWith(
                               fontStyle: FontStyle.italic,

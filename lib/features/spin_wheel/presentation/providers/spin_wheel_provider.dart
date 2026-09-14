@@ -4,10 +4,12 @@ import 'package:riverpod_annotation/riverpod_annotation.dart';
 import 'package:bakaloo_flutter_app/core/di/providers.dart';
 import 'package:bakaloo_flutter_app/features/spin_wheel/data/datasources/spin_wheel_remote_datasource.dart';
 import 'package:bakaloo_flutter_app/features/spin_wheel/data/repositories/spin_wheel_repository_impl.dart';
+import 'package:bakaloo_flutter_app/features/spin_wheel/domain/entities/spin_appearance.dart';
 import 'package:bakaloo_flutter_app/features/spin_wheel/domain/entities/spin_eligibility.dart';
 import 'package:bakaloo_flutter_app/features/spin_wheel/domain/entities/spin_prize.dart';
 import 'package:bakaloo_flutter_app/features/spin_wheel/domain/entities/spin_result.dart';
 import 'package:bakaloo_flutter_app/features/spin_wheel/domain/repositories/spin_wheel_repository.dart';
+import 'package:bakaloo_flutter_app/features/spin_wheel/domain/usecases/get_spin_appearance.dart';
 import 'package:bakaloo_flutter_app/features/spin_wheel/domain/usecases/get_spin_config.dart';
 import 'package:bakaloo_flutter_app/features/spin_wheel/domain/usecases/get_spin_eligibility.dart';
 import 'package:bakaloo_flutter_app/features/spin_wheel/domain/usecases/spin.dart';
@@ -36,6 +38,12 @@ final getSpinEligibilityUseCaseProvider = Provider<GetSpinEligibilityUseCase>((
   return GetSpinEligibilityUseCase(ref.watch(spinWheelRepositoryProvider));
 });
 
+final getSpinAppearanceUseCaseProvider = Provider<GetSpinAppearanceUseCase>((
+  Ref ref,
+) {
+  return GetSpinAppearanceUseCase(ref.watch(spinWheelRepositoryProvider));
+});
+
 final spinUseCaseProvider = Provider<SpinUseCase>((Ref ref) {
   return SpinUseCase(ref.watch(spinWheelRepositoryProvider));
 });
@@ -53,6 +61,18 @@ Future<List<SpinPrize>> spinConfig(Ref ref) async {
     (failure) => kSpinWheelPrizes,
     (prizes) => prizes.isEmpty ? kSpinWheelPrizes : prizes,
   );
+}
+
+/// Popup background image + banner-box copy, dashboard-configured. Falls
+/// back to an all-null [SpinAppearance] on any failure (offline, new
+/// account not yet reaching this endpoint, etc.) — `spin_win_dialog.dart`
+/// reads a null field as "use the bundled default asset / hardcoded copy",
+/// same fail-open philosophy as [spinConfig] falling back to
+/// [kSpinWheelPrizes].
+@riverpod
+Future<SpinAppearance> spinWheelAppearance(Ref ref) async {
+  final either = await ref.watch(getSpinAppearanceUseCaseProvider).call();
+  return either.fold((failure) => const SpinAppearance(), (value) => value);
 }
 
 /// Whether the fetched wheel is real (backend-configured) vs. the offline

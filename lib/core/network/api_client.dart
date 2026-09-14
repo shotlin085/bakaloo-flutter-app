@@ -211,6 +211,9 @@ abstract class ApiClient {
   @GET(ApiConstants.spinWheelConfig)
   Future<HttpResponse<dynamic>> getSpinWheelConfig();
 
+  @GET(ApiConstants.spinWheelAppearance)
+  Future<HttpResponse<dynamic>> getSpinWheelAppearance();
+
   @GET(ApiConstants.spinWheelEligibility)
   Future<HttpResponse<dynamic>> getSpinWheelEligibility();
 

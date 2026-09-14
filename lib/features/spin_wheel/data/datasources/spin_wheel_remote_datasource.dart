@@ -3,6 +3,7 @@ import 'package:dio/dio.dart';
 import 'package:bakaloo_flutter_app/core/constants/api_constants.dart';
 import 'package:bakaloo_flutter_app/core/network/api_client.dart';
 import 'package:bakaloo_flutter_app/features/spin_wheel/data/models/spin_prize_model.dart';
+import 'package:bakaloo_flutter_app/features/spin_wheel/domain/entities/spin_appearance.dart';
 import 'package:bakaloo_flutter_app/features/spin_wheel/domain/entities/spin_eligibility.dart';
 import 'package:bakaloo_flutter_app/features/spin_wheel/domain/entities/spin_result.dart';
 
@@ -22,6 +23,27 @@ class SpinWheelRemoteDataSource {
         .whereType<Map>()
         .map((item) => SpinPrizeModel.fromJson(Map<String, dynamic>.from(item)))
         .toList(growable: false);
+  }
+
+  Future<SpinAppearance> getAppearance() async {
+    final response = await _apiClient.getSpinWheelAppearance();
+    final payload = _parsePayload(
+      response.data,
+      ApiConstants.spinWheelAppearance,
+    );
+    final data = payload['data'];
+    if (data is! Map) {
+      throw DioException.badResponse(
+        statusCode: 500,
+        requestOptions: RequestOptions(path: ApiConstants.spinWheelAppearance),
+        response: Response<dynamic>(
+          requestOptions: RequestOptions(path: ApiConstants.spinWheelAppearance),
+          statusCode: 500,
+          data: payload,
+        ),
+      );
+    }
+    return SpinAppearance.fromJson(Map<String, dynamic>.from(data));
   }
 
   Future<SpinEligibility> getEligibility() async {

@@ -115,6 +115,7 @@ class ApiConstants {
   static const couponsValidate = '/coupons/validate';
 
   static const spinWheelConfig = '/spin-wheel/config';
+  static const spinWheelAppearance = '/spin-wheel/appearance';
   static const spinWheelEligibility = '/spin-wheel/eligibility';
   static const spinWheelSpin = '/spin-wheel/spin';
 

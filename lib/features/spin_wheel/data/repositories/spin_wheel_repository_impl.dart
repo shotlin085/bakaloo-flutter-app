@@ -4,6 +4,7 @@ import 'package:dio/dio.dart';
 import 'package:bakaloo_flutter_app/core/errors/error_handler.dart';
 import 'package:bakaloo_flutter_app/core/errors/failure.dart';
 import 'package:bakaloo_flutter_app/features/spin_wheel/data/datasources/spin_wheel_remote_datasource.dart';
+import 'package:bakaloo_flutter_app/features/spin_wheel/domain/entities/spin_appearance.dart';
 import 'package:bakaloo_flutter_app/features/spin_wheel/domain/entities/spin_eligibility.dart';
 import 'package:bakaloo_flutter_app/features/spin_wheel/domain/entities/spin_prize.dart';
 import 'package:bakaloo_flutter_app/features/spin_wheel/domain/entities/spin_result.dart';
@@ -31,6 +32,20 @@ class SpinWheelRepositoryImpl implements SpinWheelRepository {
     } catch (_) {
       return const Left(
         UnknownFailure(message: 'Unable to load the spin wheel right now.'),
+      );
+    }
+  }
+
+  @override
+  Future<Either<Failure, SpinAppearance>> getAppearance() async {
+    try {
+      final appearance = await _remoteDataSource.getAppearance();
+      return Right(appearance);
+    } on DioException catch (error) {
+      return Left(handleDioError(error));
+    } catch (_) {
+      return const Left(
+        UnknownFailure(message: 'Unable to load spin wheel appearance right now.'),
       );
     }
   }
