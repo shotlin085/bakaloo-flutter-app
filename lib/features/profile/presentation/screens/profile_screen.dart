@@ -23,6 +23,7 @@ import 'package:bakaloo_flutter_app/core/utils/extensions/double_extensions.dart
 import 'package:bakaloo_flutter_app/features/checkout/presentation/screens/coupons_screen.dart';
 import 'package:bakaloo_flutter_app/features/profile/domain/entities/user_stats_entity.dart';
 import 'package:bakaloo_flutter_app/features/profile/presentation/providers/profile_provider.dart';
+import 'package:bakaloo_flutter_app/features/profile/presentation/widgets/b2b_mode_card.dart';
 import 'package:bakaloo_flutter_app/features/profile/presentation/widgets/birthday_banner.dart';
 import 'package:bakaloo_flutter_app/features/profile/presentation/widgets/delete_account_dialog.dart';
 import 'package:bakaloo_flutter_app/features/profile/presentation/widgets/logout_sheet.dart';
@@ -144,6 +145,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                   ),
                   Gap(16.h),
                   _buildStats(statsAsync),
+                  const B2BModeCard(),
                   Gap(16.h),
                   MenuSection(
                     title: 'MY ACTIVITY',
@@ -533,7 +535,8 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     if (!mounted) {
       return;
     }
-    AppToast.show(context, '⚠️ Rating is not available right now.', type: ToastType.warning);
+    AppToast.show(context, '⚠️ Rating is not available right now.',
+        type: ToastType.warning);
   }
 
   // FIX: Now receives AsyncValue<WalletEntity> from walletProvider instead of
