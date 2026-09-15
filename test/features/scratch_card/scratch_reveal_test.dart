@@ -51,11 +51,27 @@ void main() {
     }
   }
 
-  testWidgets('foil fully covers the prize before any scratching (positive)', (tester) async {
-    await pumpScratcher(tester, enabled: true);
+  testWidgets('foil and clip are both present, not yet revealed, before any scratching (positive)', (tester) async {
+    final key = GlobalKey<ScratchRevealState>();
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Align(
+          alignment: Alignment.topLeft,
+          child: SizedBox(
+            width: 300,
+            height: 300,
+            child: ScratchReveal(
+              key: key,
+              foil: const ColoredBox(key: Key('foil'), color: Colors.red),
+              child: const ColoredBox(key: Key('prize'), color: Colors.blue),
+            ),
+          ),
+        ),
+      ),
+    );
     expect(find.byKey(const Key('foil')), findsOneWidget);
-    final opacity = tester.widget<AnimatedOpacity>(find.byType(AnimatedOpacity));
-    expect(opacity.opacity, 1.0);
+    expect(find.byType(ClipPath), findsOneWidget);
+    expect(key.currentState!.isFullyRevealed, isFalse);
   });
 
   testWidgets('onScratchStart fires on the first drag regardless of enabled (positive)', (tester) async {
@@ -74,8 +90,6 @@ void main() {
     await pumpScratcher(tester, enabled: false, onThresholdReached: () => thresholdHit = true);
     await scratchWholeArea(tester);
     expect(thresholdHit, isFalse);
-    final opacity = tester.widget<AnimatedOpacity>(find.byType(AnimatedOpacity));
-    expect(opacity.opacity, 1.0); // foil still fully opaque — nothing was actually scratched
   });
 
   testWidgets('scratching most of the area while enabled reaches the threshold exactly once (positive)', (tester) async {
@@ -97,7 +111,7 @@ void main() {
     expect(thresholdHit, isFalse);
   });
 
-  testWidgets('reveal() fades the foil to fully transparent (positive)', (tester) async {
+  testWidgets('reveal() flips isFullyRevealed and needs no further scratching (positive)', (tester) async {
     final key = GlobalKey<ScratchRevealState>();
     await tester.pumpWidget(
       MaterialApp(
@@ -116,12 +130,10 @@ void main() {
       ),
     );
 
-    key.currentState!.reveal(duration: const Duration(milliseconds: 200));
+    expect(key.currentState!.isFullyRevealed, isFalse);
+    key.currentState!.reveal();
     await tester.pump();
-    await tester.pump(const Duration(milliseconds: 200));
-
-    final opacity = tester.widget<AnimatedOpacity>(find.byType(AnimatedOpacity));
-    expect(opacity.opacity, 0.0);
+    expect(key.currentState!.isFullyRevealed, isTrue);
   });
 
   testWidgets('once revealed, further scratching is a no-op (negative)', (tester) async {

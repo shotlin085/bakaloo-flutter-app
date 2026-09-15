@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:gap/gap.dart';
 import 'package:phosphoricons_flutter/phosphoricons_flutter.dart';
+import 'package:shimmer/shimmer.dart';
 
 import 'package:bakaloo_flutter_app/core/theme/app_colors.dart';
 import 'package:bakaloo_flutter_app/core/theme/app_text_styles.dart';
@@ -17,9 +18,12 @@ import 'package:bakaloo_flutter_app/features/spin_wheel/presentation/widgets/spi
 import 'package:bakaloo_flutter_app/features/wallet/presentation/providers/wallet_provider.dart';
 
 /// How much of the card must be scratched before it auto-completes the
-/// reveal — same "don't make them scratch every pixel" concession real
-/// GPay/PhonePe cards make.
-const double _revealThresholdPercent = 55;
+/// reveal — deliberately low: a couple of natural scratch strokes should
+/// be enough, not a careful full-coverage pass.
+const double _revealThresholdPercent = 38;
+
+/// Generous relative to the card size — see [_revealThresholdPercent].
+const double _brushRadius = 42;
 
 /// width / height — a tall 2:3 "trading card" shape, not a landscape banner.
 const double _cardAspectRatio = 2 / 3;
@@ -50,8 +54,15 @@ class _ScratchCardDialogState extends ConsumerState<ScratchCardDialog> {
   final GlobalKey<ScratchRevealState> _scratchKey = GlobalKey<ScratchRevealState>();
   bool _isResolving = false;
   bool _fullyRevealed = false;
+  bool _celebrationShown = false;
   ScratchResult? _result;
 
+  /// Kicked off on the very first scratch touch — deliberately does NOT
+  /// gate the scratch gesture itself (`ScratchReveal.enabled` is always
+  /// true). The old version blocked scratching until this resolved, which
+  /// read as "tap, wait, THEN scratch" — scratching should feel instant
+  /// from the first touch; [_RevealedFace] shows a "resolving" placeholder
+  /// under the foil for the (usually sub-second) gap until this lands.
   Future<void> _handleReveal(bool canScratch) async {
     if (_result != null || _isResolving) return;
     if (!canScratch) {
@@ -90,30 +101,40 @@ class _ScratchCardDialogState extends ConsumerState<ScratchCardDialog> {
       return;
     }
 
-    setState(() {
-      _result = result;
-      _isResolving = false;
-    });
-  }
-
-  void _onThresholdReached() {
-    _scratchKey.currentState?.reveal(duration: const Duration(milliseconds: 400));
-    setState(() => _fullyRevealed = true);
-
-    final result = _result;
-    if (result == null) return;
-
     // A cash prize just landed in the wallet server-side — refresh the
-    // balance shown elsewhere in the app, same convention spin_win_dialog
-    // follows after a CASHBACK win.
+    // balance shown elsewhere in the app as soon as we know, same
+    // convention spin_win_dialog follows after a CASHBACK win. Doesn't
+    // wait for the visual reveal below; nothing gained by delaying it.
     if (result.prizeType == 'CASHBACK') {
       ref.invalidate(walletProvider);
     }
 
-    Future.delayed(const Duration(milliseconds: 400), () {
+    setState(() {
+      _result = result;
+      _isResolving = false;
+    });
+    _maybeCelebrate();
+  }
+
+  void _onThresholdReached() {
+    _scratchKey.currentState?.reveal();
+    setState(() => _fullyRevealed = true);
+    _maybeCelebrate();
+  }
+
+  /// Fires once, only once both halves are in: the customer has actually
+  /// scratched enough to see it, AND the server has told us what they
+  /// won. Whichever of [_onThresholdReached] / [_handleReveal] finishes
+  /// second is what actually triggers this — on a slow connection a very
+  /// fast scratcher can hit the threshold before the network responds,
+  /// and this covers that ordering too instead of only the common one.
+  void _maybeCelebrate() {
+    if (_celebrationShown || !_fullyRevealed || _result == null) return;
+    _celebrationShown = true;
+    final wonPrize = _result!.toPrize();
+    if (wonPrize == null) return;
+    Future.delayed(const Duration(milliseconds: 250), () {
       if (!mounted) return;
-      final wonPrize = result.toPrize();
-      if (wonPrize == null) return;
       showSpinResultDialog(context, wonPrize);
     });
   }
@@ -128,6 +149,22 @@ class _ScratchCardDialogState extends ConsumerState<ScratchCardDialog> {
     final coverImageUrl = appearanceAsync.value?.coverImageUrl;
     final eligibility = eligibilityAsync.value;
     final canScratch = eligibility?.hasScratchesAvailable ?? true;
+
+    // While the appearance fetch is still in flight, show a neutral
+    // loading placeholder rather than the branded default foil — showing
+    // the default first and then swapping to an admin-uploaded image a
+    // moment later reads as "wrong cover flashes before the real one".
+    // scratchCardAppearanceProvider is keepAlive, so in practice this
+    // loading state is only ever visible on the very first open of a
+    // session; every later open already has a cached value.
+    final Widget foil = appearanceAsync.isLoading
+        ? const _LoadingFoil()
+        : coverImageUrl != null
+            ? Image(
+                image: CachedNetworkImageProvider(coverImageUrl),
+                fit: BoxFit.cover,
+              )
+            : const _DefaultFoil();
 
     return Dialog(
       backgroundColor: Colors.transparent,
@@ -144,17 +181,15 @@ class _ScratchCardDialogState extends ConsumerState<ScratchCardDialog> {
                 children: <Widget>[
                   ScratchReveal(
                     key: _scratchKey,
-                    brushRadius: 26,
+                    brushRadius: _brushRadius,
                     thresholdPercent: _revealThresholdPercent,
-                    enabled: _result != null,
+                    // Always scratchable — see _handleReveal's doc comment
+                    // for why this is deliberately not gated on the
+                    // network result.
+                    enabled: true,
                     onScratchStart: () => _handleReveal(canScratch),
                     onThresholdReached: _onThresholdReached,
-                    foil: coverImageUrl != null
-                        ? Image(
-                            image: CachedNetworkImageProvider(coverImageUrl),
-                            fit: BoxFit.cover,
-                          )
-                        : const _DefaultFoil(),
+                    foil: foil,
                     child: _RevealedFace(result: _result),
                   ),
                   if (!_fullyRevealed)
@@ -192,6 +227,23 @@ class _ScratchCardDialogState extends ConsumerState<ScratchCardDialog> {
           ),
         ),
       ),
+    );
+  }
+}
+
+/// Shown only while the appearance fetch is in flight (see build()'s doc
+/// comment) — a neutral shimmer, deliberately NOT the branded purple
+/// default, so there's nothing "wrong" to flash before the real cover
+/// (image or default) appears a moment later.
+class _LoadingFoil extends StatelessWidget {
+  const _LoadingFoil();
+
+  @override
+  Widget build(BuildContext context) {
+    return Shimmer.fromColors(
+      baseColor: const Color(0xFFE8E8EC),
+      highlightColor: const Color(0xFFF5F5F7),
+      child: const ColoredBox(color: Color(0xFFE8E8EC)),
     );
   }
 }
@@ -268,10 +320,11 @@ class _ScatterPatternPainter extends CustomPainter {
   bool shouldRepaint(covariant _ScatterPatternPainter oldDelegate) => false;
 }
 
-/// What sits under the foil, resolved or not. Pre-resolve this is never
-/// actually visible to the user (the ScratchReveal stays `enabled: false`
-/// until [result] exists), so its exact look barely matters; it just needs
-/// to not appear broken in the split-second it could theoretically flash.
+/// What sits under the foil, resolved or not. Scratching is enabled from
+/// the very first touch (see _handleReveal's doc comment), so — unlike
+/// the previous version — this genuinely can be visible mid-scratch for
+/// however long the network round trip takes: a gift icon with a small
+/// spinner underneath, not a jarring blank box.
 class _RevealedFace extends StatelessWidget {
   const _RevealedFace({required this.result});
 
@@ -281,7 +334,33 @@ class _RevealedFace extends StatelessWidget {
   Widget build(BuildContext context) {
     final result = this.result;
     if (result == null) {
-      return const ColoredBox(color: Colors.white);
+      return Container(
+        color: Colors.white,
+        alignment: Alignment.center,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: <Widget>[
+            Container(
+              width: 64.w,
+              height: 64.w,
+              decoration: const BoxDecoration(
+                gradient: AppColors.spinHubGradient,
+                shape: BoxShape.circle,
+              ),
+              child: Icon(PhosphorIcons.giftFill, color: Colors.white, size: 32.sp),
+            ),
+            Gap(14.h),
+            SizedBox(
+              width: 18.w,
+              height: 18.w,
+              child: CircularProgressIndicator(
+                strokeWidth: 2.2,
+                valueColor: AlwaysStoppedAnimation<Color>(AppColors.spinTitlePurple.withValues(alpha: 0.5)),
+              ),
+            ),
+          ],
+        ),
+      );
     }
     final String label = result.prizeLabel ?? '';
     final bool isWin = result.isWin;

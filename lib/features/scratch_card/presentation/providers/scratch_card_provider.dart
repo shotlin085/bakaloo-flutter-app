@@ -49,7 +49,16 @@ final scratchUseCaseProvider = Provider<ScratchUseCase>((Ref ref) {
 /// [ScratchAppearance] on any failure — `scratch_card_dialog.dart` reads a
 /// null cover as "use a plain branded color instead of an image", same
 /// fail-open philosophy as spin-wheel's appearance provider.
-@riverpod
+///
+/// `keepAlive: true` deliberately, unlike most providers in this feature —
+/// this rarely changes, and the popup can open/close many times in one
+/// session (auto-prompt, then Profile tile, then again...). Without it,
+/// autoDispose tears this down moments after each close, so the NEXT open
+/// briefly shows the default foil again while it re-fetches — a visible
+/// "wrong cover flashes before the real one" flicker on every open after
+/// the first. Caching for the session's lifetime means only the very
+/// first open ever pays that fetch.
+@Riverpod(keepAlive: true)
 Future<ScratchAppearance> scratchCardAppearance(Ref ref) async {
   final either = await ref.watch(getScratchAppearanceUseCaseProvider).call();
   return either.fold((failure) => const ScratchAppearance(), (value) => value);
