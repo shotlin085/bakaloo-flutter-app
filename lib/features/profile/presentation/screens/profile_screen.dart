@@ -29,7 +29,7 @@ import 'package:bakaloo_flutter_app/features/profile/presentation/widgets/delete
 import 'package:bakaloo_flutter_app/features/profile/presentation/widgets/logout_sheet.dart';
 import 'package:bakaloo_flutter_app/features/profile/presentation/widgets/menu_section.dart';
 import 'package:bakaloo_flutter_app/features/profile/presentation/widgets/menu_tile.dart';
-import 'package:bakaloo_flutter_app/features/profile/presentation/widgets/profile_banner_section.dart';
+import 'package:bakaloo_flutter_app/features/home/presentation/providers/banner_provider.dart';
 import 'package:bakaloo_flutter_app/features/profile/presentation/widgets/profile_header.dart';
 import 'package:bakaloo_flutter_app/features/profile/presentation/widgets/stats_row.dart';
 import 'package:bakaloo_flutter_app/features/scratch_card/presentation/widgets/scratch_card_dialog.dart';
@@ -130,11 +130,11 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: <Widget>[
-            const ProfileBannerSection(),
             ProfileHeader(
               name: user.name,
               phone: user.phone,
               avatarUrl: user.avatarUrl,
+              backgroundImageUrl: _firstProfileBannerImage(ref),
               onAccountTap: _openEditProfile,
             ),
             Padding(
@@ -602,4 +602,14 @@ class _WalletPill extends StatelessWidget {
       ),
     );
   }
+}
+
+/// The Profile-screen header uses this as its own background image
+/// (falling back to the plain purple gradient when null) — not a
+/// separate section stacked above the header. Only the first resolved
+/// banner is used; a photo background has no sensible "carousel" reading.
+String? _firstProfileBannerImage(WidgetRef ref) {
+  final banners = ref.watch(profileBannerProvider).asData?.value;
+  if (banners == null || banners.isEmpty) return null;
+  return banners.first.imageUrl;
 }
