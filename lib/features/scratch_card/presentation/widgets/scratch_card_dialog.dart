@@ -21,8 +21,8 @@ import 'package:bakaloo_flutter_app/features/wallet/presentation/providers/walle
 /// GPay/PhonePe cards make.
 const double _revealThresholdPercent = 55;
 
-/// width / height — a tall "trading card" shape, not a landscape banner.
-const double _cardAspectRatio = 0.68;
+/// width / height — a tall 2:3 "trading card" shape, not a landscape banner.
+const double _cardAspectRatio = 2 / 3;
 
 /// Entry point for the whole feature — opens the "Scratch Card" popup. Not
 /// registered as a go_router route, same reasoning as showSpinWinDialog
