@@ -51,7 +51,8 @@ class ScratchCardDialog extends ConsumerStatefulWidget {
 }
 
 class _ScratchCardDialogState extends ConsumerState<ScratchCardDialog> {
-  final GlobalKey<ScratchRevealState> _scratchKey = GlobalKey<ScratchRevealState>();
+  final GlobalKey<ScratchRevealState> _scratchKey =
+      GlobalKey<ScratchRevealState>();
   bool _isResolving = false;
   bool _fullyRevealed = false;
   bool _celebrationShown = false;
@@ -95,7 +96,8 @@ class _ScratchCardDialogState extends ConsumerState<ScratchCardDialog> {
       setState(() => _isResolving = false);
       AppToast.show(
         context,
-        result.message ?? "You're out of scratch cards for now — come back tomorrow!",
+        result.message ??
+            "You're out of scratch cards for now — come back tomorrow!",
         type: ToastType.info,
       );
       return;
@@ -169,59 +171,87 @@ class _ScratchCardDialogState extends ConsumerState<ScratchCardDialog> {
     return Dialog(
       backgroundColor: Colors.transparent,
       insetPadding: EdgeInsets.zero,
-      child: Center(
-        child: SizedBox(
-          width: cardWidth,
-          child: AspectRatio(
-            aspectRatio: _cardAspectRatio,
-            child: ClipRRect(
-              borderRadius: BorderRadius.circular(28.r),
-              child: Stack(
-                fit: StackFit.expand,
-                children: <Widget>[
-                  ScratchReveal(
-                    key: _scratchKey,
-                    brushRadius: _brushRadius,
-                    thresholdPercent: _revealThresholdPercent,
-                    // Always scratchable — see _handleReveal's doc comment
-                    // for why this is deliberately not gated on the
-                    // network result.
-                    enabled: true,
-                    onScratchStart: () => _handleReveal(canScratch),
-                    onThresholdReached: _onThresholdReached,
-                    foil: foil,
-                    child: _RevealedFace(result: _result),
-                  ),
-                  if (!_fullyRevealed)
-                    Positioned(
-                      left: 0,
-                      right: 0,
-                      bottom: 0,
-                      child: IgnorePointer(
-                        child: Container(
-                          padding: EdgeInsets.symmetric(vertical: 14.h),
-                          color: Colors.black.withValues(alpha: 0.24),
-                          alignment: Alignment.center,
-                          child: _isResolving
-                              ? SizedBox(
-                                  width: 20.w,
-                                  height: 20.w,
-                                  child: const CircularProgressIndicator(
-                                    strokeWidth: 2.4,
-                                    valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
-                                  ),
-                                )
-                              : Text(
-                                  'Scratch to unlock',
-                                  style: AppTextStyles.buttonMedium.copyWith(
-                                    color: Colors.white,
-                                    letterSpacing: 0.3,
-                                  ),
-                                ),
-                        ),
+      // `barrierDismissible: true` on showDialog is not enough by itself
+      // here: Dialog's own Center/Align sizing means its content ends up
+      // claiming the FULL screen for hit-testing even though only the
+      // small card in the middle is visible, so the "empty" dimmed area
+      // never actually reaches the barrier underneath to close it — on
+      // Android the system back button still works (a separate path,
+      // unrelated to the barrier), which is exactly why this only seemed
+      // to work "sometimes" and never on iOS (no back button to fall back
+      // on). Handling it explicitly here — an outer tap closes the
+      // dialog; an inner one (on the card itself) is absorbed first so
+      // tapping the card to start scratching can never also close it.
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: () => Navigator.of(context).pop(),
+        child: Center(
+          child: GestureDetector(
+            behavior: HitTestBehavior.opaque,
+            onTap: () {},
+            child: SizedBox(
+              width: cardWidth,
+              child: AspectRatio(
+                aspectRatio: _cardAspectRatio,
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(28.r),
+                  child: Stack(
+                    fit: StackFit.expand,
+                    children: <Widget>[
+                      ScratchReveal(
+                        key: _scratchKey,
+                        brushRadius: _brushRadius,
+                        thresholdPercent: _revealThresholdPercent,
+                        // Gated on ELIGIBILITY (known up front, near-instant),
+                        // deliberately NOT on `_result != null` (the specific
+                        // scratch attempt's network round trip — see
+                        // _handleReveal's doc comment for why that gate had to
+                        // go). Without this, a customer with zero cards left
+                        // could still drag the foil away for real — the visual
+                        // "scratching" would work with nothing behind it to
+                        // resolve, which is worse than just not responding.
+                        enabled: canScratch,
+                        onScratchStart: () => _handleReveal(canScratch),
+                        onThresholdReached: _onThresholdReached,
+                        foil: foil,
+                        child: _RevealedFace(result: _result),
                       ),
-                    ),
-                ],
+                      if (!_fullyRevealed)
+                        Positioned(
+                          left: 0,
+                          right: 0,
+                          bottom: 0,
+                          child: IgnorePointer(
+                            child: Container(
+                              padding: EdgeInsets.symmetric(vertical: 14.h),
+                              color: Colors.black.withValues(alpha: 0.24),
+                              alignment: Alignment.center,
+                              child: _isResolving
+                                  ? SizedBox(
+                                      width: 20.w,
+                                      height: 20.w,
+                                      child: const CircularProgressIndicator(
+                                        strokeWidth: 2.4,
+                                        valueColor:
+                                            AlwaysStoppedAnimation<Color>(
+                                          Colors.white,
+                                        ),
+                                      ),
+                                    )
+                                  : Text(
+                                      'Scratch to unlock',
+                                      style:
+                                          AppTextStyles.buttonMedium.copyWith(
+                                        color: Colors.white,
+                                        letterSpacing: 0.3,
+                                      ),
+                                    ),
+                            ),
+                          ),
+                        ),
+                    ],
+                  ),
+                ),
               ),
             ),
           ),
@@ -261,7 +291,9 @@ class _DefaultFoil extends StatelessWidget {
       child: Stack(
         fit: StackFit.expand,
         children: <Widget>[
-          const Positioned.fill(child: CustomPaint(painter: _ScatterPatternPainter())),
+          const Positioned.fill(
+            child: CustomPaint(painter: _ScatterPatternPainter()),
+          ),
           Center(
             child: Container(
               width: 76.w,
@@ -270,7 +302,11 @@ class _DefaultFoil extends StatelessWidget {
                 color: Colors.white.withValues(alpha: 0.18),
                 shape: BoxShape.circle,
               ),
-              child: Icon(PhosphorIcons.giftFill, color: Colors.white, size: 38.sp),
+              child: Icon(
+                PhosphorIcons.giftFill,
+                color: Colors.white,
+                size: 38.sp,
+              ),
             ),
           ),
         ],
@@ -302,7 +338,10 @@ class _ScatterPatternPainter extends CustomPainter {
         case 0:
           canvas.drawCircle(Offset(dx, dy), s / 2, fillPaint);
         case 1:
-          canvas.drawRect(Rect.fromCenter(center: Offset(dx, dy), width: s, height: s), strokePaint);
+          canvas.drawRect(
+            Rect.fromCenter(center: Offset(dx, dy), width: s, height: s),
+            strokePaint,
+          );
         case 2:
           final path = Path()
             ..moveTo(dx, dy - s / 2)
@@ -311,7 +350,11 @@ class _ScatterPatternPainter extends CustomPainter {
             ..close();
           canvas.drawPath(path, strokePaint);
         default:
-          canvas.drawLine(Offset(dx - s / 2, dy), Offset(dx + s / 2, dy), strokePaint);
+          canvas.drawLine(
+            Offset(dx - s / 2, dy),
+            Offset(dx + s / 2, dy),
+            strokePaint,
+          );
       }
     }
   }
@@ -347,7 +390,11 @@ class _RevealedFace extends StatelessWidget {
                 gradient: AppColors.spinHubGradient,
                 shape: BoxShape.circle,
               ),
-              child: Icon(PhosphorIcons.giftFill, color: Colors.white, size: 32.sp),
+              child: Icon(
+                PhosphorIcons.giftFill,
+                color: Colors.white,
+                size: 32.sp,
+              ),
             ),
             Gap(14.h),
             SizedBox(
@@ -355,7 +402,9 @@ class _RevealedFace extends StatelessWidget {
               height: 18.w,
               child: CircularProgressIndicator(
                 strokeWidth: 2.2,
-                valueColor: AlwaysStoppedAnimation<Color>(AppColors.spinTitlePurple.withValues(alpha: 0.5)),
+                valueColor: AlwaysStoppedAnimation<Color>(
+                  AppColors.spinTitlePurple.withValues(alpha: 0.5),
+                ),
               ),
             ),
           ],
