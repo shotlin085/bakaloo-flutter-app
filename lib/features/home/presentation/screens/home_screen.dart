@@ -45,6 +45,8 @@ import 'package:bakaloo_flutter_app/features/products/presentation/widgets/show_
 import 'package:bakaloo_flutter_app/features/location/presentation/providers/location_prompt_provider.dart';
 import 'package:bakaloo_flutter_app/features/notifications/presentation/providers/notification_provider.dart';
 import 'package:bakaloo_flutter_app/features/location/presentation/widgets/location_prompt_sheet.dart';
+import 'package:bakaloo_flutter_app/features/scratch_card/presentation/providers/scratch_card_provider.dart';
+import 'package:bakaloo_flutter_app/features/scratch_card/presentation/widgets/scratch_card_dialog.dart';
 import 'package:bakaloo_flutter_app/features/spin_wheel/domain/entities/spin_eligibility.dart';
 import 'package:bakaloo_flutter_app/features/spin_wheel/presentation/providers/spin_wheel_provider.dart';
 import 'package:bakaloo_flutter_app/features/spin_wheel/presentation/widgets/spin_win_dialog.dart';
@@ -166,6 +168,14 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
   // stacked) on every re-entry point (cold start, login, resume).
   Timer? _spinWheelPromptDelayTimer;
   static const Duration _spinWheelPromptDelay = Duration(minutes: 3);
+
+  // Same one-shot-per-session guard as the spin-wheel prompt, for the
+  // independent Scratch Card game — see _scheduleScratchCardPrompt, which
+  // deliberately chains off the END of the spin-wheel flow (not a second
+  // parallel timer) so the two auto-popups can never race to open at once.
+  bool _scratchCardPromptShownThisSession = false;
+  Timer? _scratchCardPromptDelayTimer;
+  static const Duration _scratchCardPromptDelay = Duration(seconds: 30);
 
   double get _stickyRevealStartDistance => 48.h;
   double get _stickyRevealEndDistance => 24.h;
@@ -421,8 +431,22 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
   void _scheduleSpinWheelPrompt() {
     if (_spinWheelPromptShownThisSession) return;
     _spinWheelPromptDelayTimer?.cancel();
-    _spinWheelPromptDelayTimer = Timer(_spinWheelPromptDelay, () {
-      if (mounted) unawaited(_maybeShowSpinWheelPrompt());
+    _spinWheelPromptDelayTimer = Timer(_spinWheelPromptDelay, () async {
+      if (!mounted) return;
+      await _maybeShowSpinWheelPrompt();
+      if (mounted) _scheduleScratchCardPrompt();
+    });
+  }
+
+  /// Schedules the Scratch Card popup a short beat after the Spin & Win
+  /// flow above concludes (shown-and-closed, or skipped outright because
+  /// the customer wasn't eligible) — never as a second parallel timer, so
+  /// the two independent games can never both auto-open at once.
+  void _scheduleScratchCardPrompt() {
+    if (_scratchCardPromptShownThisSession) return;
+    _scratchCardPromptDelayTimer?.cancel();
+    _scratchCardPromptDelayTimer = Timer(_scratchCardPromptDelay, () {
+      if (mounted) unawaited(_maybeShowScratchCardPrompt());
     });
   }
 
@@ -459,6 +483,32 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
     } catch (_) {
       // Non-critical — a network hiccup here shouldn't block the rest of
       // the onboarding chain; Profile → "Spin & Win" is always available
+      // as a manual fallback regardless of trigger mode.
+    }
+  }
+
+  /// Auto-opens the Scratch Card popup once per session for a logged-in
+  /// customer, shortly after the Spin & Win flow above concludes (see
+  /// _scheduleScratchCardPrompt). Also reachable any time from Profile
+  /// ("Scratch Card" menu tile, profile_screen.dart) — mirrors
+  /// _maybeShowSpinWheelPrompt exactly, independent credit pool and all.
+  Future<void> _maybeShowScratchCardPrompt() async {
+    if (!mounted || _scratchCardPromptShownThisSession) return;
+    if (ref.read(authStateProvider) is! AuthAuthenticated) return;
+    _scratchCardPromptShownThisSession = true;
+    try {
+      final eligibility = await ref.read(scratchEligibilityProvider.future);
+      if (!mounted) return;
+      final shouldShow = switch (eligibility.triggerMode) {
+        SpinTriggerMode.alwaysOnLogin => eligibility.hasScratchesAvailable,
+        SpinTriggerMode.milestoneOnly => eligibility.hasScratchesAvailable,
+        SpinTriggerMode.manualOnly => false,
+      };
+      if (!shouldShow) return;
+      await showScratchCardDialog(context);
+    } catch (_) {
+      // Non-critical — a network hiccup here shouldn't block the rest of
+      // the onboarding chain; Profile → "Scratch Card" is always available
       // as a manual fallback regardless of trigger mode.
     }
   }
@@ -554,6 +604,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
     WidgetsBinding.instance.removeObserver(this);
     _locationServiceStatusSub?.cancel();
     _spinWheelPromptDelayTimer?.cancel();
+    _scratchCardPromptDelayTimer?.cancel();
     _themeSocketSub.close();
     _sectionSocketSub.close();
     _brandingSocketSub.close();
@@ -591,6 +642,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
       // server, matching _maybeShowSpinWheelPrompt's own now-strict
       // "only show when spinsAvailable > 0" gate above.
       _spinWheelPromptShownThisSession = false;
+      // Same reset, same reasoning, for the independent Scratch Card game.
+      _scratchCardPromptShownThisSession = false;
       unawaited(_maybeShowOnboardingPrompts());
       // The live socket listener (app_bottom_nav.dart) only updates unread
       // state while connected — a notification that arrived while the app
@@ -610,6 +663,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
       // it fresh anyway, so there's nothing lost by cancelling here too,
       // and it avoids a dialog silently opening behind the OS home screen.
       _spinWheelPromptDelayTimer?.cancel();
+      _scratchCardPromptDelayTimer?.cancel();
     }
   }
 
