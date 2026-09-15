@@ -9,7 +9,7 @@ class GetBannersUseCase {
 
   final HomeRepository _repository;
 
-  Future<Either<Failure, List<BannerEntity>>> call() {
-    return _repository.getBanners();
+  Future<Either<Failure, List<BannerEntity>>> call({String? placement}) {
+    return _repository.getBanners(placement: placement);
   }
 }

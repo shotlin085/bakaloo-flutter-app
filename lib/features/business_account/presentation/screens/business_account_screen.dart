@@ -206,15 +206,13 @@ class _StatusView extends ConsumerWidget {
       );
     }
 
-    final wholesaleActive = ref.watch(isWholesalePricingActiveProvider);
-
     return ListView(
       padding: EdgeInsets.fromLTRB(16.w, 16.h, 16.w, 24.h),
       children: <Widget>[
         _StatusCard(account: account),
         if (account.isApproved) ...<Widget>[
           Gap(16.h),
-          _WholesaleToggleCard(enabled: wholesaleActive),
+          const _WholesaleToggleCard(),
         ],
       ],
     );
@@ -304,9 +302,7 @@ class _StatusCard extends StatelessWidget {
 }
 
 class _WholesaleToggleCard extends ConsumerStatefulWidget {
-  const _WholesaleToggleCard({required this.enabled});
-
-  final bool enabled;
+  const _WholesaleToggleCard();
 
   @override
   ConsumerState<_WholesaleToggleCard> createState() => _WholesaleToggleCardState();
@@ -327,6 +323,16 @@ class _WholesaleToggleCardState extends ConsumerState<_WholesaleToggleCard> {
 
   @override
   Widget build(BuildContext context) {
+    // Watched directly (not threaded in from the parent's _StatusView build
+    // as a constructor field, which this widget used to do) so the switch
+    // always reflects the CURRENT provider state, not whatever value was
+    // current at the moment _StatusView last happened to rebuild. Every
+    // other price-mode-aware widget in the app (product cards, search,
+    // product detail) already watches this provider directly for the same
+    // reason. Reported: tapping the switch showed the spinner, then
+    // reverted to its old position — needed a second tap, and even then
+    // only "took" after leaving and re-entering the screen.
+    final enabled = ref.watch(isWholesalePricingActiveProvider);
     return Container(
       padding: EdgeInsets.all(14.w),
       decoration: BoxDecoration(
@@ -343,7 +349,7 @@ class _WholesaleToggleCardState extends ConsumerState<_WholesaleToggleCard> {
                 Text('Wholesale pricing', style: AppTextStyles.labelLarge.copyWith(fontWeight: FontWeight.w700)),
                 Gap(2.h),
                 Text(
-                  widget.enabled
+                  enabled
                       ? 'Prices across the app reflect your wholesale rates.'
                       : "You're currently browsing at regular (retail) prices.",
                   style: AppTextStyles.bodySmall.copyWith(color: AppColors.textSecondary),
@@ -358,7 +364,7 @@ class _WholesaleToggleCardState extends ConsumerState<_WholesaleToggleCard> {
                   child: const CircularProgressIndicator(strokeWidth: 2),
                 )
               : Switch(
-                  value: widget.enabled,
+                  value: enabled,
                   activeThumbColor: AppColors.primaryGreen,
                   onChanged: _onChanged,
                 ),

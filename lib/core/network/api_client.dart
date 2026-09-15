@@ -81,7 +81,22 @@ abstract class ApiClient {
   );
 
   @GET(ApiConstants.banners)
-  Future<ApiResponse<List<dynamic>>> getBanners();
+  Future<ApiResponse<List<dynamic>>> getBanners({
+    @Query('placement') String? placement,
+  });
+
+  /// The single admin-configured 5th bottom-nav button for this viewer, or
+  /// `data: null` when none applies — resolved server-side by audience and
+  /// optional customer-segment targeting.
+  @GET(ApiConstants.navButton)
+  Future<ApiResponse<dynamic>> getNavButton();
+
+  /// Mints a short-lived (~10 min) identity-handoff token for a WEBVIEW nav
+  /// button with pass_identity=true — appended to the destination URL so
+  /// that page can resolve who's visiting via GET /webview/session without
+  /// ever seeing this device's real login token.
+  @POST(ApiConstants.navButtonWebviewToken)
+  Future<ApiResponse<dynamic>> postNavButtonWebviewToken();
 
   @GET(ApiConstants.tutorials)
   Future<ApiResponse<List<dynamic>>> getTutorials();
@@ -219,6 +234,17 @@ abstract class ApiClient {
 
   @POST(ApiConstants.spinWheelSpin)
   Future<HttpResponse<dynamic>> spinWheel([
+    @Body() Map<String, dynamic> body = const <String, dynamic>{},
+  ]);
+
+  @GET(ApiConstants.scratchCardAppearance)
+  Future<HttpResponse<dynamic>> getScratchCardAppearance();
+
+  @GET(ApiConstants.scratchCardEligibility)
+  Future<HttpResponse<dynamic>> getScratchCardEligibility();
+
+  @POST(ApiConstants.scratchCardScratch)
+  Future<HttpResponse<dynamic>> scratchCard([
     @Body() Map<String, dynamic> body = const <String, dynamic>{},
   ]);
 

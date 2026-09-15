@@ -29,8 +29,10 @@ import 'package:bakaloo_flutter_app/features/profile/presentation/widgets/delete
 import 'package:bakaloo_flutter_app/features/profile/presentation/widgets/logout_sheet.dart';
 import 'package:bakaloo_flutter_app/features/profile/presentation/widgets/menu_section.dart';
 import 'package:bakaloo_flutter_app/features/profile/presentation/widgets/menu_tile.dart';
+import 'package:bakaloo_flutter_app/features/profile/presentation/widgets/profile_banner_section.dart';
 import 'package:bakaloo_flutter_app/features/profile/presentation/widgets/profile_header.dart';
 import 'package:bakaloo_flutter_app/features/profile/presentation/widgets/stats_row.dart';
+import 'package:bakaloo_flutter_app/features/scratch_card/presentation/widgets/scratch_card_dialog.dart';
 import 'package:bakaloo_flutter_app/features/spin_wheel/presentation/widgets/spin_win_dialog.dart';
 import 'package:bakaloo_flutter_app/features/tutorials/presentation/screens/tutorial_list_screen.dart';
 import 'package:bakaloo_flutter_app/features/wallet/presentation/providers/wallet_provider.dart';
@@ -128,6 +130,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: <Widget>[
+            const ProfileBannerSection(),
             ProfileHeader(
               name: user.name,
               phone: user.phone,
@@ -198,6 +201,12 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                         icon: PhosphorIcons.giftLight,
                         label: 'Spin & Win',
                         onTap: () => showSpinWinDialog(context),
+                      ),
+                      _divider(),
+                      MenuTile(
+                        icon: PhosphorIcons.creditCardLight,
+                        label: 'Scratch Card',
+                        onTap: () => showScratchCardDialog(context),
                       ),
                     ],
                   ),

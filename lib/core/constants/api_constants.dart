@@ -118,6 +118,9 @@ class ApiConstants {
   static const spinWheelAppearance = '/spin-wheel/appearance';
   static const spinWheelEligibility = '/spin-wheel/eligibility';
   static const spinWheelSpin = '/spin-wheel/spin';
+  static const scratchCardAppearance = '/scratch-card/appearance';
+  static const scratchCardEligibility = '/scratch-card/eligibility';
+  static const scratchCardScratch = '/scratch-card/scratch';
 
   static const orders = '/orders';
   static const ordersActive = '/orders/active';
@@ -177,6 +180,9 @@ class ApiConstants {
   static String notificationRead(String id) => '/notifications/$id/read';
 
   static const banners = '/banners';
+  static const navButton = '/nav-buttons';
+  static const navButtonWebviewToken = '/nav-buttons/webview-token';
+  static const webviewSession = '/webview/session';
   static const tutorials = '/tutorials';
   static const activeTheme = '/theme/active';
   static const tabThemes = '/theme/tabs';

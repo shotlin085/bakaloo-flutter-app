@@ -63,6 +63,21 @@ class PriceModeNotifier extends _$PriceModeNotifier {
 
     if (account != null && liveMode != initial) {
       unawaited(_persist(liveMode));
+      // The ref.listen below only fires for CHANGES from the point it's
+      // (re-)registered onward — it can never observe the very
+      // loading->data transition that this build() call is already
+      // reacting to via its own ref.watch above, because that listen is
+      // torn down and freshly re-attached on every rebuild, including
+      // this one. Net effect without this call: state/the toggle
+      // correctly flip to wholesale (or back to retail), but Home/
+      // Category/Search/product-detail — already fetched under the stale
+      // Hive launch guess — never get invalidated, so they keep
+      // rendering the wrong mode's prices until something unrelated
+      // happens to refetch them (pull-to-refresh, leaving and
+      // re-entering a screen, ...). Reported: B2B toggle showed active
+      // on Profile, but Home/Search/Category still showed retail prices
+      // and a quantity of 1 instead of the bulk minimum.
+      unawaited(_clearPriceSensitiveState());
     }
 
     // Self-correct as soon as the live business-account status is known —
@@ -115,16 +130,22 @@ class PriceModeNotifier extends _$PriceModeNotifier {
 
         // Keep the cached auth identity's b2bEnabled in sync so it survives
         // an app restart even before the next /business-accounts/me fetch.
+        // Must be awaited, not fire-and-forget: restoreSession() on the
+        // NEXT cold start reads this exact cached user to seed the
+        // fast-launch price mode guess (_syncPriceModeLaunchCache). An
+        // unawaited write here raced the app being closed right after a
+        // toggle — the write could still be in flight when the process
+        // died, so the next launch read the pre-toggle snapshot and opened
+        // on the wrong mode. Reported: toggle B2B on, close/reopen the app
+        // shortly after, and it comes back on retail.
         final authState = ref.read(authStateProvider);
         if (authState is AuthAuthenticated) {
-          unawaited(
-            ref.read(authNotifierProvider.notifier).syncCachedUser(
-                  authState.user.copyWith(
-                    b2bStatus: account.status,
-                    b2bEnabled: account.b2bEnabled,
-                  ),
+          await ref.read(authNotifierProvider.notifier).syncCachedUser(
+                authState.user.copyWith(
+                  b2bStatus: account.status,
+                  b2bEnabled: account.b2bEnabled,
                 ),
-          );
+              );
         }
 
         await _clearPriceSensitiveState();

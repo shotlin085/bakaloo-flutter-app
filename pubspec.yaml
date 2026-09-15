@@ -49,6 +49,12 @@ dependencies:
   flutter_screenutil: ^5.9.3
   gap: ^3.0.1
   phosphoricons_flutter: ^1.0.0
+  # For the admin-configurable 5th nav button's WEBVIEW destination — a
+  # genuine embedded WebView (not url_launcher's inAppWebView, an OS-chrome
+  # browser tab this app can't control loading or inject an identity token
+  # into). Already resolved transitively at a compatible version by other
+  # plugins; declared directly since it's now used by app code.
+  webview_flutter: ^4.10.0
   infinite_scroll_pagination: ^4.0.0
   youtube_player_flutter: ^10.0.1
   pinput: ^5.0.0

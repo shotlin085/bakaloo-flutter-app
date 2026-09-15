@@ -30,7 +30,14 @@ class AppCacheManager {
 
   /// Bump this whenever ANY cached payload schema changes in a way that would
   /// render stale/wrong UI from an older build.
-  static const int appCacheSchemaVersion = 4;
+  ///
+  /// 5: the backend was stripping `priceMode` off catalog requests (ajv
+  /// `removeAdditional: 'all'` vs schemas that never declared it), so every
+  /// cached catalog payload on an approved B2B device holds RETAIL prices
+  /// that were cached as if they were wholesale. The section-manifest and
+  /// tab-home caches have no TTL, so they would replay those prices
+  /// indefinitely against the fixed backend. One forced wipe clears them.
+  static const int appCacheSchemaVersion = 5;
 
   static const String _schemaVersionKey = 'bakaloo_app_cache_schema_version';
   static const String _apiBaseUrlKey = 'bakaloo_app_cache_api_base_url';

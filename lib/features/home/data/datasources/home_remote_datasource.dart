@@ -7,8 +7,8 @@ class HomeRemoteDataSource {
 
   final ApiClient _apiClient;
 
-  Future<List<BannerModel>> getBanners() async {
-    final response = await _apiClient.getBanners();
+  Future<List<BannerModel>> getBanners({String? placement}) async {
+    final response = await _apiClient.getBanners(placement: placement);
     final data = response.data ?? const <dynamic>[];
     return data
         .whereType<Map>()

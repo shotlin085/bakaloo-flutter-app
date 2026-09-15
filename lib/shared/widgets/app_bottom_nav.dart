@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
@@ -16,6 +17,10 @@ import 'package:bakaloo_flutter_app/features/auth/presentation/providers/auth_ga
 import 'package:bakaloo_flutter_app/features/cart/domain/entities/bill_summary_entity.dart';
 import 'package:bakaloo_flutter_app/features/cart/presentation/providers/cart_enhancement_providers.dart';
 import 'package:bakaloo_flutter_app/features/cart/presentation/providers/cart_provider.dart';
+import 'package:bakaloo_flutter_app/features/nav_button/domain/entities/nav_button_entity.dart';
+import 'package:bakaloo_flutter_app/features/nav_button/nav_button_icons.dart';
+import 'package:bakaloo_flutter_app/features/nav_button/presentation/providers/nav_button_provider.dart';
+import 'package:bakaloo_flutter_app/features/nav_button/presentation/screens/nav_button_webview_screen.dart';
 import 'package:bakaloo_flutter_app/features/notifications/presentation/providers/notification_provider.dart';
 import 'package:bakaloo_flutter_app/features/notifications/presentation/providers/unread_count_provider.dart';
 import 'package:bakaloo_flutter_app/features/orders/presentation/providers/order_live_sync_provider.dart';
@@ -24,6 +29,7 @@ import 'package:bakaloo_flutter_app/features/wallet/presentation/providers/walle
 import 'package:bakaloo_flutter_app/routing/route_access.dart';
 import 'package:bakaloo_flutter_app/routing/route_names.dart';
 import 'package:bakaloo_flutter_app/features/products/presentation/widgets/show_product_options.dart';
+import 'package:bakaloo_flutter_app/features/spin_wheel/presentation/widgets/spin_win_dialog.dart';
 import 'package:bakaloo_flutter_app/shared/widgets/app_route_loading_gate.dart';
 
 class AppShell extends ConsumerStatefulWidget {
@@ -95,6 +101,55 @@ class _AppShellState extends ConsumerState<AppShell>
     }
   }
 
+  /// Routes a tap on the 5th nav slot by its admin-configured destination
+  /// type. Deliberately never calls `navigationShell.goBranch` for
+  /// anything but a destination that happens to match one of the 4 real
+  /// shell branches — this button isn't a branch, so its own path never
+  /// participates in `selectedIndex`.
+  void _openExtraNavButton(
+    BuildContext context,
+    NavButtonEntity button,
+    StatefulNavigationShell navigationShell,
+  ) {
+    switch (button.destinationType) {
+      case NavButtonDestinationType.appRoute:
+        // Not a real go_router path — Spin & Win is a dialog opened from
+        // inside the Profile screen today, not a named route. The
+        // dashboard's App Route picker offers this exact sentinel value
+        // for that reason; open the same existing dialog directly rather
+        // than trying (and failing) to push it as a path.
+        if (button.destinationValue == 'spin_wheel') {
+          unawaited(showSpinWinDialog(context));
+          return;
+        }
+        final branchIndex = _tabs.indexWhere(
+          (AppShellTab tab) => tab.path == button.destinationValue,
+        );
+        if (branchIndex != -1) {
+          navigationShell.goBranch(branchIndex);
+        } else {
+          context.push(button.destinationValue);
+        }
+      case NavButtonDestinationType.category:
+        context.push('/categories/${button.destinationValue}/products');
+      case NavButtonDestinationType.product:
+        context.push('/product/${button.destinationValue}');
+      case NavButtonDestinationType.webview:
+        // Pushed on the ROOT navigator, not the current branch's nested
+        // one — this Scaffold's own bottomNavigationBar would otherwise
+        // still be visible underneath, breaking the intended full-screen
+        // takeover (the whole point of this destination type).
+        Navigator.of(context, rootNavigator: true).push(
+          MaterialPageRoute<void>(
+            builder: (_) => NavButtonWebviewScreen(
+              url: button.destinationValue,
+              passIdentity: button.passIdentity,
+            ),
+          ),
+        );
+    }
+  }
+
   bool _handleScroll(UserScrollNotification notification) {
     // Ignore horizontal scrollers (carousels, chip rows) — only vertical
     // page scrolling should toggle the footer.
@@ -129,6 +184,12 @@ class _AppShellState extends ConsumerState<AppShell>
     final currentBranchNavigator =
         branchNavigatorKeys[selectedIndex].currentState;
     final branchCanPop = currentBranchNavigator?.canPop() ?? false;
+    // The optional 5th slot — server-resolved by audience/segment, so a
+    // B2B customer and a B2C customer can see a different button (or none)
+    // at the same time. Never blocks the 4-tab bar: a failed/absent fetch
+    // just means this stays null and the Row below renders exactly as it
+    // always did.
+    final extraNavButton = ref.watch(navButtonProvider).asData?.value;
 
     ref
       ..listen(socketNotificationStreamProvider, (previous, next) {
@@ -270,36 +331,54 @@ class _AppShellState extends ConsumerState<AppShell>
                   bottomInset > 0 ? 2.h : 4.h,
                 ),
                 child: Row(
-                  children: List<Widget>.generate(_tabs.length, (index) {
-                    final tab = _tabs[index];
-                    return Expanded(
-                      child: _NavTabButton(
-                        tab: tab,
-                        selected: index == selectedIndex,
-                        onTap: () async {
-                          HapticFeedback.lightImpact();
-                          if (index == selectedIndex) return;
-                          final nextPath = tab.path;
-                          if (RouteAccess.isProtectedTab(nextPath) &&
-                              !authGate.isAuthenticated &&
-                              context.mounted) {
-                            // Remember the intent then go directly to phone screen
-                            // (avoids stale context issue after bottom sheet closes)
-                            authGate.rememberRouteIntent(nextPath);
-                            if (context.mounted) {
-                              context.push(RouteNames.phone);
+                  children: <Widget>[
+                    ...List<Widget>.generate(_tabs.length, (index) {
+                      final tab = _tabs[index];
+                      return Expanded(
+                        child: _NavTabButton(
+                          tab: tab,
+                          selected: index == selectedIndex,
+                          onTap: () async {
+                            HapticFeedback.lightImpact();
+                            if (index == selectedIndex) return;
+                            final nextPath = tab.path;
+                            if (RouteAccess.isProtectedTab(nextPath) &&
+                                !authGate.isAuthenticated &&
+                                context.mounted) {
+                              // Remember the intent then go directly to phone screen
+                              // (avoids stale context issue after bottom sheet closes)
+                              authGate.rememberRouteIntent(nextPath);
+                              if (context.mounted) {
+                                context.push(RouteNames.phone);
+                              }
+                              return;
                             }
-                            return;
-                          }
-                          // Reveal the footer whenever the user switches tabs.
-                          _showNav();
-                          await routeLoadingController.playForFooterNavigation(
-                            () => navigationShell.goBranch(index),
-                          );
-                        },
+                            // Reveal the footer whenever the user switches tabs.
+                            _showNav();
+                            await routeLoadingController
+                                .playForFooterNavigation(
+                              () => navigationShell.goBranch(index),
+                            );
+                          },
+                        ),
+                      );
+                    }),
+                    if (extraNavButton != null)
+                      Expanded(
+                        child: _ExtraNavButton(
+                          button: extraNavButton,
+                          onTap: () {
+                            HapticFeedback.lightImpact();
+                            _showNav();
+                            _openExtraNavButton(
+                              context,
+                              extraNavButton,
+                              navigationShell,
+                            );
+                          },
+                        ),
                       ),
-                    );
-                  }),
+                  ],
                 ),
               ),
             ),
@@ -905,6 +984,131 @@ class _NavTabButton extends StatelessWidget {
       ),
     );
   }
+}
+
+/// The admin-configured 5th slot. A PRESET icon is deliberately styled to
+/// stand out from the other 4 (a colored circular badge) rather than
+/// blend in — this slot is meant for a promo/event/game
+/// call-to-action. A CUSTOM icon renders the uploaded image directly,
+/// with NO badge/circle behind it — same as the app's own 4 built-in tab
+/// icons, which are already plain PNGs — since a real brand icon or logo
+/// loses its own shape and colors if forced into a colored circle.
+/// Never shows a "selected" state either way, since this button isn't a
+/// shell branch.
+class _ExtraNavButton extends StatelessWidget {
+  const _ExtraNavButton({required this.button, required this.onTap});
+
+  final NavButtonEntity button;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(22.r),
+        child: Padding(
+          padding: EdgeInsets.symmetric(vertical: 4.h, horizontal: 6.w),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: <Widget>[
+              SizedBox(
+                width: 56.w,
+                height: 38.h,
+                child: Center(
+                  child: button.iconType == NavButtonIconType.custom
+                      ? _CustomNavIcon(button: button)
+                      : _PresetNavIcon(button: button),
+                ),
+              ),
+              Gap(3.h),
+              Text(
+                button.label,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: AppTextStyles.labelSmall.copyWith(
+                  color: const Color(0xFF1A1A1A),
+                  fontWeight: FontWeight.w600,
+                  fontSize: 12.sp,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _PresetNavIcon extends StatelessWidget {
+  const _PresetNavIcon({required this.button});
+
+  final NavButtonEntity button;
+
+  @override
+  Widget build(BuildContext context) {
+    final Color accent = _parseAccentColor(button.accentColor) ??
+        AppColors.orderViolet;
+    return Container(
+      width: 34.w,
+      height: 34.w,
+      decoration: BoxDecoration(
+        color: accent,
+        shape: BoxShape.circle,
+        boxShadow: <BoxShadow>[
+          BoxShadow(
+            color: accent.withValues(alpha: 0.4),
+            blurRadius: 10,
+            offset: const Offset(0, 3),
+          ),
+        ],
+      ),
+      child: Icon(
+        resolveNavButtonIcon(button.iconKey ?? 'star'),
+        color: Colors.white,
+        size: 18.sp,
+      ),
+    );
+  }
+}
+
+/// No badge, no background — the uploaded image IS the icon, at the same
+/// 36x36 footprint the other 4 tabs' own PNG icons use. Falls back to a
+/// grey placeholder box only while the image is loading or if it fails to
+/// load, never to a PRESET icon (a silently-swapped icon would be more
+/// confusing than an empty box for the one frame it's visible).
+class _CustomNavIcon extends StatelessWidget {
+  const _CustomNavIcon({required this.button});
+
+  final NavButtonEntity button;
+
+  @override
+  Widget build(BuildContext context) {
+    final String? url = button.customIconActiveUrl;
+    if (url == null || url.isEmpty) {
+      return SizedBox(width: 36.w, height: 36.h);
+    }
+    return CachedNetworkImage(
+      imageUrl: url,
+      width: 36.w,
+      height: 36.h,
+      fit: BoxFit.contain,
+      fadeInDuration: const Duration(milliseconds: 150),
+      placeholder: (context, url) => SizedBox(width: 36.w, height: 36.h),
+      errorWidget: (context, url, error) =>
+          SizedBox(width: 36.w, height: 36.h),
+    );
+  }
+}
+
+Color? _parseAccentColor(String? hex) {
+  if (hex == null || hex.isEmpty) return null;
+  var value = hex.startsWith('#') ? hex.substring(1) : hex;
+  if (value.length == 6) value = 'FF$value';
+  if (value.length != 8) return null;
+  final parsed = int.tryParse(value, radix: 16);
+  return parsed == null ? null : Color(parsed);
 }
 
 class AppShellTab {

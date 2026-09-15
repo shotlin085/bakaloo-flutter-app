@@ -61,6 +61,8 @@ abstract class CartItemModel with _$CartItemModel {
     @JsonKey(name: 'stockQuantity', fromJson: _cartStockFromJson)
     @Default(9999)
     int stockQuantity,
+    @JsonKey(name: 'bulkMinQuantity') int? bulkMinQuantity,
+    @JsonKey(name: 'bulkMaxQuantity') int? bulkMaxQuantity,
   }) = _CartItemModel;
 
   factory CartItemModel.fromJson(Map<String, dynamic> json) =>
@@ -87,6 +89,8 @@ abstract class CartItemModel with _$CartItemModel {
       categoryId: categoryId,
       isAvailable: isAvailable,
       stockQuantity: stockQuantity,
+      bulkMinQuantity: bulkMinQuantity,
+      bulkMaxQuantity: bulkMaxQuantity,
     );
   }
 }

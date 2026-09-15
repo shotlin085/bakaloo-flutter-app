@@ -506,6 +506,18 @@ class _CartScreenState extends ConsumerState<CartScreen> {
                   );
                   return;
                 }
+                // Wholesale bulk ceiling — mirrors the ADD button's own
+                // bulkMaximum bound. A plain B2C line never has this set
+                // (the backend nulls it outside wholesale mode), so this
+                // is a no-op there.
+                if (item.hasBulkMaximum &&
+                    item.quantity >= item.bulkMaxQuantity!) {
+                  AppToast.show(
+                    context,
+                    'Maximum bulk order quantity is ${item.bulkMaxQuantity}',
+                  );
+                  return;
+                }
                 _updateItemQuantity(
                   context,
                   item.productId,
@@ -514,7 +526,15 @@ class _CartScreenState extends ConsumerState<CartScreen> {
                 );
               },
               onDecrease: () {
-                if (item.quantity <= 1) {
+                // A wholesale line can't step down one at a time below its
+                // bulk minimum — that would leave a quantity the shop never
+                // agreed to sell at the wholesale rate. Reported: an Onion
+                // line added at its minimum of 5 could still be decremented
+                // 5->4->3->... just like a plain retail line; removing the
+                // whole line at the floor (same as a plain line at 1) is
+                // the only quantity below the minimum that makes sense.
+                final floor = item.hasBulkMinimum ? item.bulkMinQuantity! : 1;
+                if (item.quantity <= floor) {
                   _removeItem(context, item);
                   return;
                 }
@@ -526,7 +546,10 @@ class _CartScreenState extends ConsumerState<CartScreen> {
                 );
               },
               onRemove: () => _removeItem(context, item),
-              disableIncrease: isAtLimit || !item.hasEnoughStock,
+              disableIncrease: isAtLimit ||
+                  !item.hasEnoughStock ||
+                  (item.hasBulkMaximum &&
+                      item.quantity >= item.bulkMaxQuantity!),
             ),
             if (index != items.length - 1)
               Padding(

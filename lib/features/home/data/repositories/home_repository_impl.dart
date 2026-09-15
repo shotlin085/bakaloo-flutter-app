@@ -21,18 +21,27 @@ class HomeRepositoryImpl implements HomeRepository {
   final HomeRemoteDataSource _remoteDataSource;
 
   @override
-  Future<Either<Failure, List<BannerEntity>>> getBanners() async {
-    const cacheKey = StorageKeys.cacheBanners;
+  Future<Either<Failure, List<BannerEntity>>> getBanners({
+    String? placement,
+  }) async {
+    // Scoped by placement so a HOME fetch and a PROFILE fetch — genuinely
+    // different banners, per the backend's own placement filter — never
+    // collide on one shared cache entry the way an unscoped key would.
+    final cacheKey = placement == null
+        ? StorageKeys.cacheBanners
+        : '${StorageKeys.cacheBanners}_$placement';
     final cached = _readBannerCache(cacheKey);
     final isFresh = HiveService.isFresh(cacheKey, CacheStrategy.banners.ttl!);
 
     if (cached.isNotEmpty && isFresh) {
-      unawaited(_refreshBanners(cacheKey));
+      unawaited(_refreshBanners(cacheKey, placement: placement));
       return Right(cached);
     }
 
     try {
-      final banners = await _remoteDataSource.getBanners();
+      final banners = await _remoteDataSource.getBanners(
+        placement: placement,
+      );
       await HiveService.bannersBox.put(
         cacheKey,
         banners.map((BannerModel banner) => banner.toJson()).toList(),
@@ -98,9 +107,11 @@ class HomeRepositoryImpl implements HomeRepository {
     }
   }
 
-  Future<void> _refreshBanners(String cacheKey) async {
+  Future<void> _refreshBanners(String cacheKey, {String? placement}) async {
     try {
-      final banners = await _remoteDataSource.getBanners();
+      final banners = await _remoteDataSource.getBanners(
+        placement: placement,
+      );
       await HiveService.bannersBox.put(
         cacheKey,
         banners.map((BannerModel banner) => banner.toJson()).toList(),

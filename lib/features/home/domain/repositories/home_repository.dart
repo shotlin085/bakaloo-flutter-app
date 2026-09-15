@@ -5,7 +5,7 @@ import 'package:bakaloo_flutter_app/features/home/domain/entities/banner_entity.
 import 'package:bakaloo_flutter_app/features/products/domain/entities/product_entity.dart';
 
 abstract class HomeRepository {
-  Future<Either<Failure, List<BannerEntity>>> getBanners();
+  Future<Either<Failure, List<BannerEntity>>> getBanners({String? placement});
 
   Future<Either<Failure, List<ProductEntity>>> getFeaturedProducts({
     int limit = 12,

@@ -35,6 +35,17 @@ Future<List<BannerEntity>> banner(Ref ref) async {
   return result.fold((_) => const <BannerEntity>[], (data) => data);
 }
 
+/// Profile-screen placement — a distinct admin-configured set of banners
+/// from the home screen's [banner] above, resolved server-side by the same
+/// audience (B2C/B2B) and optional customer-segment targeting every other
+/// banner already gets; nothing extra to do client-side for that part.
+@riverpod
+Future<List<BannerEntity>> profileBanner(Ref ref) async {
+  final result =
+      await ref.read(getBannersUseCaseProvider).call(placement: 'PROFILE');
+  return result.fold((_) => const <BannerEntity>[], (data) => data);
+}
+
 @riverpod
 Future<List<ProductEntity>> homeFeaturedProducts(Ref ref) async {
   final result = await ref.read(getFeaturedProductsUseCaseProvider).call(

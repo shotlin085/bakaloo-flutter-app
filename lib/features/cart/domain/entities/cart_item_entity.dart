@@ -35,7 +35,21 @@ abstract class CartItemEntity with _$CartItemEntity {
     // stays visible here) but excludes it from subtotal/totalPayable.
     @Default(true) bool isAvailable,
     @Default(9999) int stockQuantity,
+    // Only ever non-null when this line's own price mode is wholesale (the
+    // backend nulls both for a retail line regardless of what the listing
+    // itself has configured — see cart.service.js#_formatLine). Lets the
+    // cart screen's stepper enforce the same floor/ceiling the ADD button
+    // already applied when this line was first created.
+    int? bulkMinQuantity,
+    int? bulkMaxQuantity,
   }) = _CartItemEntity;
+
+  /// Mirrors ProductEntity.hasBulkMinimum (no bulkOrderEligible check here
+  /// — the backend already collapses both fields to null for any line that
+  /// isn't wholesale-priced, so a non-null value here is always live).
+  bool get hasBulkMinimum => (bulkMinQuantity ?? 1) > 1;
+
+  bool get hasBulkMaximum => bulkMaxQuantity != null;
 
   /// Mirrors [ProductEntity.inStock]'s convention, but also accounts for
   /// the quantity actually requested — a line can have some stock left
